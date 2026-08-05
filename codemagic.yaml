@@ -1,0 +1,115 @@
+workflows:
+  ios-release:
+    name: iOS Release (App Store)
+    max_build_duration: 120
+    environment:
+      groups:
+        - Farmsilo
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: net.farmsilo
+      node: v20
+      xcode: latest
+      cocoapods: default
+      vars:
+        XCODE_WORKSPACE: "ios/farmsilo.xcworkspace"
+        XCODE_SCHEME: "farmsilo"
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          unset NODE_ENV
+          npm install --legacy-peer-deps
+      - name: Patch RNSound for Old Architecture
+        script: |
+          # react-native-sound v0.13.0 uses #ifdef RCT_NEW_ARCH_ENABLED to guard its
+          # New Arch (TurboModule) code path. #ifdef is TRUE whenever the macro is
+          # *defined*, even as 0 — so Old Arch builds (RCT_NEW_ARCH_ENABLED=0) still
+          # try to compile New Arch code that needs codegen output that doesn't exist.
+          # Changing to #if means the check is by VALUE (0 = false), fixing the error.
+          RNSOUND="$CM_BUILD_DIR/node_modules/react-native-sound/ios/RNSound.mm"
+          if [ -f "$RNSOUND" ]; then
+            sed -i '' 's/#ifdef RCT_NEW_ARCH_ENABLED/#if RCT_NEW_ARCH_ENABLED/g' "$RNSOUND"
+            echo "Patched RNSound.mm: #ifdef -> #if for RCT_NEW_ARCH_ENABLED"
+          else
+            echo "WARNING: $RNSOUND not found"
+          fi
+      - name: Fix app icon alpha channel
+        script: |
+          ICONDIR="ios/farmsilo/Images.xcassets/AppIcon.appiconset"
+          echo "=== ImageMagick check: $(command -v convert 2>/dev/null || echo NOT FOUND) ==="
+
+          process_icon() {
+            local f="$1"
+            # Method A: ImageMagick — lossless alpha strip
+            if command -v convert >/dev/null 2>&1; then
+              convert "$f" -alpha off -type TrueColor "${f}.tmp.png" 2>/dev/null && \
+                mv "${f}.tmp.png" "$f" && echo "IM OK: $(basename "$f")" && return 0
+            fi
+            # Method B: JPEG round-trip — JPEG has no alpha channel (q=100 minimum loss)
+            local tmp="${f%.png}_noa.jpg"
+            sips -s format jpeg -s formatOptions 100 "$f" --out "$tmp" 2>/dev/null && \
+              sips -s format png "$tmp" --out "$f" 2>/dev/null && \
+              rm -f "$tmp" && echo "JPEG OK: $(basename "$f")" && return 0
+            echo "FAILED: $(basename "$f")" && return 1
+          }
+
+          find "$ICONDIR" -name "*.png" | while read f; do
+            BEFORE=$(sips --getProperty hasAlpha "$f" 2>/dev/null | awk '/hasAlpha/{print $2}')
+            process_icon "$f"
+            AFTER=$(sips --getProperty hasAlpha "$f" 2>/dev/null | awk '/hasAlpha/{print $2}')
+            echo "  hasAlpha: $BEFORE -> $AFTER  [$(basename "$f")]"
+          done
+      - name: Debug CLI
+        script: |
+          echo "Node version: $(node --version)"
+          echo "CLI location: $(node -e "console.log(require.resolve('@react-native-community/cli'))" 2>&1 || echo 'NOT FOUND')"
+          node -e "process.argv=['','','config'];require('@react-native-community/cli').run()" 2>&1 | head -20 || true
+      - name: Install CocoaPods dependencies
+        script: |
+          export NODE_BINARY=$(which node)
+          pod install --repo-update --project-directory=ios
+      - name: Patch AFNetworking for iOS 26 SDK
+        script: |
+          AFFILE="$CM_BUILD_DIR/ios/Pods/AFNetworking/AFNetworking/AFNetworkReachabilityManager.m"
+          echo "=== AFNetworking patch ==="
+          echo "Looking for: $AFFILE"
+          if [ -f "$AFFILE" ]; then
+            echo "File found. Lines 24-28 BEFORE patch:"
+            sed -n '24,28p' "$AFFILE"
+            # Delete any line containing netinet6/in6 (private header in iOS 26 SDK)
+            sed -i '' '/netinet6\/in6/d' "$AFFILE"
+            echo "Lines 24-28 AFTER patch:"
+            sed -n '24,28p' "$AFFILE"
+            echo "Remaining netinet6 refs:"
+            grep -n "netinet6" "$AFFILE" || echo "(none — patch successful)"
+          else
+            echo "ERROR: file not found, listing Pods/AFNetworking:"
+            ls "$CM_BUILD_DIR/ios/Pods/AFNetworking/AFNetworking/" 2>/dev/null || echo "(dir not found)"
+          fi
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Build IPA
+        script: |
+          # Clean DerivedData so Xcode re-scans dependencies (not use cached scan from previous builds)
+          rm -rf ~/Library/Developer/Xcode/DerivedData/farmsilo-* 2>/dev/null || true
+          echo "DerivedData cleaned"
+          set +e
+          xcode-project build-ipa \
+            --workspace "$CM_BUILD_DIR/ios/farmsilo.xcworkspace" \
+            --scheme "farmsilo"
+          BUILD_EXIT=$?
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "=== COMPILATION ERRORS ==="
+            find /tmp/xcodebuild_logs -name "*.log" -exec grep -n "\.[a-z]*:[0-9]*:[0-9]*: error:" {} \; 2>/dev/null | grep -v " | " | head -80
+            exit $BUILD_EXIT
+          fi
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
+        submit_to_app_store: false
