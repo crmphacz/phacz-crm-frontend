@@ -169,7 +169,7 @@ export function LoginScreen() {
           </form>
 
           <p className="text-center text-xs text-gray-300 mt-6">
-            PHACZ CRM © {new Date().getFullYear()} — Gestão Comercial
+            PHACZ CRM © {new Date().getFullYear()} — Empreendimentos
           </p>
         </div>
       </div>

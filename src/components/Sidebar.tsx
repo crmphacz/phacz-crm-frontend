@@ -94,7 +94,7 @@ export function Sidebar() {
               PHACZ
             </div>
             <div className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
-              Gestão Comercial
+              Empreendimentos
             </div>
           </div>
         </div>
