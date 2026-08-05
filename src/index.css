@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  color: #333333;
+  background-color: #e6e3de;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, .font-questrial {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Pipeline horizontal scroll */
+.pipeline-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+}
+
+/* Card hover transition */
+.corretor-card {
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+.corretor-card:hover {
+  transform: translateY(-1px);
+}
+
+/* Sidebar */
+.sidebar-item {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Animate panel */
+.detail-panel {
+  animation: slideIn 0.2s ease-out;
+}
+@keyframes slideIn {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Login card entrance */
+.login-card {
+  animation: loginFadeIn 0.45s ease-out;
+}
+@keyframes loginFadeIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Pulse for exceeded SLA */
+.sla-exceeded {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Input focus */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #d55006 !important;
+  box-shadow: 0 0 0 3px rgba(213, 80, 6, 0.15);
+}
+
+/* Tab underline active */
+.tab-active {
+  border-bottom: 2px solid #d55006;
+  color: #d55006;
+}
+
+/* Badge styles */
+.badge-quente { background: #fee2e2; color: #b91c1c; }
+.badge-morno  { background: #fef9c3; color: #854d0e; }
+.badge-frio   { background: #dbeafe; color: #1e40af; }
+
+/* Form input base */
+.form-input {
+  width: 100%;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #333333;
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.15s;
+}
+.form-input:focus {
+  outline: none;
+  border-color: #d55006;
+  box-shadow: 0 0 0 3px rgba(213, 80, 6, 0.12);
+}
