@@ -61,7 +61,7 @@ export function LoginScreen() {
               PHACZ
             </h1>
             <p className="text-xs sm:text-sm tracking-widest uppercase mt-0.5" style={{ color: '#6b7280' }}>
-              Construtora
+              Empreendimentos
             </p>
           </div>
         </div>

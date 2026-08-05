@@ -71,14 +71,14 @@ export function CompanyProfileView() {
             Perfil da Empresa
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Informações gerais da construtora exibidas no sistema.
+            Informações gerais da empresa exibidas no sistema.
           </p>
         </div>
 
         <SettingsCard
           icon={<Building2 size={18} style={{ color: '#d55006' }} />}
           title="Perfil da Empresa"
-          subtitle="Informações gerais da construtora"
+          subtitle="Informações gerais da empresa"
         >
           <fieldset disabled={isReadOnly} className="border-0 m-0 min-w-0 p-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
