@@ -2,13 +2,16 @@ import { apiFetch, downloadFile } from './client.js';
 import {
   mapUserFromApi, mapCorretorFromApi, mapCreateCorretorToApi, mapCorretorUpdateToApi,
   mapEmailTemplateFromApi, mapEmailCampaignFromApi, mapChatMessageFromApi, mapCargoToApi,
-  mapDestinatarioTipoToApi,
+  mapDestinatarioTipoToApi, mapRodadaFromApi, mapRodadaListItemFromApi, mapCreateRodadaToApi, mapNotificacaoFromApi,
+  mapEmpreendimentoFromApi, mapEmpreendimentoDetailFromApi, mapUnidadeFromApi, mapStatusUnidadeToApi,
   type ApiUser, type ApiCorretor, type ApiEmailTemplate, type ApiEmailCampaign, type ApiChatMessage,
+  type ApiRodada, type ApiRodadaResumo, type ApiNotificacao, type ApiEmpreendimento, type ApiEmpreendimentoDetail, type ApiUnidade,
   type CreateCorretorPayload, type AppUser,
 } from './mappers.js';
 import type {
   Corretor, ClienteFinal, Interacao, Proposta, EmailTemplate, EmailCampaign,
-  ChatMessage, DestinatarioTipo, UserCargo,
+  ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
+  Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
 } from '../types';
 
 export type { CreateCorretorPayload, AppUser } from './mappers.js';
@@ -146,6 +149,11 @@ export const iaApi = {
 // ── Email Marketing ──────────────────────────────────────────────────
 
 export const emailApi = {
+  uploadAsset: (file: File): Promise<{ url: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch<{ url: string }>('/api/email/assets', { method: 'POST', body: form });
+  },
   templates: {
     list: async (): Promise<EmailTemplate[]> => {
       const res = await apiFetch<ApiEmailTemplate[]>('/api/email/templates');
@@ -299,4 +307,77 @@ export const companyProfileApi = {
   get: () => apiFetch<CompanyProfile>('/api/company-profile'),
   update: (data: Partial<{ nome: string; cnpj: string; cidade: string }>) =>
     apiFetch<CompanyProfile>('/api/company-profile', { method: 'PATCH', body: data }),
+};
+
+// ── Calendário de Rodadas ────────────────────────────────────────────
+
+export const rodadasApi = {
+  // Perfis sem acesso ao formulário completo (todos exceto Diretoria) recebem cada item já
+  // resumido pela própria API — ver `RODADA_SUMMARY_SELECT` no backend.
+  list: async (): Promise<(Rodada | RodadaResumo)[]> => {
+    const res = await apiFetch<(ApiRodada | ApiRodadaResumo)[]>('/api/rodadas');
+    return res.map(mapRodadaListItemFromApi);
+  },
+  create: (data: CreateRodadaPayload): Promise<Rodada> =>
+    apiFetch<ApiRodada>('/api/rodadas', { method: 'POST', body: mapCreateRodadaToApi(data) }).then(mapRodadaFromApi),
+  update: (id: string, data: CreateRodadaPayload): Promise<Rodada> =>
+    apiFetch<ApiRodada>(`/api/rodadas/${id}`, { method: 'PATCH', body: mapCreateRodadaToApi(data) }).then(mapRodadaFromApi),
+  remove: (id: string): Promise<void> => apiFetch<void>(`/api/rodadas/${id}`, { method: 'DELETE' }),
+  uploadAsset: (file: File): Promise<{ url: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch<{ url: string }>('/api/rodadas/assets', { method: 'POST', body: form });
+  },
+};
+
+// ── Notificações ──────────────────────────────────────────────────────
+
+export const notificacoesApi = {
+  list: async (): Promise<{ notificacoes: Notificacao[]; naoLidas: number }> => {
+    const res = await apiFetch<{ notificacoes: ApiNotificacao[]; naoLidas: number }>('/api/notificacoes');
+    return { notificacoes: res.notificacoes.map(mapNotificacaoFromApi), naoLidas: res.naoLidas };
+  },
+  markRead: (id: string): Promise<void> =>
+    apiFetch<void>(`/api/notificacoes/${id}`, { method: 'PATCH', body: { lida: true } }),
+  markAllRead: (): Promise<void> => apiFetch<void>('/api/notificacoes/marcar-todas-lidas', { method: 'POST' }),
+};
+
+// ── Empreendimentos & Unidades ────────────────────────────────────────
+
+function unidadePayloadToApi(data: CreateUnidadePayload) {
+  return { ...data, status: mapStatusUnidadeToApi(data.status) };
+}
+
+export const empreendimentosApi = {
+  list: async (): Promise<Empreendimento[]> => {
+    const res = await apiFetch<ApiEmpreendimento[]>('/api/empreendimentos');
+    return res.map(mapEmpreendimentoFromApi);
+  },
+  get: async (id: string): Promise<EmpreendimentoDetail> => {
+    const res = await apiFetch<ApiEmpreendimentoDetail>(`/api/empreendimentos/${id}`);
+    return mapEmpreendimentoDetailFromApi(res);
+  },
+  create: (data: CreateEmpreendimentoPayload): Promise<Empreendimento> =>
+    apiFetch<ApiEmpreendimento>('/api/empreendimentos', { method: 'POST', body: data }).then(mapEmpreendimentoFromApi),
+  update: (id: string, data: CreateEmpreendimentoPayload): Promise<Empreendimento> =>
+    apiFetch<ApiEmpreendimento>(`/api/empreendimentos/${id}`, { method: 'PATCH', body: data }).then(mapEmpreendimentoFromApi),
+  remove: (id: string): Promise<void> => apiFetch<void>(`/api/empreendimentos/${id}`, { method: 'DELETE' }),
+  uploadAsset: (file: File): Promise<{ url: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch<{ url: string }>('/api/empreendimentos/assets', { method: 'POST', body: form });
+  },
+  unidades: {
+    create: (empreendimentoId: string, data: CreateUnidadePayload): Promise<Unidade> =>
+      apiFetch<ApiUnidade>(`/api/empreendimentos/${empreendimentoId}/unidades`, {
+        method: 'POST',
+        body: unidadePayloadToApi(data),
+      }).then(mapUnidadeFromApi),
+  },
+};
+
+export const unidadesApi = {
+  update: (id: string, data: CreateUnidadePayload): Promise<Unidade> =>
+    apiFetch<ApiUnidade>(`/api/unidades/${id}`, { method: 'PATCH', body: unidadePayloadToApi(data) }).then(mapUnidadeFromApi),
+  remove: (id: string): Promise<void> => apiFetch<void>(`/api/unidades/${id}`, { method: 'DELETE' }),
 };

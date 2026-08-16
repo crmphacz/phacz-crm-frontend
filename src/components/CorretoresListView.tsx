@@ -3,6 +3,7 @@ import { Plus, Search, ChevronUp, ChevronDown, Building2, Users } from 'lucide-r
 import { useStore } from '../store';
 import { STAGES } from '../data';
 import { TEMPERATURA_CONFIG, formatRelativeTime, formatCurrency } from '../utils';
+import { canCreateCorretor } from '../permissions';
 import type { Corretor } from '../types';
 
 type SortField = 'nomeCorretor' | 'etapa' | 'temperatura' | 'dataUltimaInteracao';
@@ -12,7 +13,7 @@ export function CorretoresListView() {
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const setShowNewCorretorModal = useStore((s) => s.setShowNewCorretorModal);
   const currentUser = useStore((s) => s.currentUser);
-  const isReadOnly = currentUser?.cargo === 'Marketing';
+  const isReadOnly = !canCreateCorretor(currentUser);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ativo');
   const [sortField, setSortField] = useState<SortField>('dataUltimaInteracao');

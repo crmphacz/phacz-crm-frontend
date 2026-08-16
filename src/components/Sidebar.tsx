@@ -12,15 +12,20 @@ import {
   Bot,
   Bell,
   BellOff,
+  CalendarDays,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
 import { getInitials } from '../utils';
+import { NotificationBell } from './NotificationBell';
+import { canAccessView } from '../permissions';
 
 const NAV_MAIN: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'pipeline', icon: KanbanSquare, label: 'Pipeline' },
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { id: 'corretores', icon: Users, label: 'Corretores' },
   { id: 'clientes', icon: UserCheck, label: 'Clientes' },
+  { id: 'empreendimentos', icon: Building2, label: 'Empreendimentos' },
+  { id: 'rodadas', icon: CalendarDays, label: 'Calendário de Rodadas' },
 ];
 
 const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] = [
@@ -58,6 +63,8 @@ export function Sidebar() {
   const wonCorretores = corretores.filter((l) => l.status === 'ganho').length;
 
   const visibleConfigItems = NAV_CONFIG.filter((item) => !item.diretoraOnly || currentUser?.cargo === 'Diretora');
+  const visibleMainItems = NAV_MAIN.filter((item) => canAccessView(currentUser, item.id));
+  const visibleMarketingItems = NAV_MARKETING.filter((item) => canAccessView(currentUser, item.id));
 
   async function togglePush() {
     setPushError('');
@@ -79,24 +86,27 @@ export function Sidebar() {
     <aside className="w-64 flex-shrink-0 flex flex-col h-full" style={{ backgroundColor: '#1e1e1e' }}>
       {/* Logo */}
       <div className="px-5 py-5 border-b" style={{ borderColor: '#292929' }}>
-        <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: '#d55006' }}
-          >
-            <Building2 size={18} color="#fff" />
-          </div>
-          <div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className="text-white text-lg leading-none tracking-widest"
-              style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: '#d55006' }}
             >
-              PHACZ
+              <Building2 size={18} color="#fff" />
             </div>
-            <div className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
-              Empreendimentos
+            <div className="min-w-0">
+              <div
+                className="text-white text-lg leading-none tracking-widest"
+                style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+              >
+                PHACZ
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
+                Empreendimentos
+              </div>
             </div>
           </div>
+          <NotificationBell />
         </div>
       </div>
 
@@ -137,7 +147,7 @@ export function Sidebar() {
           Principal
         </p>
         <ul className="space-y-0.5 mb-6">
-          {NAV_MAIN.map(({ id, icon: Icon, label }) => {
+          {visibleMainItems.map(({ id, icon: Icon, label }) => {
             const isActive = view === id;
             return (
               <li key={id}>
@@ -166,33 +176,37 @@ export function Sidebar() {
           })}
         </ul>
 
-        <p
-          className="text-xs font-semibold uppercase tracking-widest mb-2 px-3"
-          style={{ color: '#4b5563' }}
-        >
-          Marketing
-        </p>
-        <ul className="space-y-0.5 mb-6">
-          {NAV_MARKETING.map(({ id, icon: Icon, label }) => {
-            const isActive = view === id;
-            return (
-              <li key={id}>
-                <button
-                  onClick={() => setView(id)}
-                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
-                  style={
-                    isActive
-                      ? { backgroundColor: '#d55006', color: '#fff' }
-                      : { color: '#9ca3af' }
-                  }
-                >
-                  <Icon size={17} />
-                  {label}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        {visibleMarketingItems.length > 0 && (
+          <>
+            <p
+              className="text-xs font-semibold uppercase tracking-widest mb-2 px-3"
+              style={{ color: '#4b5563' }}
+            >
+              Marketing
+            </p>
+            <ul className="space-y-0.5 mb-6">
+              {visibleMarketingItems.map(({ id, icon: Icon, label }) => {
+                const isActive = view === id;
+                return (
+                  <li key={id}>
+                    <button
+                      onClick={() => setView(id)}
+                      className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                      style={
+                        isActive
+                          ? { backgroundColor: '#d55006', color: '#fff' }
+                          : { color: '#9ca3af' }
+                      }
+                    >
+                      <Icon size={17} />
+                      {label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
 
         <p
           className="text-xs font-semibold uppercase tracking-widest mb-2 px-3"

@@ -10,13 +10,50 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowLeft, Eye, Save, ChevronRight, Heading1, Type, Image as ImageIcon,
   MousePointerClick, Minus, MoveVertical, GripVertical, Copy, Trash2, Upload,
-  AlignLeft, AlignCenter, AlignRight, Sparkles,
+  AlignLeft, AlignCenter, AlignRight, Sparkles, Video,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
+import { emailApi } from '../api/endpoints';
 import type { EmailBlock, EmailBlockType, EmailTemplate, Alinhamento } from '../types';
 import { EmailBlockRenderer } from './EmailBlockRenderer';
 import { EmailPreviewModal } from './EmailPreviewModal';
+import { FileDropzone } from './FileDropzone';
+
+function extractYouTubeThumb(url: string): string | null {
+  try {
+    const u = new URL(url);
+    let id: string | null = null;
+    if (u.hostname === 'youtu.be') id = u.pathname.slice(1);
+    else if (u.hostname.endsWith('youtube.com')) {
+      id = u.searchParams.get('v') ?? (u.pathname.startsWith('/embed/') ? u.pathname.split('/')[2] : null);
+    }
+    return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractVimeoId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.endsWith('vimeo.com')) return null;
+    return u.pathname.match(/(\d+)/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchVimeoThumb(id: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(`https://vimeo.com/${id}`)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data.thumbnail_url === 'string' ? data.thumbnail_url : null;
+  } catch {
+    return null;
+  }
+}
 
 interface BlockDef {
   type: EmailBlockType;
@@ -29,6 +66,7 @@ const BLOCK_DEFS: BlockDef[] = [
   { type: 'heading', label: 'Título', icon: Heading1, create: () => ({ id: uuid(), type: 'heading', texto: 'Novo título', tamanho: 26, cor: '#1e1e1e', alinhamento: 'left' }) },
   { type: 'text', label: 'Texto', icon: Type, create: () => ({ id: uuid(), type: 'text', texto: 'Escreva seu texto aqui...', tamanho: 15, cor: '#4b5563', alinhamento: 'left' }) },
   { type: 'image', label: 'Imagem', icon: ImageIcon, create: () => ({ id: uuid(), type: 'image', url: '', alt: '', largura: 100, alinhamento: 'center' }) },
+  { type: 'video', label: 'Vídeo', icon: Video, create: () => ({ id: uuid(), type: 'video', url: '', posterUrl: '', legenda: 'Assistir vídeo', largura: 100, alinhamento: 'center' }) },
   { type: 'button', label: 'Botão', icon: MousePointerClick, create: () => ({ id: uuid(), type: 'button', texto: 'Saiba mais', url: '', corFundo: '#d55006', corTexto: '#ffffff', alinhamento: 'center' }) },
   { type: 'divider', label: 'Divisória', icon: Minus, create: () => ({ id: uuid(), type: 'divider', cor: '#e5e7eb' }) },
   { type: 'spacer', label: 'Espaço', icon: MoveVertical, create: () => ({ id: uuid(), type: 'spacer', altura: 24 }) },
@@ -267,7 +305,7 @@ export function EmailBuilder({ initialTemplate, onClose, onSaved, onRequestSend 
                 <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">
                   {BLOCK_DEFS.find((d) => d.type === selectedBlock.type)?.label ?? 'Bloco'}
                 </p>
-                <BlockPropertiesPanel block={selectedBlock} onUpdate={updateSelectedBlock} />
+                <BlockPropertiesPanel key={selectedBlock.id} block={selectedBlock} onUpdate={updateSelectedBlock} />
               </div>
             ) : (
               <div className="space-y-5">
@@ -464,6 +502,8 @@ function AlignPicker({ value, onChange }: { value: Alinhamento; onChange: (v: Al
 
 function BlockPropertiesPanel({ block, onUpdate }: { block: EmailBlock; onUpdate: (patch: Record<string, unknown>) => void }) {
   const fileInputId = `file-${block.id}`;
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -471,6 +511,46 @@ function BlockPropertiesPanel({ block, onUpdate }: { block: EmailBlock; onUpdate
     const reader = new FileReader();
     reader.onload = () => onUpdate({ url: String(reader.result) });
     reader.readAsDataURL(file);
+  }
+
+  async function handleVideoFile(file: File) {
+    setUploadingVideo(true);
+    try {
+      const { url } = await emailApi.uploadAsset(file);
+      onUpdate({ url });
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Não foi possível enviar o vídeo.');
+    } finally {
+      setUploadingVideo(false);
+    }
+  }
+
+  async function handlePosterFile(file: File) {
+    setUploadingPoster(true);
+    try {
+      const { url } = await emailApi.uploadAsset(file);
+      onUpdate({ posterUrl: url });
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Não foi possível enviar a imagem de capa.');
+    } finally {
+      setUploadingPoster(false);
+    }
+  }
+
+  function handleVideoUrlChange(url: string, hasPoster: boolean) {
+    const patch: Record<string, unknown> = { url };
+    if (!hasPoster) {
+      const ytThumb = extractYouTubeThumb(url);
+      if (ytThumb) {
+        patch.posterUrl = ytThumb;
+      } else {
+        const vimeoId = extractVimeoId(url);
+        if (vimeoId) {
+          fetchVimeoThumb(vimeoId).then((thumb) => { if (thumb) onUpdate({ posterUrl: thumb }); });
+        }
+      }
+    }
+    onUpdate(patch);
   }
 
   switch (block.type) {
@@ -531,6 +611,64 @@ function BlockPropertiesPanel({ block, onUpdate }: { block: EmailBlock; onUpdate
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Link ao clicar (opcional)</label>
             <input className="form-input" placeholder="https://..." value={block.link ?? ''} onChange={(e) => onUpdate({ link: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Largura ({block.largura}%)</label>
+            <input type="range" min={20} max={100} value={block.largura} onChange={(e) => onUpdate({ largura: Number(e.target.value) })} className="w-full" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Alinhamento</label>
+            <AlignPicker value={block.alinhamento} onChange={(v) => onUpdate({ alinhamento: v })} />
+          </div>
+        </div>
+      );
+
+    case 'video':
+      return (
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Link do vídeo (YouTube, Vimeo ou link direto .mp4)</label>
+            <input
+              className="form-input"
+              placeholder="https://..."
+              value={block.url}
+              onChange={(e) => handleVideoUrlChange(e.target.value, Boolean(block.posterUrl))}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Ou enviar do computador</label>
+            <FileDropzone
+              id={`video-file-${block.id}`}
+              accept="video/mp4,video/webm,video/quicktime,video/ogg"
+              hint="Arraste um vídeo aqui ou clique para escolher"
+              uploading={uploadingVideo}
+              onFile={handleVideoFile}
+            />
+          </div>
+          <div className="p-3 rounded-xl" style={{ backgroundColor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+            <p className="text-xs text-gray-500">
+              A maioria dos e-mails não reproduz vídeo dentro da mensagem. Por isso, o e-mail exibe uma imagem de capa clicável que abre o vídeo no navegador.
+            </p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Imagem de capa (thumbnail)</label>
+            <input
+              className="form-input mb-2"
+              placeholder="https://... (preenchida automaticamente para YouTube/Vimeo)"
+              value={block.posterUrl ?? ''}
+              onChange={(e) => onUpdate({ posterUrl: e.target.value })}
+            />
+            <FileDropzone
+              id={`poster-file-${block.id}`}
+              accept="image/jpeg,image/png,image/webp"
+              hint="Arraste uma imagem aqui ou clique para escolher"
+              uploading={uploadingPoster}
+              onFile={handlePosterFile}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Texto do link</label>
+            <input className="form-input" value={block.legenda} onChange={(e) => onUpdate({ legenda: e.target.value })} />
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Largura ({block.largura}%)</label>

@@ -1,7 +1,11 @@
 import type {
   Corretor, ClienteFinal, Interacao, Proposta, Temperatura, StatusCorretor, TipoInteracao,
   DestinatarioTipo, EmailTemplate, EmailCampaign,
-  ChatMessage, UserCargo,
+  ChatMessage, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, TipoNotificacao,
+  Empreendimento, EmpreendimentoDetail, Unidade, StatusUnidade,
+  TipoAcaoRodada, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal, PublicoEsperado, CarteiraPublico,
+  MaterialComercial, EstruturaOperacao, CategoriaOrcamento, ResponsavelEntrega, StatusEntrega, ComoConvite,
+  ProximoPasso, InvestimentoOuMoradia, PlanoB, PotencialRetorno, PrioridadeTrimestre, Recomendacao,
 } from '../types';
 
 function makeEnumMap<Api extends string, App extends string>(pairs: [Api, App][]) {
@@ -38,8 +42,23 @@ const chatRoleMap = makeEnumMap<string, ChatMessage['role']>([
   ['USER', 'user'], ['ASSISTANT', 'assistant'],
 ]);
 
-const cargoFromApi: Record<string, UserCargo> = { DIRETORA: 'Diretora', GR: 'GR', GV: 'GV', SDR: 'SDR', MARKETING: 'Marketing' };
-const cargoToApi: Record<UserCargo, string> = { Diretora: 'DIRETORA', GR: 'GR', GV: 'GV', SDR: 'SDR', Marketing: 'MARKETING' };
+const statusUnidadeMap = makeEnumMap<string, StatusUnidade>([
+  ['VENDIDO', 'vendido'], ['EM_CONTRATO', 'em_contrato'], ['DISPONIVEL', 'disponivel'],
+  ['EM_NEGOCIACAO', 'em_negociacao'], ['ALUGADO', 'alugado'],
+]);
+
+export function mapStatusUnidadeToApi(status: StatusUnidade): string {
+  return statusUnidadeMap.toApi(status);
+}
+
+const cargoFromApi: Record<string, UserCargo> = {
+  DIRETORA: 'Diretora', GR: 'GR', GV: 'GV', SDR: 'SDR', MARKETING: 'Marketing',
+  ADMINISTRATIVO: 'Administrativo', RECEPCAO: 'Recepcao',
+};
+const cargoToApi: Record<UserCargo, string> = {
+  Diretora: 'DIRETORA', GR: 'GR', GV: 'GV', SDR: 'SDR', Marketing: 'MARKETING',
+  Administrativo: 'ADMINISTRATIVO', Recepcao: 'RECEPCAO',
+};
 
 export function mapCargoFromApi(cargo: string): UserCargo {
   return cargoFromApi[cargo] ?? 'SDR';
@@ -227,6 +246,9 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     responsavelSDR: l.responsavelSDR?.nome ?? '',
     responsavelGV: l.responsavelGV?.nome ?? '',
     responsavelGR: l.responsavelGR?.nome ?? '',
+    responsavelSDRId: l.responsavelSDRId ?? undefined,
+    responsavelGVId: l.responsavelGVId ?? undefined,
+    responsavelGRId: l.responsavelGRId ?? undefined,
     canalOrigem: l.canalOrigem,
     dataEntrada: l.dataEntrada,
     dataUltimaInteracao: l.dataUltimaInteracao,
@@ -339,6 +361,472 @@ export function mapEmailCampaignFromApi(c: ApiEmailCampaign): EmailCampaign {
 
 export function mapDestinatarioTipoToApi(tipo: DestinatarioTipo): string {
   return destinatarioTipoMap.toApi(tipo);
+}
+
+// ── Calendário de Rodadas ──────────────────────────────────────────
+
+const tipoAcaoMap = makeEnumMap<string, TipoAcaoRodada>([
+  ['RODADA', 'rodada'], ['CAFE_NA_OBRA', 'cafe_na_obra'], ['EVENTO_EXTERNO', 'evento_externo'],
+  ['TRAFEGO_PAGO', 'trafego_pago'], ['ALMOCO_JANTAR', 'almoco_jantar'], ['OUTRO', 'outro'],
+]);
+const perfilImobiliariaMap = makeEnumMap<string, PerfilImobiliaria>([
+  ['ALTO_PADRAO', 'alto_padrao'], ['MISTO', 'misto'], ['INVESTIDOR', 'investidor'], ['BAIXO_TICKET', 'baixo_ticket'],
+]);
+const historicoParceriaMap = makeEnumMap<string, HistoricoParceria>([
+  ['JA_PARCEIRA', 'ja_parceira'], ['NAO_PARCEIRA', 'nao_parceira'],
+]);
+const intencaoPrincipalMap = makeEnumMap<string, IntencaoPrincipal>([
+  ['ABRIR_RELACIONAMENTO', 'abrir_relacionamento'], ['REATIVAR_BASE', 'reativar_base'],
+  ['ENGAJAR_CORRETORES', 'engajar_corretores'], ['GERAR_VISITAS_PROPOSTAS', 'gerar_visitas_propostas'],
+  ['CONVERSAO_VENDAS', 'conversao_vendas'],
+]);
+const publicoEsperadoMap = makeEnumMap<string, PublicoEsperado>([
+  ['CORRETORES', 'corretores'], ['GERENTES', 'gerentes'], ['DONOS', 'donos'], ['CLIENTES_FINAIS', 'clientes_finais'],
+]);
+const carteiraPublicoMap = makeEnumMap<string, CarteiraPublico>([
+  ['INVESTIDOR', 'investidor'], ['MORADIA', 'moradia'],
+]);
+const materialComercialMap = makeEnumMap<string, MaterialComercial>([
+  ['APRESENTACAO_PPT', 'apresentacao_ppt'], ['BOOK_DIGITAL_PDF', 'book_digital_pdf'],
+  ['TABELA_PRECOS', 'tabela_precos'], ['PLANTAS_IMAGENS', 'plantas_imagens'],
+]);
+const estruturaOperacaoMap = makeEnumMap<string, EstruturaOperacao>([
+  ['TV_PROJETOR', 'tv_projetor'], ['SOM_MICROFONE', 'som_microfone'], ['BRINDES', 'brindes'],
+]);
+const categoriaOrcamentoMap = makeEnumMap<string, CategoriaOrcamento>([
+  ['DESLOCAMENTO', 'deslocamento'], ['HOSPEDAGEM', 'hospedagem'], ['EVENTO_ESTRUTURA', 'evento_estrutura'],
+  ['IMPRESSOS_MATERIAIS', 'impressos_materiais'], ['CUSTOS_INTERNOS', 'custos_internos'],
+]);
+const responsavelEntregaMap = makeEnumMap<string, ResponsavelEntrega>([
+  ['PHACZ', 'phacz'], ['CORRETOR', 'corretor'], ['IMOBILIARIA', 'imobiliaria'],
+]);
+const statusEntregaMap = makeEnumMap<string, StatusEntrega>([
+  ['PENDENTE', 'pendente'], ['EM_ANDAMENTO', 'em_andamento'], ['CONCLUIDO', 'concluido'],
+]);
+const comoConviteMap = makeEnumMap<string, ComoConvite>([
+  ['WHATSAPP', 'whatsapp'], ['LIGACAO', 'ligacao'], ['EMAIL', 'email'], ['PRESENCIAL', 'presencial'],
+]);
+const proximoPassoMap = makeEnumMap<string, ProximoPasso>([
+  ['VISITA', 'visita'], ['REUNIAO', 'reuniao'], ['PROPOSTA', 'proposta'], ['NUTRICAO_CONTEUDO', 'nutricao_conteudo'],
+]);
+const investimentoOuMoradiaMap = makeEnumMap<string, InvestimentoOuMoradia>([
+  ['INVESTIMENTO', 'investimento'], ['MORADIA', 'moradia'],
+]);
+const planoBMap = makeEnumMap<string, PlanoB>([
+  ['REAGENDAR', 'reagendar'], ['ALTERAR_FORMATO', 'alterar_formato'], ['TROCAR_LOCAL', 'trocar_local'], ['REDUZIR_ESCOPO', 'reduzir_escopo'],
+]);
+const potencialRetornoMap = makeEnumMap<string, PotencialRetorno>([
+  ['ALTO', 'alto'], ['MEDIO', 'medio'], ['BAIXO', 'baixo'],
+]);
+const prioridadeTrimestreMap = makeEnumMap<string, PrioridadeTrimestre>([
+  ['ALTA', 'alta'], ['MEDIA', 'media'], ['BAIXA', 'baixa'],
+]);
+const recomendacaoMap = makeEnumMap<string, Recomendacao>([
+  ['SEGUIR', 'seguir'], ['SEGUIR_COM_AJUSTES', 'seguir_com_ajustes'], ['NAO_SEGUIR', 'nao_seguir'],
+]);
+
+function apiDateToKey(value: string | null | undefined): string | undefined {
+  return value ? value.slice(0, 10) : undefined;
+}
+
+interface ApiRodadaCorretorConvidado {
+  nome: string; creci: string; cargo: string; potencial: string; contato: string; observacoes: string;
+}
+interface ApiRodadaOrcamentoItem {
+  categoria: string; descricao: string; valor: number; fornecedor: string; contato: string; cnpj: string; pago: boolean;
+  periodoInicio: string | null; periodoFim: string | null; nomeReserva: string; numeroQuartos: number | null; anexoUrl: string;
+}
+interface ApiRodadaEntrega {
+  descricao: string; responsavel: string; prazo: string | null; status: string;
+}
+interface ApiRodadaConvidado {
+  nome: string; perfil: string; jaConheceLitoral: boolean; possuiOutrosImoveis: boolean; investimentoOuMoradia: string | null;
+}
+interface ApiRodadaVisitaAgendada {
+  clienteOuImobiliaria: string; horario: string; local: string;
+}
+
+export interface ApiRodada {
+  id: string;
+  dataSolicitacao: string | null;
+  dataInicio: string;
+  dataFim: string;
+  cidade: string;
+  uf: string;
+  tipoAcao: string;
+  tipoAcaoOutro: string;
+  imobiliaria: string;
+  responsavelImobiliaria: string;
+  gerenteVendasInternas: string;
+  solicitanteRelacionamento: string;
+  custoRodada: number;
+
+  parceiroEndereco: string;
+  parceiroPerfil: string | null;
+  parceiroHistorico: string | null;
+  parceiroParticipouAcaoAnterior: boolean | null;
+  parceiroParticipouQuando: string;
+  parceiroResumoRelacionamento: string;
+
+  corretoresConvidados: ApiRodadaCorretorConvidado[];
+  equipeApoios: string;
+  equipePresentes: string;
+
+  intencaoPrincipal: string | null;
+  justificativaEstrategica: string;
+
+  publicoEsperado: string[];
+  quantidadeEstimadaParticipantes: number | null;
+  quantidadeEstimadaDetalhe: string;
+  perfilPublicoTicketMedio: number | null;
+  perfilPublicoCarteira: string | null;
+  empreendimentos: { empreendimento: { id: string; nome: string } }[];
+  perfilClientesSegmento: string;
+  metaMinParticipantes: number | null;
+  metaMinAgendamentos: number | null;
+  metaMinVendas: number | null;
+  vgvPotencialEstimado: number | null;
+
+  eventoData: string | null;
+  eventoLocalNome: string;
+  eventoLocalEndereco: string;
+  eventoHorario: string;
+  eventoAgendaRoteiro: string[];
+  eventoAbordagemComercial: string;
+
+  materiaisComerciais: string[];
+  estruturaOperacao: string[];
+  brindesDescricao: string;
+
+  orcamentoItens: ApiRodadaOrcamentoItem[];
+  orcamentoReservaContingenciaPercentual: number | null;
+
+  entregas: ApiRodadaEntrega[];
+
+  comoConvites: string[];
+  comoConvitesObs: string;
+  rsvpDataLimite: string | null;
+  rsvpResponsavel: string;
+  posEventoPrazoMaterial: string | null;
+  posEventoPrazoRegistroCrm: string | null;
+  posEventoProximosPassos: string[];
+  convidados: ApiRodadaConvidado[];
+  possuiVisitasAgendadas: boolean;
+  visitasAgendadas: ApiRodadaVisitaAgendada[];
+
+  riscosPrincipais: string;
+  mitigacaoRiscos: string;
+  planoB: string | null;
+  planoBDetalhes: string;
+
+  potencialRetorno: string | null;
+  prioridadeTrimestre: string | null;
+  comentarioFinalSolicitante: string;
+  recomendacao: string | null;
+
+  criadoPor: { id: string; nome: string };
+  criadoEm: string;
+}
+
+/**
+ * Formato retornado pela API para perfis sem acesso ao formulário completo — ver
+ * `RODADA_SUMMARY_SELECT` no backend (`src/lib/permissions.ts`). Só a Diretoria recebe
+ * `ApiRodada` completo; os demais perfis com acesso ao calendário recebem só isto.
+ */
+export interface ApiRodadaResumo {
+  id: string;
+  dataInicio: string;
+  dataFim: string;
+  cidade: string;
+  uf: string;
+  imobiliaria: string;
+  responsavelImobiliaria: string;
+}
+
+export function mapRodadaResumoFromApi(r: ApiRodadaResumo): RodadaResumo {
+  return {
+    id: r.id,
+    dataInicio: r.dataInicio.slice(0, 10),
+    dataFim: r.dataFim.slice(0, 10),
+    cidade: r.cidade,
+    uf: r.uf,
+    imobiliaria: r.imobiliaria,
+    responsavelImobiliaria: r.responsavelImobiliaria,
+  };
+}
+
+/** Distingue os dois formatos que `GET /api/rodadas` pode retornar, conforme o perfil do usuário. */
+function isApiRodadaCompleta(r: ApiRodada | ApiRodadaResumo): r is ApiRodada {
+  return 'criadoPor' in r;
+}
+
+/** Usado pela listagem, que pode vir completa (Diretoria) ou resumida (demais perfis). */
+export function mapRodadaListItemFromApi(r: ApiRodada | ApiRodadaResumo): Rodada | RodadaResumo {
+  return isApiRodadaCompleta(r) ? mapRodadaFromApi(r) : mapRodadaResumoFromApi(r);
+}
+
+export function mapRodadaFromApi(r: ApiRodada): Rodada {
+  return {
+    id: r.id,
+    dataSolicitacao: apiDateToKey(r.dataSolicitacao),
+    dataInicio: r.dataInicio.slice(0, 10),
+    dataFim: r.dataFim.slice(0, 10),
+    cidade: r.cidade,
+    uf: r.uf,
+    tipoAcao: tipoAcaoMap.toApp(r.tipoAcao),
+    tipoAcaoOutro: r.tipoAcaoOutro,
+    imobiliaria: r.imobiliaria,
+    responsavelImobiliaria: r.responsavelImobiliaria,
+    gerenteVendasInternas: r.gerenteVendasInternas,
+    solicitanteRelacionamento: r.solicitanteRelacionamento,
+    custoRodada: r.custoRodada,
+
+    parceiroEndereco: r.parceiroEndereco,
+    parceiroPerfil: r.parceiroPerfil ? perfilImobiliariaMap.toApp(r.parceiroPerfil) : undefined,
+    parceiroHistorico: r.parceiroHistorico ? historicoParceriaMap.toApp(r.parceiroHistorico) : undefined,
+    parceiroParticipouAcaoAnterior: r.parceiroParticipouAcaoAnterior ?? undefined,
+    parceiroParticipouQuando: r.parceiroParticipouQuando,
+    parceiroResumoRelacionamento: r.parceiroResumoRelacionamento,
+
+    corretoresConvidados: r.corretoresConvidados.map((c) => ({ ...c })),
+    equipeApoios: r.equipeApoios,
+    equipePresentes: r.equipePresentes,
+
+    intencaoPrincipal: r.intencaoPrincipal ? intencaoPrincipalMap.toApp(r.intencaoPrincipal) : undefined,
+    justificativaEstrategica: r.justificativaEstrategica,
+
+    publicoEsperado: r.publicoEsperado.map((v) => publicoEsperadoMap.toApp(v)),
+    quantidadeEstimadaParticipantes: r.quantidadeEstimadaParticipantes ?? undefined,
+    quantidadeEstimadaDetalhe: r.quantidadeEstimadaDetalhe,
+    perfilPublicoTicketMedio: r.perfilPublicoTicketMedio ?? undefined,
+    perfilPublicoCarteira: r.perfilPublicoCarteira ? carteiraPublicoMap.toApp(r.perfilPublicoCarteira) : undefined,
+    empreendimentos: r.empreendimentos.map((e) => e.empreendimento),
+    perfilClientesSegmento: r.perfilClientesSegmento,
+    metaMinParticipantes: r.metaMinParticipantes ?? undefined,
+    metaMinAgendamentos: r.metaMinAgendamentos ?? undefined,
+    metaMinVendas: r.metaMinVendas ?? undefined,
+    vgvPotencialEstimado: r.vgvPotencialEstimado ?? undefined,
+
+    eventoData: apiDateToKey(r.eventoData),
+    eventoLocalNome: r.eventoLocalNome,
+    eventoLocalEndereco: r.eventoLocalEndereco,
+    eventoHorario: r.eventoHorario,
+    eventoAgendaRoteiro: r.eventoAgendaRoteiro,
+    eventoAbordagemComercial: r.eventoAbordagemComercial,
+
+    materiaisComerciais: r.materiaisComerciais.map((v) => materialComercialMap.toApp(v)),
+    estruturaOperacao: r.estruturaOperacao.map((v) => estruturaOperacaoMap.toApp(v)),
+    brindesDescricao: r.brindesDescricao,
+
+    orcamentoItens: r.orcamentoItens.map((o) => ({
+      categoria: categoriaOrcamentoMap.toApp(o.categoria),
+      descricao: o.descricao,
+      valor: o.valor,
+      fornecedor: o.fornecedor,
+      contato: o.contato,
+      cnpj: o.cnpj,
+      pago: o.pago,
+      periodoInicio: apiDateToKey(o.periodoInicio),
+      periodoFim: apiDateToKey(o.periodoFim),
+      nomeReserva: o.nomeReserva,
+      numeroQuartos: o.numeroQuartos ?? undefined,
+      anexoUrl: o.anexoUrl,
+    })),
+    orcamentoReservaContingenciaPercentual: r.orcamentoReservaContingenciaPercentual ?? undefined,
+
+    entregas: r.entregas.map((e) => ({
+      descricao: e.descricao,
+      responsavel: responsavelEntregaMap.toApp(e.responsavel),
+      prazo: apiDateToKey(e.prazo),
+      status: statusEntregaMap.toApp(e.status),
+    })),
+
+    comoConvites: r.comoConvites.map((v) => comoConviteMap.toApp(v)),
+    comoConvitesObs: r.comoConvitesObs,
+    rsvpDataLimite: apiDateToKey(r.rsvpDataLimite),
+    rsvpResponsavel: r.rsvpResponsavel,
+    posEventoPrazoMaterial: apiDateToKey(r.posEventoPrazoMaterial),
+    posEventoPrazoRegistroCrm: apiDateToKey(r.posEventoPrazoRegistroCrm),
+    posEventoProximosPassos: r.posEventoProximosPassos.map((v) => proximoPassoMap.toApp(v)),
+    convidados: r.convidados.map((c) => ({
+      nome: c.nome,
+      perfil: c.perfil,
+      jaConheceLitoral: c.jaConheceLitoral,
+      possuiOutrosImoveis: c.possuiOutrosImoveis,
+      investimentoOuMoradia: c.investimentoOuMoradia ? investimentoOuMoradiaMap.toApp(c.investimentoOuMoradia) : undefined,
+    })),
+    possuiVisitasAgendadas: r.possuiVisitasAgendadas,
+    visitasAgendadas: r.visitasAgendadas.map((v) => ({ ...v })),
+
+    riscosPrincipais: r.riscosPrincipais,
+    mitigacaoRiscos: r.mitigacaoRiscos,
+    planoB: r.planoB ? planoBMap.toApp(r.planoB) : undefined,
+    planoBDetalhes: r.planoBDetalhes,
+
+    potencialRetorno: r.potencialRetorno ? potencialRetornoMap.toApp(r.potencialRetorno) : undefined,
+    prioridadeTrimestre: r.prioridadeTrimestre ? prioridadeTrimestreMap.toApp(r.prioridadeTrimestre) : undefined,
+    comentarioFinalSolicitante: r.comentarioFinalSolicitante,
+    recomendacao: r.recomendacao ? recomendacaoMap.toApp(r.recomendacao) : undefined,
+
+    criadoPorNome: r.criadoPor.nome,
+    criadoEm: r.criadoEm,
+  };
+}
+
+/** Traduz o payload do formulário (shape do app) para o corpo esperado pela API (enums em maiúsculo). */
+export function mapCreateRodadaToApi(payload: CreateRodadaPayload): Record<string, unknown> {
+  return {
+    ...payload,
+    tipoAcao: tipoAcaoMap.toApi(payload.tipoAcao),
+    parceiroPerfil: payload.parceiroPerfil ? perfilImobiliariaMap.toApi(payload.parceiroPerfil) : undefined,
+    parceiroHistorico: payload.parceiroHistorico ? historicoParceriaMap.toApi(payload.parceiroHistorico) : undefined,
+    intencaoPrincipal: payload.intencaoPrincipal ? intencaoPrincipalMap.toApi(payload.intencaoPrincipal) : undefined,
+    publicoEsperado: payload.publicoEsperado.map((v) => publicoEsperadoMap.toApi(v)),
+    perfilPublicoCarteira: payload.perfilPublicoCarteira ? carteiraPublicoMap.toApi(payload.perfilPublicoCarteira) : undefined,
+    materiaisComerciais: payload.materiaisComerciais.map((v) => materialComercialMap.toApi(v)),
+    estruturaOperacao: payload.estruturaOperacao.map((v) => estruturaOperacaoMap.toApi(v)),
+    orcamentoItens: payload.orcamentoItens.map((o) => ({ ...o, categoria: categoriaOrcamentoMap.toApi(o.categoria) })),
+    entregas: payload.entregas.map((e) => ({
+      ...e,
+      responsavel: responsavelEntregaMap.toApi(e.responsavel),
+      status: statusEntregaMap.toApi(e.status),
+    })),
+    comoConvites: payload.comoConvites.map((v) => comoConviteMap.toApi(v)),
+    posEventoProximosPassos: payload.posEventoProximosPassos.map((v) => proximoPassoMap.toApi(v)),
+    convidados: payload.convidados.map((c) => ({
+      ...c,
+      investimentoOuMoradia: c.investimentoOuMoradia ? investimentoOuMoradiaMap.toApi(c.investimentoOuMoradia) : undefined,
+    })),
+    planoB: payload.planoB ? planoBMap.toApi(payload.planoB) : undefined,
+    potencialRetorno: payload.potencialRetorno ? potencialRetornoMap.toApi(payload.potencialRetorno) : undefined,
+    prioridadeTrimestre: payload.prioridadeTrimestre ? prioridadeTrimestreMap.toApi(payload.prioridadeTrimestre) : undefined,
+    recomendacao: payload.recomendacao ? recomendacaoMap.toApi(payload.recomendacao) : undefined,
+  };
+}
+
+// ── Notificações ────────────────────────────────────────────────────
+
+const tipoNotificacaoMap: Record<string, TipoNotificacao> = { RODADA_CRIADA: 'rodada_criada' };
+
+export interface ApiNotificacao {
+  id: string;
+  tipo: string;
+  titulo: string;
+  mensagem: string;
+  lida: boolean;
+  rodadaId: string | null;
+  rodada: { id: string; dataInicio: string } | null;
+  criadoEm: string;
+}
+
+export function mapNotificacaoFromApi(n: ApiNotificacao): Notificacao {
+  return {
+    id: n.id,
+    tipo: tipoNotificacaoMap[n.tipo] ?? 'rodada_criada',
+    titulo: n.titulo,
+    mensagem: n.mensagem,
+    lida: n.lida,
+    rodadaId: n.rodadaId ?? undefined,
+    rodadaDataInicio: n.rodada?.dataInicio.slice(0, 10),
+    criadoEm: n.criadoEm,
+  };
+}
+
+// ── Empreendimentos & Unidades ──────────────────────────────────────
+
+export interface ApiUnidade {
+  id: string;
+  tipo: string;
+  numero: string;
+  metragemPrivativa: number;
+  valor: number;
+  status: string;
+}
+
+export function mapUnidadeFromApi(u: ApiUnidade): Unidade {
+  return {
+    id: u.id,
+    tipo: u.tipo,
+    numero: u.numero,
+    metragemPrivativa: u.metragemPrivativa,
+    valor: u.valor,
+    status: statusUnidadeMap.toApp(u.status),
+  };
+}
+
+interface ApiEmpreendimentoBase {
+  id: string;
+  nome: string;
+  incorporadora: string;
+  imagemCapaUrl: string;
+  logoIncorporadoraUrl: string;
+  rua: string;
+  numero: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  inicioObra: string | null;
+  dataEntrega: string | null;
+  percentualConcluido: number;
+  faixaIncorporacao: string;
+  dormitoriosMin: number;
+  dormitoriosMax: number;
+  suitesMin: number;
+  suitesMax: number;
+  vagasGaragem: number;
+  caracteristicas: string[];
+  hotsiteUrl: string;
+  catalogoUrl: string;
+  telefoneContato: string;
+  updatedAt: string;
+}
+
+export interface ApiEmpreendimento extends ApiEmpreendimentoBase {
+  totalUnidades: number;
+  unidadesDisponiveis: number;
+}
+
+export interface ApiEmpreendimentoDetail extends ApiEmpreendimentoBase {
+  unidades: ApiUnidade[];
+}
+
+function mapEmpreendimentoBaseFromApi(e: ApiEmpreendimentoBase) {
+  return {
+    id: e.id,
+    nome: e.nome,
+    incorporadora: e.incorporadora,
+    imagemCapaUrl: e.imagemCapaUrl,
+    logoIncorporadoraUrl: e.logoIncorporadoraUrl,
+    rua: e.rua,
+    numero: e.numero,
+    bairro: e.bairro,
+    cidade: e.cidade,
+    uf: e.uf,
+    // Datas sem componente de hora: fatiadas aqui uma única vez para casar com <input type="date">
+    // e evitar o bug de fuso horário (dia mudando ao converter para o horário local do navegador).
+    inicioObra: e.inicioObra?.slice(0, 10),
+    dataEntrega: e.dataEntrega?.slice(0, 10),
+    percentualConcluido: e.percentualConcluido,
+    faixaIncorporacao: e.faixaIncorporacao,
+    dormitoriosMin: e.dormitoriosMin,
+    dormitoriosMax: e.dormitoriosMax,
+    suitesMin: e.suitesMin,
+    suitesMax: e.suitesMax,
+    vagasGaragem: e.vagasGaragem,
+    caracteristicas: e.caracteristicas,
+    hotsiteUrl: e.hotsiteUrl,
+    catalogoUrl: e.catalogoUrl,
+    telefoneContato: e.telefoneContato,
+    updatedAt: e.updatedAt,
+  };
+}
+
+export function mapEmpreendimentoFromApi(e: ApiEmpreendimento): Empreendimento {
+  return { ...mapEmpreendimentoBaseFromApi(e), totalUnidades: e.totalUnidades, unidadesDisponiveis: e.unidadesDisponiveis };
+}
+
+export function mapEmpreendimentoDetailFromApi(e: ApiEmpreendimentoDetail): EmpreendimentoDetail {
+  return { ...mapEmpreendimentoBaseFromApi(e), unidades: e.unidades.map(mapUnidadeFromApi) };
 }
 
 // ── PHACZ IA ─────────────────────────────────────────────────────────

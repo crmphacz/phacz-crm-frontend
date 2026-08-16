@@ -1,6 +1,6 @@
 import { formatDistanceToNow, differenceInHours, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Corretor, StageConfig } from './types';
+import type { Corretor, StageConfig, StatusUnidade } from './types';
 
 export function formatRelativeTime(iso: string): string {
   return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: ptBR });
@@ -70,6 +70,15 @@ export const TIPO_INTERACAO_CONFIG = {
   nota: { label: 'Nota', icon: '📝' },
   proposta: { label: 'Proposta', icon: '📄' },
 } as const;
+
+/** Cor de badge própria e consistente para cada um dos 5 status de unidade em toda a tela. */
+export const STATUS_UNIDADE_CONFIG: Record<StatusUnidade, { label: string; bg: string; text: string }> = {
+  disponivel: { label: 'Disponível', bg: '#dcfce7', text: '#15803d' },
+  vendido: { label: 'Vendido', bg: '#374151', text: '#ffffff' },
+  em_negociacao: { label: 'Em negociação', bg: '#fef9c3', text: '#854d0e' },
+  em_contrato: { label: 'Em contrato', bg: '#dbeafe', text: '#1e40af' },
+  alugado: { label: 'Alugado', bg: '#f3e8ff', text: '#7e22ce' },
+};
 
 export const TIPO_INTERESSE_LABELS: Record<string, string> = {
   prontos: 'Prontos',
@@ -166,4 +175,26 @@ export function parseCurrencyBRL(value: string): number | undefined {
   const digits = value.replace(/\D/g, '');
   if (!digits) return undefined;
   return Number(digits) / 100;
+}
+
+/** Formata metragem com 2 casas decimais: 192.7 -> "192,70 m²". */
+export function formatMetragem(value: number): string {
+  return `${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²`;
+}
+
+/**
+ * Constrói uma Date local (sem deslocamento de fuso) a partir de uma chave "YYYY-MM-DD".
+ * Datas "sem hora" vindas da API (ex: início de obra, data de entrega) são strings assim —
+ * usar `new Date(str)` direto as interpretaria como UTC e poderia exibir o dia errado
+ * dependendo do fuso do navegador.
+ */
+export function parseDateKeyLocal(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Formata "2026-08-13" como "13/08/2026", só com manipulação de string (sem risco de fuso). */
+export function formatDateKeyBR(key: string): string {
+  const [y, m, d] = key.split('-');
+  return `${d}/${m}/${y}`;
 }

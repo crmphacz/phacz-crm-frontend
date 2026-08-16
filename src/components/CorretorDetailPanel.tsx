@@ -16,6 +16,7 @@ import {
 } from '../utils';
 import { ApiError } from '../api/client';
 import { Combobox } from './Combobox';
+import { canWriteCorretor, canDeleteLeadClienteOuCard } from '../permissions';
 import type { TipoInteracao, Temperatura, TipoInteresse, CanalOrigem } from '../types';
 
 function alertError(err: unknown, fallback: string) {
@@ -30,7 +31,10 @@ export function CorretorDetailPanel() {
 
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const currentUser = useStore((s) => s.currentUser);
-  const isReadOnly = currentUser?.cargo === 'Marketing';
+  // "Somente leitura" agora segue a posse do card: Diretoria sempre edita; SDR/GV/GR só no
+  // próprio kanban; Marketing/Administrativo/Recepção nunca escrevem em corretores.
+  const isReadOnly = !canWriteCorretor(currentUser, corretor);
+  const canDelete = canDeleteLeadClienteOuCard(currentUser);
   const canaisOrigem = useStore((s) => s.canaisOrigem);
   const tiposInteresseOptions = useStore((s) => s.tiposInteresseOptions);
   const condicoesPagamentoOptions = useStore((s) => s.condicoesPagamentoOptions);
@@ -763,12 +767,15 @@ export function CorretorDetailPanel() {
                           Ver negócio
                         </button>
                       )}
-                      <button
-                        onClick={() => removeClienteFinal(corretor.id, cf.id).catch((err) => alertError(err, 'Não foi possível remover o cliente.'))}
-                        className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => removeClienteFinal(corretor.id, cf.id).catch((err) => alertError(err, 'Não foi possível remover o cliente.'))}
+                          className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          title="Excluir cliente"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

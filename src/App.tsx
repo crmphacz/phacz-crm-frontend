@@ -15,6 +15,8 @@ import { IndicadoresView } from './components/IndicadoresView';
 import { LoginScreen } from './components/LoginScreen';
 import { EmailMarketingView } from './components/EmailMarketingView';
 import { PhaczIAView } from './components/PhaczIAView';
+import { RodadasCalendarView } from './components/RodadasCalendarView';
+import { EmpreendimentosListView } from './components/EmpreendimentosListView';
 
 export default function App() {
   const view = useStore((s) => s.view);
@@ -103,6 +105,8 @@ export default function App() {
           {view === 'indicadores' && <IndicadoresView />}
           {view === 'email-marketing' && <EmailMarketingView />}
           {view === 'phacz-ia' && <PhaczIAView />}
+          {view === 'rodadas' && <RodadasCalendarView />}
+          {view === 'empreendimentos' && <EmpreendimentosListView />}
         </main>
       </div>
 

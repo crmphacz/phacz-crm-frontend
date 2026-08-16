@@ -2,16 +2,18 @@ import { create } from 'zustand';
 import type {
   Corretor, ClienteFinal, Interacao, Proposta, Temperatura, UserProfile, CanalOrigem,
   EmailTemplate, EmailCampaign, ChatMessage, DestinatarioTipo, UserCargo,
+  Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, Empreendimento, CreateEmpreendimentoPayload,
 } from './types';
 import {
   authApi, usersApi, corretoresApi, emailApi, iaApi, canaisOrigemApi, companyProfileApi, tiposInteresseApi, imobiliariasApi,
-  condicoesPagamentoApi, pushApi, savedSearchesApi,
+  condicoesPagamentoApi, pushApi, savedSearchesApi, rodadasApi, notificacoesApi, empreendimentosApi,
   type CreateCorretorPayload, type AppUser, type CanalOrigemItem, type CompanyProfile, type TipoInteresseItem, type ImobiliariaItem,
   type CondicaoPagamentoItem, type SavedSearchItem,
 } from './api/endpoints.js';
 import { mapCargoFromApi } from './api/mappers.js';
 import { getToken, setToken, clearToken, ApiError } from './api/client.js';
 import { isPushSupported, getExistingPushSubscription, subscribeToPush, unsubscribeFromPush } from './push';
+import { getDefaultView } from './permissions';
 
 export type ViewMode =
   | 'pipeline'
@@ -23,7 +25,9 @@ export type ViewMode =
   | 'config-regras'
   | 'indicadores'
   | 'email-marketing'
-  | 'phacz-ia';
+  | 'phacz-ia'
+  | 'rodadas'
+  | 'empreendimentos';
 
 export interface PipelineFiltros {
   searchQuery: string;
@@ -59,6 +63,13 @@ interface StoreState {
   emailCampaigns: EmailCampaign[];
 
   chatMessages: ChatMessage[];
+
+  rodadas: (Rodada | RodadaResumo)[];
+  notificacoes: Notificacao[];
+  notificacoesNaoLidas: number;
+  rodadaFocoData: string | null;
+
+  empreendimentos: Empreendimento[];
 
   pushSupported: boolean;
   pushPermission: NotificationPermission | 'unsupported';
@@ -158,6 +169,24 @@ interface StoreState {
   createSavedSearch: (nome: string) => Promise<SavedSearchItem>;
   removeSavedSearch: (id: string) => Promise<void>;
   applySavedSearch: (search: SavedSearchItem) => void;
+
+  // Calendário de Rodadas
+  createRodada: (data: CreateRodadaPayload) => Promise<Rodada>;
+  updateRodada: (id: string, data: CreateRodadaPayload) => Promise<Rodada>;
+  removeRodada: (id: string) => Promise<void>;
+
+  // Notificações in-app
+  loadNotificacoes: () => Promise<void>;
+  markNotificacaoLida: (id: string) => Promise<void>;
+  markAllNotificacoesLidas: () => Promise<void>;
+  abrirNotificacaoRodada: (n: Notificacao) => void;
+  clearRodadaFoco: () => void;
+
+  // Empreendimentos & Unidades
+  createEmpreendimento: (data: CreateEmpreendimentoPayload) => Promise<Empreendimento>;
+  updateEmpreendimento: (id: string, data: CreateEmpreendimentoPayload) => Promise<Empreendimento>;
+  removeEmpreendimento: (id: string) => Promise<void>;
+  refreshEmpreendimentoSummary: (id: string) => Promise<void>;
 }
 
 function findUserIdByName(users: AppUser[], nome: string): string | undefined {
@@ -191,6 +220,13 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   chatMessages: [],
 
+  rodadas: [],
+  notificacoes: [],
+  notificacoesNaoLidas: 0,
+  rodadaFocoData: null,
+
+  empreendimentos: [],
+
   pushSupported: isPushSupported(),
   pushPermission: isPushSupported() ? Notification.permission : 'unsupported',
   pushSubscribed: false,
@@ -203,6 +239,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       set({
         isLoggedIn: true,
         currentUser: {
+          id: result.user.id,
           nome: result.user.nome,
           email: result.user.email,
           cargo: mapCargoFromApi(result.user.cargo),
@@ -236,6 +273,11 @@ export const useStore = create<StoreState>()((set, get) => ({
       emailCampaigns: [],
       chatMessages: [],
       savedSearches: [],
+      rodadas: [],
+      notificacoes: [],
+      notificacoesNaoLidas: 0,
+      rodadaFocoData: null,
+      empreendimentos: [],
     });
   },
 
@@ -246,12 +288,14 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({ isBootstrapping: true });
     try {
       const me = await authApi.me();
+      const currentUser = { id: me.id, nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor };
       set({
         isLoggedIn: true,
-        currentUser: { nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor },
+        currentUser,
+        view: getDefaultView(currentUser),
       });
 
-      const [corretores, users, canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, emailTemplates, emailCampaigns, chatMessages, savedSearches] = await Promise.all([
+      const [corretores, users, canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, emailTemplates, emailCampaigns, chatMessages, savedSearches, rodadas, notificacoesResult, empreendimentos] = await Promise.all([
         corretoresApi.list(),
         usersApi.list(),
         canaisOrigemApi.list(),
@@ -263,9 +307,16 @@ export const useStore = create<StoreState>()((set, get) => ({
         emailApi.campaigns.list(),
         iaApi.history(),
         savedSearchesApi.list(),
+        rodadasApi.list(),
+        notificacoesApi.list(),
+        empreendimentosApi.list(),
       ]);
 
-      set({ corretores, users, canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, emailTemplates, emailCampaigns, chatMessages, savedSearches });
+      set({
+        corretores, users, canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions,
+        companyProfile, emailTemplates, emailCampaigns, chatMessages, savedSearches, rodadas, empreendimentos,
+        notificacoes: notificacoesResult.notificacoes, notificacoesNaoLidas: notificacoesResult.naoLidas,
+      });
       get().refreshPushStatus().catch(() => undefined);
     } catch {
       clearToken();
@@ -578,6 +629,80 @@ export const useStore = create<StoreState>()((set, get) => ({
       filterResponsavel: filtros.filterResponsavel ?? 'all',
       filterCanalOrigem: filtros.filterCanalOrigem ?? 'all',
     });
+  },
+
+  createRodada: async (data) => {
+    const rodada = await rodadasApi.create(data);
+    set((state) => ({ rodadas: [...state.rodadas, rodada] }));
+    get().loadNotificacoes().catch(() => undefined);
+    return rodada;
+  },
+
+  updateRodada: async (id, data) => {
+    const updated = await rodadasApi.update(id, data);
+    set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
+    return updated;
+  },
+
+  removeRodada: async (id) => {
+    await rodadasApi.remove(id);
+    set((state) => ({ rodadas: state.rodadas.filter((r) => r.id !== id) }));
+  },
+
+  loadNotificacoes: async () => {
+    const { notificacoes, naoLidas } = await notificacoesApi.list();
+    set({ notificacoes, notificacoesNaoLidas: naoLidas });
+  },
+
+  markNotificacaoLida: async (id) => {
+    set((state) => ({
+      notificacoes: state.notificacoes.map((n) => (n.id === id ? { ...n, lida: true } : n)),
+      notificacoesNaoLidas: Math.max(0, state.notificacoesNaoLidas - (state.notificacoes.find((n) => n.id === id)?.lida ? 0 : 1)),
+    }));
+    await notificacoesApi.markRead(id).catch(() => undefined);
+  },
+
+  markAllNotificacoesLidas: async () => {
+    set((state) => ({
+      notificacoes: state.notificacoes.map((n) => ({ ...n, lida: true })),
+      notificacoesNaoLidas: 0,
+    }));
+    await notificacoesApi.markAllRead().catch(() => undefined);
+  },
+
+  abrirNotificacaoRodada: (n) => {
+    set({ view: 'rodadas', selectedCorretorId: null, rodadaFocoData: n.rodadaDataInicio ?? null });
+    if (!n.lida) get().markNotificacaoLida(n.id);
+  },
+
+  clearRodadaFoco: () => set({ rodadaFocoData: null }),
+
+  createEmpreendimento: async (data) => {
+    const empreendimento = await empreendimentosApi.create(data);
+    set((state) => ({ empreendimentos: [empreendimento, ...state.empreendimentos] }));
+    return empreendimento;
+  },
+
+  updateEmpreendimento: async (id, data) => {
+    const updated = await empreendimentosApi.update(id, data);
+    set((state) => ({ empreendimentos: state.empreendimentos.map((e) => (e.id === id ? updated : e)) }));
+    return updated;
+  },
+
+  removeEmpreendimento: async (id) => {
+    await empreendimentosApi.remove(id);
+    set((state) => ({ empreendimentos: state.empreendimentos.filter((e) => e.id !== id) }));
+  },
+
+  refreshEmpreendimentoSummary: async (id) => {
+    const detail = await empreendimentosApi.get(id);
+    const totalUnidades = detail.unidades.length;
+    const unidadesDisponiveis = detail.unidades.filter((u) => u.status === 'disponivel').length;
+    set((state) => ({
+      empreendimentos: state.empreendimentos.map((e) =>
+        e.id === id ? { ...e, totalUnidades, unidadesDisponiveis, updatedAt: detail.updatedAt } : e
+      ),
+    }));
   },
 }));
 

@@ -1,4 +1,4 @@
-import type { StageConfig, UserProfile, TarefaCadencia } from './types';
+import type { StageConfig, TarefaCadencia } from './types';
 
 export const STAGES: StageConfig[] = [
   {
@@ -121,13 +121,6 @@ export const EMPREENDIMENTOS = [
   'Vista Alto da Serra',
   'Bosque das Palmeiras',
   'Edifício Aurora',
-];
-
-export const DEMO_USERS: UserProfile[] = [
-  { nome: 'Ana', cargo: 'Diretora', email: 'ana@phacz.com.br', cor: '#d55006' },
-  { nome: 'Lucimara', cargo: 'GR', email: 'lucimara@phacz.com.br', cor: '#0d9488' },
-  { nome: 'Rafael', cargo: 'GV', email: 'rafael@phacz.com.br', cor: '#3b82f6' },
-  { nome: 'Bruno', cargo: 'SDR', email: 'bruno@phacz.com.br', cor: '#8b5cf6' },
 ];
 
 export const CADENCIAS: Record<'SDR' | 'GR' | 'GV', TarefaCadencia[]> = {

@@ -7,7 +7,9 @@ import { NewClienteModal } from './NewClienteModal';
 
 export function ClientesView() {
   const currentUser = useStore((s) => s.currentUser);
-  const isReadOnly = currentUser?.cargo === 'Marketing';
+  // Só quem chega nesta tela é Diretoria/Marketing/Administrativo/Recepção (ver Sidebar); só a
+  // Diretoria de fato escreve em clientes/corretores — os outros três são leitura.
+  const isReadOnly = currentUser?.cargo !== 'Diretora';
   const setView = useStore((s) => s.setView);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
 

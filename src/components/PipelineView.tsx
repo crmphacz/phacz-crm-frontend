@@ -17,6 +17,7 @@ import { STAGES } from '../data';
 import { ApiError } from '../api/client';
 import { CorretorCard } from './CorretorCard';
 import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
+import { canCreateCorretor, canWriteCorretor } from '../permissions';
 import type { Corretor, StageConfig } from '../types';
 
 type FunnelFilter = 'todos' | 'pre-atendimento' | 'treinamento' | 'venda' | 'pos-venda';
@@ -44,7 +45,7 @@ export function PipelineView() {
   const addInteracao = useStore((s) => s.addInteracao);
   const corretores = useStore((s) => s.corretores);
   const currentUser = useStore((s) => s.currentUser);
-  const isReadOnly = currentUser?.cargo === 'Marketing';
+  const canCreate = canCreateCorretor(currentUser);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [funnelFilter, setFunnelFilter] = useState<FunnelFilter>('todos');
@@ -76,7 +77,6 @@ export function PipelineView() {
 
   async function handleDragEnd(event: DragEndEvent) {
     setActiveId(null);
-    if (isReadOnly) return;
     const { active, over } = event;
     if (!over) return;
     const overId = String(over.id);
@@ -84,6 +84,7 @@ export function PipelineView() {
     const toEtapa = Number(overId.replace('stage-', ''));
     const corretor = corretores.find((l) => l.id === active.id);
     if (!corretor || corretor.etapa === toEtapa || isNaN(toEtapa)) return;
+    if (!canWriteCorretor(currentUser, corretor)) return;
 
     try {
       await moveCorretor(String(active.id), toEtapa);
@@ -159,7 +160,7 @@ export function PipelineView() {
                 })}
               </div>
 
-              {!isReadOnly && (
+              {canCreate && (
                 <button
                   onClick={() => setShowNewCorretorModal(true)}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors hover:opacity-90 flex-shrink-0"
@@ -230,7 +231,6 @@ export function PipelineView() {
                     key={stageId}
                     stage={stage}
                     corretores={corretoresByStage[stageId] ?? []}
-                    isReadOnly={isReadOnly}
                   />
                 );
               }
@@ -256,13 +256,11 @@ export function PipelineView() {
                     stage={stage6}
                     corretores={corretoresByStage[id6] ?? []}
                     noBorderRight
-                    isReadOnly={isReadOnly}
                   />
                   <DroppableStageColumn
                     stage={stage7}
                     corretores={corretoresByStage[id7] ?? []}
                     noBorderLeft
-                    isReadOnly={isReadOnly}
                   />
                 </div>
               );
@@ -287,13 +285,11 @@ function DroppableStageColumn({
   corretores,
   noBorderRight,
   noBorderLeft,
-  isReadOnly,
 }: {
   stage: StageConfig;
   corretores: Corretor[];
   noBorderRight?: boolean;
   noBorderLeft?: boolean;
-  isReadOnly?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `stage-${stage.id}` });
 
@@ -356,7 +352,7 @@ function DroppableStageColumn({
           </div>
         ) : (
           corretores.map((corretor) => (
-            <DraggableCorretorCard key={corretor.id} corretor={corretor} stage={stage} isReadOnly={isReadOnly} />
+            <DraggableCorretorCard key={corretor.id} corretor={corretor} stage={stage} />
           ))
         )}
       </div>
@@ -364,7 +360,9 @@ function DroppableStageColumn({
   );
 }
 
-function DraggableCorretorCard({ corretor, stage, isReadOnly }: { corretor: Corretor; stage: StageConfig; isReadOnly?: boolean }) {
+function DraggableCorretorCard({ corretor, stage }: { corretor: Corretor; stage: StageConfig }) {
+  const currentUser = useStore((s) => s.currentUser);
+  const isReadOnly = !canWriteCorretor(currentUser, corretor);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: corretor.id, disabled: isReadOnly });
 
   return (
