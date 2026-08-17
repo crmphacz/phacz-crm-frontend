@@ -4,14 +4,17 @@ import {
   mapEmailTemplateFromApi, mapEmailCampaignFromApi, mapChatMessageFromApi, mapCargoToApi,
   mapDestinatarioTipoToApi, mapRodadaFromApi, mapRodadaListItemFromApi, mapCreateRodadaToApi, mapNotificacaoFromApi,
   mapEmpreendimentoFromApi, mapEmpreendimentoDetailFromApi, mapUnidadeFromApi, mapStatusUnidadeToApi,
+  mapLogAcaoFromApi,
   type ApiUser, type ApiCorretor, type ApiEmailTemplate, type ApiEmailCampaign, type ApiChatMessage,
   type ApiRodada, type ApiRodadaResumo, type ApiNotificacao, type ApiEmpreendimento, type ApiEmpreendimentoDetail, type ApiUnidade,
+  type ApiLogAcao,
   type CreateCorretorPayload, type AppUser,
 } from './mappers.js';
 import type {
   Corretor, ClienteFinal, Interacao, Proposta, EmailTemplate, EmailCampaign,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
+  LogAcao,
 } from '../types';
 
 export type { CreateCorretorPayload, AppUser } from './mappers.js';
@@ -20,15 +23,30 @@ export type { CreateCorretorPayload, AppUser } from './mappers.js';
 
 export interface LoginResult {
   token: string;
-  user: { id: string; nome: string; email: string; cargo: string; cor: string };
+  user: { id: string; nome: string; email: string; cargo: string; cor: string; deveTrocarSenha: boolean };
+}
+
+export interface MeResult {
+  id: string;
+  nome: string;
+  email: string;
+  cargo: string;
+  cor: string;
+  deveTrocarSenha: boolean;
 }
 
 export const authApi = {
   login: (email: string, senha: string) =>
     apiFetch<LoginResult>('/api/auth/login', { method: 'POST', body: { email, senha } }),
-  me: () => apiFetch<ApiUser>('/api/auth/me'),
+  me: () => apiFetch<MeResult>('/api/auth/me'),
   forgotPassword: (email: string) =>
     apiFetch<{ message: string }>('/api/auth/forgot-password', { method: 'POST', body: { email } }),
+  // Troca de senha revoga a sessão atual no servidor (tokenVersion), então a API já devolve
+  // um token novo — sem isso, a próxima chamada autenticada falharia com o token antigo.
+  changePassword: (senhaAtual: string, novaSenha: string) =>
+    apiFetch<{ message: string; token: string }>('/api/auth/change-password', { method: 'POST', body: { senhaAtual, novaSenha } }),
+  // Revoga a sessão no servidor (tokenVersion) — "sair" deixa de ser só limpar o localStorage.
+  logout: () => apiFetch<{ message: string }>('/api/auth/logout', { method: 'POST' }),
 };
 
 // ── Users ──────────────────────────────────────────────────────────
@@ -38,7 +56,8 @@ export const usersApi = {
     const users = await apiFetch<ApiUser[]>('/api/users');
     return users.map(mapUserFromApi);
   },
-  create: (data: { nome: string; email: string; senha: string; cargo: UserCargo; cor?: string }) =>
+  // Sem campo de senha: o backend gera uma senha provisória e manda por e-mail (ver POST /api/users).
+  create: (data: { nome: string; email: string; cargo: UserCargo; cor?: string }) =>
     apiFetch<ApiUser>('/api/users', { method: 'POST', body: { ...data, cargo: mapCargoToApi(data.cargo) } }).then(mapUserFromApi),
   update: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => {
     const payload: Record<string, unknown> = { ...data };
@@ -300,12 +319,15 @@ export interface CompanyProfile {
   nome: string;
   cnpj: string;
   cidade: string;
+  /** Encarregado de Proteção de Dados (LGPD, art. 41) — exibido na política de privacidade. */
+  dpoNome: string;
+  dpoEmail: string;
   updatedAt: string;
 }
 
 export const companyProfileApi = {
   get: () => apiFetch<CompanyProfile>('/api/company-profile'),
-  update: (data: Partial<{ nome: string; cnpj: string; cidade: string }>) =>
+  update: (data: Partial<{ nome: string; cnpj: string; cidade: string; dpoNome: string; dpoEmail: string }>) =>
     apiFetch<CompanyProfile>('/api/company-profile', { method: 'PATCH', body: data }),
 };
 
@@ -380,4 +402,37 @@ export const unidadesApi = {
   update: (id: string, data: CreateUnidadePayload): Promise<Unidade> =>
     apiFetch<ApiUnidade>(`/api/unidades/${id}`, { method: 'PATCH', body: unidadePayloadToApi(data) }).then(mapUnidadeFromApi),
   remove: (id: string): Promise<void> => apiFetch<void>(`/api/unidades/${id}`, { method: 'DELETE' }),
+};
+
+// ── Histórico de Ações ──────────────────────────────────────────────
+// Só existe list() — não há create/update/delete pra esse recurso, nem no backend.
+
+export interface LogAcaoListParams {
+  q?: string;
+  entidade?: string;
+  de?: string;
+  ate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface LogAcaoListResult {
+  logs: LogAcao[];
+  total: number;
+  page: number;
+  pageSize: number;
+  entidadesDisponiveis: string[];
+}
+
+export const logAcaoApi = {
+  list: async (params?: LogAcaoListParams): Promise<LogAcaoListResult> => {
+    const res = await apiFetch<{
+      logs: ApiLogAcao[];
+      total: number;
+      page: number;
+      pageSize: number;
+      entidadesDisponiveis: string[];
+    }>('/api/logs-acao', { query: { ...params } });
+    return { ...res, logs: res.logs.map(mapLogAcaoFromApi) };
+  },
 };

@@ -27,7 +27,14 @@ export type ViewMode =
   | 'email-marketing'
   | 'phacz-ia'
   | 'rodadas'
-  | 'empreendimentos';
+  | 'empreendimentos'
+  | 'historico-acoes';
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error';
+}
 
 export interface PipelineFiltros {
   searchQuery: string;
@@ -58,6 +65,12 @@ interface StoreState {
   isBootstrapping: boolean;
   authError: string | null;
   currentUser: UserProfile | null;
+  /** Primeiro acesso com senha provisória: bloqueia a tela normal até trocar a senha. */
+  mustChangePassword: boolean;
+  /** Acessível antes e depois do login (a tela de login também tem o link). */
+  showPrivacyPolicy: boolean;
+
+  toasts: Toast[];
 
   emailTemplates: EmailTemplate[];
   emailCampaigns: EmailCampaign[];
@@ -79,6 +92,12 @@ interface StoreState {
   login: (email: string, senha: string) => Promise<boolean>;
   logout: () => void;
   initFromToken: () => Promise<void>;
+  changePasswordFirstAccess: (senhaAtual: string, novaSenha: string) => Promise<void>;
+  setShowPrivacyPolicy: (v: boolean) => void;
+
+  // Toasts
+  showToast: (message: string, type?: Toast['type']) => void;
+  dismissToast: (id: string) => void;
 
   // Setters
   setView: (v: ViewMode) => void;
@@ -133,7 +152,7 @@ interface StoreState {
   clearChat: () => Promise<void>;
 
   // Usuários da plataforma (Diretora)
-  createUser: (data: { nome: string; email: string; senha: string; cargo: UserCargo; cor?: string }) => Promise<AppUser>;
+  createUser: (data: { nome: string; email: string; cargo: UserCargo; cor?: string }) => Promise<AppUser>;
   updateUser: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => Promise<AppUser>;
   deactivateUser: (id: string) => Promise<void>;
 
@@ -158,7 +177,7 @@ interface StoreState {
   removeCondicaoPagamento: (id: string) => Promise<void>;
 
   // Perfil da Empresa
-  updateCompanyProfile: (data: Partial<{ nome: string; cnpj: string; cidade: string }>) => Promise<CompanyProfile>;
+  updateCompanyProfile: (data: Partial<{ nome: string; cnpj: string; cidade: string; dpoNome: string; dpoEmail: string }>) => Promise<CompanyProfile>;
 
   // Notificações push
   refreshPushStatus: () => Promise<void>;
@@ -214,6 +233,10 @@ export const useStore = create<StoreState>()((set, get) => ({
   isBootstrapping: false,
   authError: null,
   currentUser: null,
+  mustChangePassword: false,
+  showPrivacyPolicy: false,
+
+  toasts: [],
 
   emailTemplates: [],
   emailCampaigns: [],
@@ -236,16 +259,22 @@ export const useStore = create<StoreState>()((set, get) => ({
     try {
       const result = await authApi.login(email, senha);
       setToken(result.token);
-      set({
-        isLoggedIn: true,
-        currentUser: {
-          id: result.user.id,
-          nome: result.user.nome,
-          email: result.user.email,
-          cargo: mapCargoFromApi(result.user.cargo),
-          cor: result.user.cor,
-        },
-      });
+      const currentUser = {
+        id: result.user.id,
+        nome: result.user.nome,
+        email: result.user.email,
+        cargo: mapCargoFromApi(result.user.cargo),
+        cor: result.user.cor,
+      };
+
+      if (result.user.deveTrocarSenha) {
+        // Primeiro acesso com senha provisória: não carrega o resto do app ainda —
+        // só o suficiente pra mostrar a tela de troca de senha.
+        set({ isLoggedIn: true, currentUser, mustChangePassword: true });
+        return true;
+      }
+
+      set({ isLoggedIn: true, currentUser, mustChangePassword: false });
       await get().initFromToken();
       return true;
     } catch (err) {
@@ -256,10 +285,15 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   logout: () => {
+    // Melhor esforço: revoga a sessão no servidor (tokenVersion++). Se a chamada falhar (rede
+    // fora do ar etc.), o logout local acontece do mesmo jeito — a expiração de 24h do token
+    // ainda cobre esse caso, só não é imediata.
+    authApi.logout().catch(() => undefined);
     clearToken();
     set({
       isLoggedIn: false,
       currentUser: null,
+      mustChangePassword: false,
       selectedCorretorId: null,
       view: 'pipeline',
       corretores: [],
@@ -289,9 +323,16 @@ export const useStore = create<StoreState>()((set, get) => ({
     try {
       const me = await authApi.me();
       const currentUser = { id: me.id, nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor };
+
+      if (me.deveTrocarSenha) {
+        set({ isLoggedIn: true, currentUser, mustChangePassword: true });
+        return;
+      }
+
       set({
         isLoggedIn: true,
         currentUser,
+        mustChangePassword: false,
         view: getDefaultView(currentUser),
       });
 
@@ -320,10 +361,32 @@ export const useStore = create<StoreState>()((set, get) => ({
       get().refreshPushStatus().catch(() => undefined);
     } catch {
       clearToken();
-      set({ isLoggedIn: false, currentUser: null });
+      set({ isLoggedIn: false, currentUser: null, mustChangePassword: false });
     } finally {
       set({ isBootstrapping: false });
     }
+  },
+
+  changePasswordFirstAccess: async (senhaAtual, novaSenha) => {
+    // Trocar a senha revoga o token atual no servidor — sem gravar o token novo devolvido
+    // aqui, o initFromToken() logo abaixo (que já dispara várias chamadas autenticadas em
+    // paralelo) falharia tudo com 401 usando o token antigo.
+    const { token } = await authApi.changePassword(senhaAtual, novaSenha);
+    setToken(token);
+    set({ mustChangePassword: false });
+    await get().initFromToken();
+  },
+
+  setShowPrivacyPolicy: (v) => set({ showPrivacyPolicy: v }),
+
+  showToast: (message, type = 'success') => {
+    const id = crypto.randomUUID();
+    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
+    setTimeout(() => get().dismissToast(id), 4500);
+  },
+
+  dismissToast: (id) => {
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
   },
 
   setView: (v) => set({ view: v, selectedCorretorId: null }),

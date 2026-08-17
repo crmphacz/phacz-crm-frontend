@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, Building2, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
 import { empreendimentosApi } from '../api/endpoints';
+import { fetchMunicipiosBrasil, ESTADOS_BR, type MunicipioBR } from '../api/ibge';
+import { maskPhone } from '../utils';
 import { FileDropzone } from './FileDropzone';
+import { Combobox, type ComboboxOption } from './Combobox';
 import type { Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload } from '../types';
+
+const UF_OPTIONS: ComboboxOption[] = ESTADOS_BR.map((e) => ({ id: e.sigla, label: e.sigla, sublabel: e.nome }));
 
 interface EmpreendimentoFormModalProps {
   empreendimento?: Empreendimento | EmpreendimentoDetail | null;
@@ -45,6 +50,17 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  const [municipios, setMunicipios] = useState<MunicipioBR[]>([]);
+  useEffect(() => {
+    fetchMunicipiosBrasil().then(setMunicipios).catch(() => {
+      // Sem autocomplete de cidade nesse caso — os campos continuam editáveis normalmente.
+    });
+  }, []);
+  const cidadeOptions = useMemo<ComboboxOption[]>(
+    () => municipios.map((m) => ({ id: `${m.nome}|${m.uf}`, label: m.nome, sublabel: m.uf })),
+    [municipios]
+  );
 
   function addCaracteristica() {
     const value = novaCaracteristica.trim();
@@ -163,7 +179,13 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
               </div>
               <div>
                 <FormLabel>Telefone de contato</FormLabel>
-                <input className="form-input" value={telefoneContato} onChange={(e) => setTelefoneContato(e.target.value)} />
+                <input
+                  className="form-input"
+                  inputMode="numeric"
+                  placeholder="(11) 91234-5678"
+                  value={telefoneContato}
+                  onChange={(e) => setTelefoneContato(maskPhone(e.target.value))}
+                />
               </div>
             </div>
           </FormSection>
@@ -221,11 +243,25 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
               </div>
               <div className="sm:col-span-3">
                 <FormLabel>Cidade</FormLabel>
-                <input className="form-input" value={cidade} onChange={(e) => setCidade(e.target.value)} />
+                <Combobox
+                  className="form-input"
+                  placeholder="Digite para buscar..."
+                  value={cidade}
+                  onChange={setCidade}
+                  onSelect={(o) => { setCidade(o.label); if (o.sublabel) setUf(o.sublabel); }}
+                  options={cidadeOptions}
+                />
               </div>
               <div>
                 <FormLabel>UF</FormLabel>
-                <input className="form-input" maxLength={2} value={uf} onChange={(e) => setUf(e.target.value.toUpperCase())} />
+                <Combobox
+                  className="form-input"
+                  placeholder="UF"
+                  value={uf}
+                  onChange={(v) => setUf(v.toUpperCase())}
+                  onSelect={(o) => setUf(o.label)}
+                  options={UF_OPTIONS}
+                />
               </div>
             </div>
           </FormSection>

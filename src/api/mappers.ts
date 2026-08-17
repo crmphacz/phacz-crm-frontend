@@ -6,6 +6,7 @@ import type {
   TipoAcaoRodada, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal, PublicoEsperado, CarteiraPublico,
   MaterialComercial, EstruturaOperacao, CategoriaOrcamento, ResponsavelEntrega, StatusEntrega, ComoConvite,
   ProximoPasso, InvestimentoOuMoradia, PlanoB, PotencialRetorno, PrioridadeTrimestre, Recomendacao,
+  LogAcao,
 } from '../types';
 
 function makeEnumMap<Api extends string, App extends string>(pairs: [Api, App][]) {
@@ -840,4 +841,30 @@ export interface ApiChatMessage {
 
 export function mapChatMessageFromApi(m: ApiChatMessage): ChatMessage {
   return { id: m.id, role: chatRoleMap.toApp(m.role), content: m.content, criadoEm: m.criadoEm };
+}
+
+// ── Histórico de Ações ──────────────────────────────────────────────
+
+export interface ApiLogAcao {
+  id: string;
+  userNome: string;
+  userCargo: string;
+  acao: string;
+  descricao: string;
+  entidade: string | null;
+  entidadeId: string | null;
+  criadoEm: string;
+}
+
+export function mapLogAcaoFromApi(l: ApiLogAcao): LogAcao {
+  return {
+    id: l.id,
+    userNome: l.userNome,
+    userCargo: mapCargoFromApi(l.userCargo),
+    acao: l.acao,
+    descricao: l.descricao,
+    entidade: l.entidade,
+    entidadeId: l.entidadeId,
+    criadoEm: l.criadoEm,
+  };
 }

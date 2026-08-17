@@ -34,6 +34,7 @@ export function UsersManagement() {
   const createUser = useStore((s) => s.createUser);
   const updateUser = useStore((s) => s.updateUser);
   const deactivateUser = useStore((s) => s.deactivateUser);
+  const showToast = useStore((s) => s.showToast);
 
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
@@ -153,22 +154,23 @@ export function UsersManagement() {
           onClose={() => setShowForm(false)}
           onCreate={createUser}
           onUpdate={updateUser}
+          onCreated={(email) => showToast(`E-mail com os dados de acesso enviado para ${email}.`)}
         />
       )}
     </div>
   );
 }
 
-function UserFormModal({ user, onClose, onCreate, onUpdate }: {
+function UserFormModal({ user, onClose, onCreate, onUpdate, onCreated }: {
   user: AppUser | null;
   onClose: () => void;
-  onCreate: (data: { nome: string; email: string; senha: string; cargo: UserCargo; cor?: string }) => Promise<AppUser>;
+  onCreate: (data: { nome: string; email: string; cargo: UserCargo; cor?: string }) => Promise<AppUser>;
   onUpdate: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => Promise<AppUser>;
+  onCreated: (email: string) => void;
 }) {
   const isEditing = Boolean(user);
   const [nome, setNome] = useState(user?.nome ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
-  const [senha, setSenha] = useState('');
   const [cargo, setCargo] = useState<UserCargo>(user?.cargo ?? 'SDR');
   const [cor, setCor] = useState(user?.cor ?? CARGO_COLORS.SDR);
   const [submitting, setSubmitting] = useState(false);
@@ -178,14 +180,14 @@ function UserFormModal({ user, onClose, onCreate, onUpdate }: {
     setError('');
     if (!nome.trim()) return setError('Informe o nome completo.');
     if (!isEditing && !email.trim()) return setError('Informe o e-mail.');
-    if (!isEditing && senha.trim().length < 6) return setError('A senha deve ter ao menos 6 caracteres.');
 
     setSubmitting(true);
     try {
       if (isEditing && user) {
         await onUpdate(user.id, { nome: nome.trim(), cargo, cor });
       } else {
-        await onCreate({ nome: nome.trim(), email: email.trim(), senha, cargo, cor });
+        await onCreate({ nome: nome.trim(), email: email.trim(), cargo, cor });
+        onCreated(email.trim());
       }
       onClose();
     } catch (err) {
@@ -226,29 +228,19 @@ function UserFormModal({ user, onClose, onCreate, onUpdate }: {
           </div>
 
           {!isEditing && (
-            <>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">E-mail de acesso</label>
-                <input
-                  className="form-input"
-                  type="email"
-                  placeholder="nome@phacz.com.br"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">Senha provisória</label>
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="Mínimo 6 caracteres"
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                />
-                <p className="text-xs text-gray-400 mt-1">A pessoa poderá trocar a senha depois de acessar o sistema.</p>
-              </div>
-            </>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">E-mail de acesso</label>
+              <input
+                className="form-input"
+                type="email"
+                placeholder="nome@phacz.com.br"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Uma senha provisória será gerada e enviada para este e-mail. A pessoa será solicitada a trocá-la no primeiro acesso.
+              </p>
+            </div>
           )}
 
           <div>

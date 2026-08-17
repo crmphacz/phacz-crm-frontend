@@ -13,10 +13,14 @@ import { CompanyProfileView } from './components/CompanyProfileView';
 import { PipelineRulesView } from './components/PipelineRulesView';
 import { IndicadoresView } from './components/IndicadoresView';
 import { LoginScreen } from './components/LoginScreen';
+import { ChangePasswordScreen } from './components/ChangePasswordScreen';
+import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { EmailMarketingView } from './components/EmailMarketingView';
 import { PhaczIAView } from './components/PhaczIAView';
 import { RodadasCalendarView } from './components/RodadasCalendarView';
 import { EmpreendimentosListView } from './components/EmpreendimentosListView';
+import { HistoricoAcoesView } from './components/HistoricoAcoesView';
+import { ToastContainer } from './components/ToastContainer';
 
 export default function App() {
   const view = useStore((s) => s.view);
@@ -24,6 +28,9 @@ export default function App() {
   const showNewCorretorModal = useStore((s) => s.showNewCorretorModal);
   const isLoggedIn = useStore((s) => s.isLoggedIn);
   const isBootstrapping = useStore((s) => s.isBootstrapping);
+  const mustChangePassword = useStore((s) => s.mustChangePassword);
+  const showPrivacyPolicy = useStore((s) => s.showPrivacyPolicy);
+  const setShowPrivacyPolicy = useStore((s) => s.setShowPrivacyPolicy);
   const initFromToken = useStore((s) => s.initFromToken);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -35,6 +42,10 @@ export default function App() {
     initFromToken();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A política de privacidade precisa renderizar por cima de QUALQUER tela (inclusive antes
+  // do login), então fica fora do if/else abaixo em vez de duplicada em cada branch.
+  const privacyModal = showPrivacyPolicy && <PrivacyPolicyModal onClose={() => setShowPrivacyPolicy(false)} />;
 
   if (isBootstrapping) {
     return (
@@ -51,7 +62,17 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    return <LoginScreen />;
+    return <>
+      <LoginScreen />
+      {privacyModal}
+    </>;
+  }
+
+  if (mustChangePassword) {
+    return <>
+      <ChangePasswordScreen />
+      {privacyModal}
+    </>;
   }
 
   return (
@@ -107,11 +128,14 @@ export default function App() {
           {view === 'phacz-ia' && <PhaczIAView />}
           {view === 'rodadas' && <RodadasCalendarView />}
           {view === 'empreendimentos' && <EmpreendimentosListView />}
+          {view === 'historico-acoes' && <HistoricoAcoesView />}
         </main>
       </div>
 
       {selectedCorretorId && <CorretorDetailPanel />}
       {showNewCorretorModal && <NewCorretorModal />}
+      {privacyModal}
+      <ToastContainer />
     </div>
   );
 }

@@ -13,11 +13,13 @@ import {
   Bell,
   BellOff,
   CalendarDays,
+  History,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
 import { getInitials } from '../utils';
 import { NotificationBell } from './NotificationBell';
 import { canAccessView } from '../permissions';
+import logo from '../images/logo-dark@2x.png';
 
 const NAV_MAIN: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'pipeline', icon: KanbanSquare, label: 'Pipeline' },
@@ -34,6 +36,7 @@ const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] 
 
 const NAV_SECONDARY: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'indicadores', icon: BarChart2, label: 'Indicadores' },
+  { id: 'historico-acoes', icon: History, label: 'Histórico de Ações' },
 ];
 
 const NAV_CONFIG: { id: ViewMode; icon: React.ElementType; label: string; diretoraOnly?: boolean }[] = [
@@ -87,25 +90,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-5 border-b" style={{ borderColor: '#292929' }}>
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: '#d55006' }}
-            >
-              <Building2 size={18} color="#fff" />
-            </div>
-            <div className="min-w-0">
-              <div
-                className="text-white text-lg leading-none tracking-widest"
-                style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-              >
-                PHACZ
-              </div>
-              <div className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
-                Empreendimentos
-              </div>
-            </div>
-          </div>
+          <img src={logo} alt="PHACZ Empreendimentos" className="h-12 w-auto flex-shrink-0" />
           <NotificationBell />
         </div>
       </div>

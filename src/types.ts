@@ -494,3 +494,18 @@ export interface ChatMessage {
   content: string;
   criadoEm: string;
 }
+
+// ── Histórico de Ações ────────────────────────────────────────────────
+// Só existe leitura/busca — nenhum campo/ação de exclusão em lugar nenhum do frontend,
+// espelhando o backend (que também não tem rota de DELETE pra isso).
+
+export interface LogAcao {
+  id: string;
+  userNome: string;
+  userCargo: UserCargo;
+  acao: string;
+  descricao: string;
+  entidade: string | null;
+  entidadeId: string | null;
+  criadoEm: string;
+}

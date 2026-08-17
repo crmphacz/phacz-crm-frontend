@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Building2, LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useStore } from '../store';
+import logo from '../images/logo-dark@2x.png';
 
 export function LoginScreen() {
   const login = useStore((s) => s.login);
   const authError = useStore((s) => s.authError);
+  const setShowPrivacyPolicy = useStore((s) => s.setShowPrivacyPolicy);
 
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -45,26 +47,7 @@ export function LoginScreen() {
 
       {/* Branding */}
       <div className="relative z-10 flex flex-col items-center text-center mb-8">
-        <div className="flex items-center gap-3 sm:gap-4 mb-4">
-          <div
-            className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0"
-            style={{ backgroundColor: '#d55006' }}
-          >
-            <Building2 size={28} color="#fff" className="sm:hidden" />
-            <Building2 size={34} color="#fff" className="hidden sm:block" />
-          </div>
-          <div className="text-left">
-            <h1
-              className="text-3xl sm:text-5xl text-white tracking-widest leading-none"
-              style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-            >
-              PHACZ
-            </h1>
-            <p className="text-xs sm:text-sm tracking-widest uppercase mt-0.5" style={{ color: '#6b7280' }}>
-              Empreendimentos
-            </p>
-          </div>
-        </div>
+        <img src={logo} alt="PHACZ Empreendimentos" className="h-16 sm:h-24 w-auto mb-4" />
         <h2
           className="text-lg sm:text-2xl text-white"
           style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
@@ -170,6 +153,14 @@ export function LoginScreen() {
 
           <p className="text-center text-xs text-gray-300 mt-6">
             PHACZ CRM © {new Date().getFullYear()} — Empreendimentos
+            {' · '}
+            <button
+              type="button"
+              onClick={() => setShowPrivacyPolicy(true)}
+              className="underline hover:text-gray-400 transition-colors"
+            >
+              Política de Privacidade
+            </button>
           </p>
         </div>
       </div>
