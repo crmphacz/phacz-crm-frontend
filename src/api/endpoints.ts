@@ -4,7 +4,7 @@ import {
   mapEmailTemplateFromApi, mapEmailCampaignFromApi, mapChatMessageFromApi, mapCargoToApi,
   mapDestinatarioTipoToApi, mapRodadaFromApi, mapRodadaListItemFromApi, mapCreateRodadaToApi, mapNotificacaoFromApi,
   mapEmpreendimentoFromApi, mapEmpreendimentoDetailFromApi, mapUnidadeFromApi, mapStatusUnidadeToApi,
-  mapLogAcaoFromApi,
+  mapLogAcaoFromApi, mapTipoInteracaoFromApi,
   type ApiUser, type ApiCorretor, type ApiEmailTemplate, type ApiEmailCampaign, type ApiChatMessage,
   type ApiRodada, type ApiRodadaResumo, type ApiNotificacao, type ApiEmpreendimento, type ApiEmpreendimentoDetail, type ApiUnidade,
   type ApiLogAcao,
@@ -14,7 +14,7 @@ import type {
   Corretor, ClienteFinal, Interacao, Proposta, EmailTemplate, EmailCampaign,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
-  LogAcao,
+  LogAcao, TipoInteracao,
 } from '../types';
 
 export type { CreateCorretorPayload, AppUser } from './mappers.js';
@@ -80,7 +80,12 @@ export interface ImobiliariaMatch {
 
 export const corretoresApi = {
   list: async (): Promise<Corretor[]> => {
-    const res = await apiFetch<{ corretores: ApiCorretor[]; total: number }>('/api/corretores', { query: { pageSize: 200 } });
+    // 2000: teto seguro pra sempre trazer a base inteira (Pipeline/Corretores/Clientes filtram
+    // e ordenam no client, não dá pra paginar de verdade sem redesenhar essas telas). Os 200
+    // antigos eram batidos sem nenhum filtro de status — corretores arquivados/antigos podiam
+    // já estar sendo truncados silenciosamente. A listagem não traz mais interacoes/propostas
+    // (ver corretorListInclude no backend), então um teto alto continua barato.
+    const res = await apiFetch<{ corretores: ApiCorretor[]; total: number }>('/api/corretores', { query: { pageSize: 2000 } });
     return res.corretores.map(mapCorretorFromApi);
   },
   get: (id: string): Promise<Corretor> => apiFetch<ApiCorretor>(`/api/corretores/${id}`).then(mapCorretorFromApi),
@@ -143,12 +148,40 @@ export const corretoresApi = {
 
 // ── Dashboard ──────────────────────────────────────────────────────
 
+export interface AtividadeRecente {
+  id: string;
+  tipo: TipoInteracao;
+  data: string;
+  resumo: string;
+  corretorId: string;
+  corretorNome: string;
+  corretorEtapa: number;
+}
+
 export const dashboardApi = {
   overview: () => apiFetch('/api/dashboard/overview'),
   metas: (periodo: string) => apiFetch<unknown[]>('/api/dashboard/metas', { query: { periodo } }),
   upsertMeta: (data: { userId: string; periodo: string; tipo: 'VOLUME' | 'VALOR' | 'CONVERSAO'; valorMeta: number }) =>
     apiFetch('/api/dashboard/metas', { method: 'POST', body: data }),
   ranking: (periodo: string) => apiFetch<unknown[]>('/api/dashboard/ranking', { query: { periodo } }),
+
+  // Movidos pro backend porque dependiam de `corretor.interacoes`/`.propostas` completos, que
+  // a listagem leve de corretores não traz mais — ver DashGR/DashGV em Dashboard.tsx.
+  atividadesGr: async (): Promise<{ visitasRealizadas: number; whatsappEnviados: number; recentActivities: AtividadeRecente[] }> => {
+    const res = await apiFetch<{
+      visitasRealizadas: number;
+      whatsappEnviados: number;
+      recentActivities: (Omit<AtividadeRecente, 'tipo'> & { tipo: string })[];
+    }>('/api/dashboard/atividades-gr');
+    return { ...res, recentActivities: res.recentActivities.map((a) => ({ ...a, tipo: mapTipoInteracaoFromApi(a.tipo) })) };
+  },
+  atividadesGv: () =>
+    apiFetch<{
+      propostasPendentes: number;
+      propostasAceitas: number;
+      primeiraPropostaPorCorretor: Record<string, { valor: number }>;
+    }>('/api/dashboard/atividades-gv'),
+  tempoPrimeiroContatoGrGv: () => apiFetch<{ avgHoras: number }>('/api/dashboard/tempo-primeiro-contato-gr-gv'),
 };
 
 // ── PHACZ IA ─────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Building2, MapPin, Layers, CheckCircle2 } from 'lucide-react';
 import { useStore } from '../store';
 import type { Empreendimento } from '../types';
@@ -9,6 +9,12 @@ export function EmpreendimentosListView() {
   const currentUser = useStore((s) => s.currentUser);
   const isReadOnly = currentUser?.cargo === 'Marketing';
   const empreendimentos = useStore((s) => s.empreendimentos);
+  const ensureEmpreendimentosLoaded = useStore((s) => s.ensureEmpreendimentosLoaded);
+
+  useEffect(() => {
+    ensureEmpreendimentosLoaded().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);

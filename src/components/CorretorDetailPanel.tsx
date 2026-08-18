@@ -51,6 +51,15 @@ export function CorretorDetailPanel() {
   const markAsWon = useStore((s) => s.markAsWon);
   const corretores = useStore((s) => s.corretores);
   const users = useStore((s) => s.users);
+  const hydrateCorretorDetail = useStore((s) => s.hydrateCorretorDetail);
+
+  // A listagem não traz mais interacoes/propostas completos (ver corretorListInclude no
+  // backend) — ao abrir o painel de um corretor, busca o registro completo e substitui a
+  // entrada leve no store, igual ao que addInteracao/addProposta já fazem depois de escrever.
+  useEffect(() => {
+    if (corretorOrNull?.id) hydrateCorretorDetail(corretorOrNull.id).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corretorOrNull?.id]);
 
   const sdrNames = users.filter((u) => u.cargo === 'SDR' && u.ativo).map((u) => u.nome);
   const grNames = users.filter((u) => u.cargo === 'GR' && u.ativo).map((u) => u.nome);

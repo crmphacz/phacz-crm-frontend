@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
   X, CalendarDays, ChevronRight, ChevronDown, ChevronUp, Plus, Trash2, Upload, Loader2,
@@ -443,8 +443,16 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
   const isReadOnly = !canWriteRodadas(currentUser);
   const imobiliariasOptions = useStore((s) => s.imobiliariasOptions).filter((i) => i.ativo);
   const empreendimentosOptions = useStore((s) => s.empreendimentos);
+  const ensureEmpreendimentosLoaded = useStore((s) => s.ensureEmpreendimentosLoaded);
   const createRodada = useStore((s) => s.createRodada);
   const updateRodada = useStore((s) => s.updateRodada);
+
+  // O seletor de empreendimento usa essa lista, mas o modal pode abrir sem que a tela de
+  // Empreendimentos já tenha sido visitada nesta sessão (ela é carregada sob demanda).
+  useEffect(() => {
+    ensureEmpreendimentosLoaded().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [form, setForm] = useState<FormState>(() => buildInitialState(rodada, dataInicial));
   const [errors, setErrors] = useState<Record<string, string>>({});

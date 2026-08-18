@@ -58,6 +58,12 @@ export function RodadasCalendarView() {
   const removeRodada = useStore((s) => s.removeRodada);
   const rodadaFocoData = useStore((s) => s.rodadaFocoData);
   const clearRodadaFoco = useStore((s) => s.clearRodadaFoco);
+  const ensureRodadasLoaded = useStore((s) => s.ensureRodadasLoaded);
+
+  useEffect(() => {
+    ensureRodadasLoaded().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [tab, setTab] = useState<'calendario' | 'lista'>('calendario');
   const [currentMonth, setCurrentMonth] = useState(() => (rodadaFocoData ? parseDateKeyLocal(rodadaFocoData) : new Date()));

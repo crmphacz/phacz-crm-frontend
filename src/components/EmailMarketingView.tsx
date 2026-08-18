@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Mail, Send, Copy, Trash2, Eye, Users, Filter, Building2, Sparkles } from 'lucide-react';
 import { useStore } from '../store';
 import { STAGES } from '../data';
@@ -19,6 +19,12 @@ export function EmailMarketingView() {
   const deleteEmailTemplate = useStore((s) => s.deleteEmailTemplate);
   const duplicateEmailTemplate = useStore((s) => s.duplicateEmailTemplate);
   const deleteEmailCampaign = useStore((s) => s.deleteEmailCampaign);
+  const ensureEmailMarketingLoaded = useStore((s) => s.ensureEmailMarketingLoaded);
+
+  useEffect(() => {
+    ensureEmailMarketingLoaded().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [tab, setTab] = useState<Tab>('campanhas');
   const [builderTemplate, setBuilderTemplate] = useState<EmailTemplate | null | undefined>(undefined);

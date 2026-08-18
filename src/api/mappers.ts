@@ -31,6 +31,10 @@ const tipoInteracaoMap = makeEnumMap<string, TipoInteracao>([
   ['REUNIAO', 'reuniao'], ['NOTA', 'nota'], ['PROPOSTA', 'proposta'],
 ]);
 
+export function mapTipoInteracaoFromApi(tipo: string): TipoInteracao {
+  return tipoInteracaoMap.toApp(tipo);
+}
+
 const propostaStatusMap = makeEnumMap<string, Proposta['status']>([
   ['PENDENTE', 'pendente'], ['ACEITA', 'aceita'], ['RECUSADA', 'recusada'],
 ]);
@@ -178,8 +182,10 @@ export interface ApiCorretor {
   motivoPerda: string | null;
   valorFechamento: number | null;
   clientesFinais: ApiClienteFinal[];
-  interacoes: ApiInteracao[];
-  propostas: ApiProposta[];
+  // Ausentes na listagem (GET /) — só vêm em GET /:id e nas rotas de mutação, que devolvem o
+  // corretor completo. Ver corretorListInclude no backend.
+  interacoes?: ApiInteracao[];
+  propostas?: ApiProposta[];
 }
 
 function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
@@ -257,8 +263,11 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     dataFechamento: l.dataFechamento ?? undefined,
     etapaTimestamps: l.etapaTimestamps ?? {},
     clientesFinais: l.clientesFinais.map(mapClienteFinalFromApi),
-    interacoes: l.interacoes.map(mapInteracaoFromApi),
-    propostas: l.propostas.map(mapPropostaFromApi),
+    // Na listagem leve (ver ApiCorretor) esses dois campos não vêm do backend — o corretor
+    // aparece com histórico "vazio" até o painel de detalhe buscar o registro completo
+    // (ver hydrateCorretorDetail no store).
+    interacoes: (l.interacoes ?? []).map(mapInteracaoFromApi),
+    propostas: (l.propostas ?? []).map(mapPropostaFromApi),
     parentCorretorId: l.parentCorretorId ?? undefined,
     clienteFinalNome: l.clienteFinalNome ?? undefined,
     observacoes: l.observacoes,

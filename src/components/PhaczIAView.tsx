@@ -16,10 +16,16 @@ export function PhaczIAView() {
   const sendChatMessage = useStore((s) => s.sendChatMessage);
   const clearChat = useStore((s) => s.clearChat);
   const currentUser = useStore((s) => s.currentUser);
+  const ensurePhaczIaLoaded = useStore((s) => s.ensurePhaczIaLoaded);
 
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    ensurePhaczIaLoaded().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });

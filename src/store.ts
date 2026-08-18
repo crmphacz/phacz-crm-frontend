@@ -74,15 +74,19 @@ interface StoreState {
 
   emailTemplates: EmailTemplate[];
   emailCampaigns: EmailCampaign[];
+  emailMarketingLoaded: boolean;
 
   chatMessages: ChatMessage[];
+  phaczIaLoaded: boolean;
 
   rodadas: (Rodada | RodadaResumo)[];
+  rodadasLoaded: boolean;
   notificacoes: Notificacao[];
   notificacoesNaoLidas: number;
   rodadaFocoData: string | null;
 
   empreendimentos: Empreendimento[];
+  empreendimentosLoaded: boolean;
 
   pushSupported: boolean;
   pushPermission: NotificationPermission | 'unsupported';
@@ -94,6 +98,17 @@ interface StoreState {
   initFromToken: () => Promise<void>;
   changePasswordFirstAccess: (senhaAtual: string, novaSenha: string) => Promise<void>;
   setShowPrivacyPolicy: (v: boolean) => void;
+
+  // Carregamento sob demanda (chamado no mount da view correspondente — ver App.tsx/views).
+  // Cada um só busca na primeira vez; chamadas seguintes são no-op.
+  ensureEmailMarketingLoaded: () => Promise<void>;
+  ensurePhaczIaLoaded: () => Promise<void>;
+  ensureRodadasLoaded: () => Promise<void>;
+  ensureEmpreendimentosLoaded: () => Promise<void>;
+
+  // Busca o corretor completo (com interacoes/propostas) e substitui a entrada leve no array —
+  // usado ao abrir o painel de detalhe, já que a listagem não traz mais esses dois campos.
+  hydrateCorretorDetail: (id: string) => Promise<void>;
 
   // Toasts
   showToast: (message: string, type?: Toast['type']) => void;
@@ -240,15 +255,19 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   emailTemplates: [],
   emailCampaigns: [],
+  emailMarketingLoaded: false,
 
   chatMessages: [],
+  phaczIaLoaded: false,
 
   rodadas: [],
+  rodadasLoaded: false,
   notificacoes: [],
   notificacoesNaoLidas: 0,
   rodadaFocoData: null,
 
   empreendimentos: [],
+  empreendimentosLoaded: false,
 
   pushSupported: isPushSupported(),
   pushPermission: isPushSupported() ? Notification.permission : 'unsupported',
@@ -305,13 +324,17 @@ export const useStore = create<StoreState>()((set, get) => ({
       companyProfile: null,
       emailTemplates: [],
       emailCampaigns: [],
+      emailMarketingLoaded: false,
       chatMessages: [],
+      phaczIaLoaded: false,
       savedSearches: [],
       rodadas: [],
+      rodadasLoaded: false,
       notificacoes: [],
       notificacoesNaoLidas: 0,
       rodadaFocoData: null,
       empreendimentos: [],
+      empreendimentosLoaded: false,
     });
   },
 
@@ -336,35 +359,78 @@ export const useStore = create<StoreState>()((set, get) => ({
         view: getDefaultView(currentUser),
       });
 
-      const [corretores, users, canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, emailTemplates, emailCampaigns, chatMessages, savedSearches, rodadas, notificacoesResult, empreendimentos] = await Promise.all([
-        corretoresApi.list(),
-        usersApi.list(),
-        canaisOrigemApi.list(),
-        tiposInteresseApi.list(),
-        imobiliariasApi.list(),
-        condicoesPagamentoApi.list(),
-        companyProfileApi.get(),
-        emailApi.templates.list(),
-        emailApi.campaigns.list(),
-        iaApi.history(),
-        savedSearchesApi.list(),
-        rodadasApi.list(),
-        notificacoesApi.list(),
-        empreendimentosApi.list(),
-      ]);
-
-      set({
-        corretores, users, canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions,
-        companyProfile, emailTemplates, emailCampaigns, chatMessages, savedSearches, rodadas, empreendimentos,
-        notificacoes: notificacoesResult.notificacoes, notificacoesNaoLidas: notificacoesResult.naoLidas,
-      });
-      get().refreshPushStatus().catch(() => undefined);
+      // Só o essencial pra a tela sair do loading: corretores (Pipeline, a view padrão de
+      // quase todo cargo) + usuários (usado por praticamente toda tela). O resto do boot
+      // (abaixo) roda em paralelo mas NÃO trava o spinner — antes, uma única chamada lenta
+      // entre as 14 travava a tela inteira, e uma falhando derrubava o login todo.
+      const [corretores, users] = await Promise.all([corretoresApi.list(), usersApi.list()]);
+      set({ corretores, users });
     } catch {
       clearToken();
       set({ isLoggedIn: false, currentUser: null, mustChangePassword: false });
+      return;
     } finally {
       set({ isBootstrapping: false });
     }
+
+    // Pequeno e usado assim que o Pipeline (view padrão) monta — filtros avançados, modal de
+    // novo corretor, sino de notificação. Falha aqui não derruba o login. `allSettled` (não
+    // `all`) é de propósito: nenhum destes é restrito por cargo hoje, mas se um deles um dia
+    // passar a ser (ou falhar por qualquer outro motivo), só ELE fica vazio — os outros seis
+    // continuam populando normalmente, em vez de tudo cair junto por causa de um só.
+    Promise.allSettled([
+      canaisOrigemApi.list(),
+      tiposInteresseApi.list(),
+      imobiliariasApi.list(),
+      condicoesPagamentoApi.list(),
+      companyProfileApi.get(),
+      savedSearchesApi.list(),
+      notificacoesApi.list(),
+    ]).then(([canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, savedSearches, notificacoesResult]) => {
+      set({
+        ...(canaisOrigem.status === 'fulfilled' && { canaisOrigem: canaisOrigem.value }),
+        ...(tiposInteresseOptions.status === 'fulfilled' && { tiposInteresseOptions: tiposInteresseOptions.value }),
+        ...(imobiliariasOptions.status === 'fulfilled' && { imobiliariasOptions: imobiliariasOptions.value }),
+        ...(condicoesPagamentoOptions.status === 'fulfilled' && { condicoesPagamentoOptions: condicoesPagamentoOptions.value }),
+        ...(companyProfile.status === 'fulfilled' && { companyProfile: companyProfile.value }),
+        ...(savedSearches.status === 'fulfilled' && { savedSearches: savedSearches.value }),
+        ...(notificacoesResult.status === 'fulfilled' && {
+          notificacoes: notificacoesResult.value.notificacoes,
+          notificacoesNaoLidas: notificacoesResult.value.naoLidas,
+        }),
+      });
+    });
+
+    get().refreshPushStatus().catch(() => undefined);
+  },
+
+  ensureEmailMarketingLoaded: async () => {
+    if (get().emailMarketingLoaded) return;
+    const [emailTemplates, emailCampaigns] = await Promise.all([emailApi.templates.list(), emailApi.campaigns.list()]);
+    set({ emailTemplates, emailCampaigns, emailMarketingLoaded: true });
+  },
+
+  ensurePhaczIaLoaded: async () => {
+    if (get().phaczIaLoaded) return;
+    const chatMessages = await iaApi.history();
+    set({ chatMessages, phaczIaLoaded: true });
+  },
+
+  ensureRodadasLoaded: async () => {
+    if (get().rodadasLoaded) return;
+    const rodadas = await rodadasApi.list();
+    set({ rodadas, rodadasLoaded: true });
+  },
+
+  ensureEmpreendimentosLoaded: async () => {
+    if (get().empreendimentosLoaded) return;
+    const empreendimentos = await empreendimentosApi.list();
+    set({ empreendimentos, empreendimentosLoaded: true });
+  },
+
+  hydrateCorretorDetail: async (id) => {
+    const full = await corretoresApi.get(id);
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? full : l)) }));
   },
 
   changePasswordFirstAccess: async (senhaAtual, novaSenha) => {
