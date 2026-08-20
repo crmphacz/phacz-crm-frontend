@@ -49,9 +49,9 @@ export function canDeleteLeadClienteOuCard(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora';
 }
 
-/** Calendário de Rodadas: só a Diretoria cria/edita/exclui. */
+/** Calendário de Rodadas: Diretoria e GR criam/editam. Exclusão continua só com a Diretoria. */
 export function canWriteRodadas(user: UserProfile | null): boolean {
-  return user?.cargo === 'Diretora';
+  return user?.cargo === 'Diretora' || user?.cargo === 'GR';
 }
 
 /** Quem enxerga o calendário (mesmo que só em modo leitura). Marketing não tem esse módulo. */
@@ -60,13 +60,14 @@ export function canViewRodadas(user: UserProfile | null): boolean {
 }
 
 /**
- * Só a Diretoria vê o formulário completo da rodada (as 11 seções). Os demais perfis com
- * acesso ao calendário (Administrativo, Recepção, SDR, GV, GR) só veem o resumo — dia,
- * corretor parceiro, imobiliária e cidade/UF. Espelha `canViewFullRodada` no backend; a API
- * já retorna só os campos permitidos (ver `RodadaResumo`), isto só decide qual modal abrir.
+ * Diretoria e GR veem o formulário completo da rodada (as 11 seções) — GR também cria/edita
+ * rodadas (ver `canWriteRodadas`), então precisa do formulário inteiro. Os demais perfis com
+ * acesso ao calendário (Administrativo, Recepção, SDR, GV) só veem o resumo — dia, corretor
+ * parceiro, imobiliária e cidade/UF. Espelha `canViewFullRodada` no backend; a API já retorna
+ * só os campos permitidos (ver `RodadaResumo`), isto só decide qual modal abrir.
  */
 export function canViewFullRodada(user: UserProfile | null): boolean {
-  return user?.cargo === 'Diretora';
+  return user?.cargo === 'Diretora' || user?.cargo === 'GR';
 }
 
 /** E-mail marketing: só Diretoria e Marketing usam a ferramenta (Administrativo/Recepção só leem). */
