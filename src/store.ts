@@ -136,6 +136,12 @@ interface StoreState {
 
   // ClienteFinal CRUD
   addClienteFinal: (corretorId: string, cf: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado'>) => Promise<void>;
+  updateClienteFinal: (
+    corretorId: string,
+    cfId: string,
+    cf: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>,
+    novoCorretorId?: string
+  ) => Promise<void>;
   removeClienteFinal: (corretorId: string, cfId: string) => Promise<void>;
 
   // Interação
@@ -521,6 +527,17 @@ export const useStore = create<StoreState>()((set, get) => ({
     await corretoresApi.addCliente(corretorId, cfData);
     const refreshed = await corretoresApi.get(corretorId);
     set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+  },
+
+  updateClienteFinal: async (corretorId, cfId, cfData, novoCorretorId) => {
+    await corretoresApi.updateCliente(corretorId, cfId, cfData, novoCorretorId);
+    // Se o cliente mudou de corretor, os dois lados do vínculo mudaram (o antigo perdeu o
+    // cliente, o novo ganhou) — atualiza ambos. Se não mudou, só o próprio corretor.
+    const idsParaAtualizar = novoCorretorId && novoCorretorId !== corretorId ? [corretorId, novoCorretorId] : [corretorId];
+    const atualizados = await Promise.all(idsParaAtualizar.map((id) => corretoresApi.get(id)));
+    set((state) => ({
+      corretores: state.corretores.map((l) => atualizados.find((a) => a.id === l.id) ?? l),
+    }));
   },
 
   removeClienteFinal: async (corretorId, cfId) => {

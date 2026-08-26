@@ -12,7 +12,7 @@ import { STAGES, CADENCIAS } from '../data';
 import {
   formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG,
   TIPO_INTERACAO_CONFIG, getInitials,
-  validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL,
+  validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
 } from '../utils';
 import { ApiError } from '../api/client';
 import { Combobox } from './Combobox';
@@ -502,6 +502,29 @@ export function CorretorDetailPanel() {
                       disabled={isReadOnly}
                     />
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <EditField
+                      label="CPF"
+                      value={corretor.cpf ?? ''}
+                      onChange={(v) => safeUpdateCorretor({ cpf: maskCPF(v) })}
+                      placeholder="000.000.000-00"
+                      disabled={isReadOnly}
+                    />
+                    <EditField
+                      label="CRECI"
+                      value={corretor.creci ?? ''}
+                      onChange={(v) => safeUpdateCorretor({ creci: v })}
+                      placeholder="Ex: 123456-F"
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                  <EditField
+                    label="Data de nascimento"
+                    type="date"
+                    value={corretor.dataNascimento ? corretor.dataNascimento.substring(0, 10) : ''}
+                    onChange={(v) => safeUpdateCorretor({ dataNascimento: v ? new Date(v).toISOString() : undefined })}
+                    disabled={isReadOnly}
+                  />
                 </div>
               </Section>
 

@@ -69,6 +69,9 @@ export interface Corretor {
   emailCorretor: string;
   imobiliaria: string;
   ticketMedio?: number;
+  cpf?: string;
+  creci?: string;
+  dataNascimento?: string;
   tiposInteresse: TipoInteresse[];
   possuiInvestidores: boolean;
   potencialParceria: boolean;
@@ -237,6 +240,8 @@ export interface EmailCampaign {
 // ao converter para o horário local do navegador).
 
 export type TipoAcaoRodada = 'rodada' | 'cafe_na_obra' | 'evento_externo' | 'trafego_pago' | 'almoco_jantar' | 'outro';
+/** O que o campo `imobiliaria` da rodada representa: nome de uma imobiliária ou de um corretor cadastrado. */
+export type VinculoRodadaTipo = 'imobiliaria' | 'corretor';
 export type PerfilImobiliaria = 'alto_padrao' | 'misto' | 'investidor' | 'baixo_ticket';
 export type HistoricoParceria = 'ja_parceira' | 'nao_parceira';
 export type IntencaoPrincipal = 'abrir_relacionamento' | 'reativar_base' | 'engajar_corretores' | 'gerar_visitas_propostas' | 'conversao_vendas';
@@ -312,6 +317,7 @@ export interface Rodada {
   tipoAcao: TipoAcaoRodada;
   tipoAcaoOutro: string;
   imobiliaria: string;
+  vinculoTipo: VinculoRodadaTipo;
   responsavelImobiliaria: string;
   gerenteVendasInternas: string;
   solicitanteRelacionamento: string;
@@ -412,6 +418,7 @@ export interface RodadaResumo {
   cidade: string;
   uf: string;
   imobiliaria: string;
+  vinculoTipo: VinculoRodadaTipo;
   /** "Corretor parceiro" — responsável pela imobiliária nessa rodada. */
   responsavelImobiliaria: string;
 }

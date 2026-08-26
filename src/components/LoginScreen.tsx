@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useStore } from '../store';
+import { ForgotPasswordModal } from './ForgotPasswordModal';
 import logo from '../images/logo-dark@2x.png';
 
 export function LoginScreen() {
@@ -13,6 +14,7 @@ export function LoginScreen() {
   const [showSenha, setShowSenha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -123,6 +125,16 @@ export function LoginScreen() {
                   {showSenha ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <div className="flex justify-end mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-xs font-semibold hover:underline transition-colors"
+                  style={{ color: '#d55006' }}
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -164,6 +176,8 @@ export function LoginScreen() {
           </p>
         </div>
       </div>
+
+      {showForgotPassword && <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} />}
     </div>
   );
 }

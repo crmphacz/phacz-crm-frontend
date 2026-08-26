@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
   X, CalendarDays, ChevronRight, ChevronDown, ChevronUp, Plus, Trash2, Upload, Loader2,
@@ -9,7 +9,7 @@ import { rodadasApi } from '../api/endpoints';
 import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL } from '../utils';
 import { canWriteRodadas } from '../permissions';
 import type {
-  Rodada, CreateRodadaPayload, TipoAcaoRodada, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal,
+  Rodada, CreateRodadaPayload, TipoAcaoRodada, VinculoRodadaTipo, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal,
   PublicoEsperado, CarteiraPublico, MaterialComercial, EstruturaOperacao, CategoriaOrcamento,
   ResponsavelEntrega, StatusEntrega, ComoConvite, ProximoPasso, InvestimentoOuMoradia, PlanoB,
   PotencialRetorno, PrioridadeTrimestre, Recomendacao,
@@ -162,6 +162,7 @@ interface FormState {
   tipoAcao: TipoAcaoRodada;
   tipoAcaoOutro: string;
   imobiliaria: string;
+  vinculoTipo: VinculoRodadaTipo;
   responsavelImobiliaria: string;
   gerenteVendasInternas: string;
   solicitanteRelacionamento: string;
@@ -234,7 +235,7 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
   if (!rodada) {
     return {
       dataSolicitacao: '', dataInicio: dataInicial ?? '', dataFim: dataInicial ?? '', cidade: '', uf: '',
-      tipoAcao: 'rodada', tipoAcaoOutro: '', imobiliaria: '', responsavelImobiliaria: '',
+      tipoAcao: 'rodada', tipoAcaoOutro: '', imobiliaria: '', vinculoTipo: 'imobiliaria', responsavelImobiliaria: '',
       gerenteVendasInternas: '', solicitanteRelacionamento: '',
       parceiroEndereco: '', parceiroPerfil: '', parceiroHistorico: '', parceiroParticipouAcaoAnterior: null,
       parceiroParticipouQuando: '', parceiroResumoRelacionamento: '',
@@ -265,6 +266,7 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
     tipoAcao: rodada.tipoAcao,
     tipoAcaoOutro: rodada.tipoAcaoOutro,
     imobiliaria: rodada.imobiliaria,
+    vinculoTipo: rodada.vinculoTipo,
     responsavelImobiliaria: rodada.responsavelImobiliaria,
     gerenteVendasInternas: rodada.gerenteVendasInternas,
     solicitanteRelacionamento: rodada.solicitanteRelacionamento,
@@ -350,6 +352,7 @@ function toPayload(form: FormState): CreateRodadaPayload {
     tipoAcao: form.tipoAcao,
     tipoAcaoOutro: form.tipoAcaoOutro.trim(),
     imobiliaria: form.imobiliaria,
+    vinculoTipo: form.vinculoTipo,
     responsavelImobiliaria: form.responsavelImobiliaria.trim(),
     gerenteVendasInternas: form.gerenteVendasInternas.trim(),
     solicitanteRelacionamento: form.solicitanteRelacionamento.trim(),
@@ -442,6 +445,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
   // Só a Diretoria cria/edita rodadas; os demais perfis com acesso ao módulo só visualizam.
   const isReadOnly = !canWriteRodadas(currentUser);
   const imobiliariasOptions = useStore((s) => s.imobiliariasOptions).filter((i) => i.ativo);
+  const corretoresOptions = useStore((s) => s.corretores).filter((c) => c.status !== 'arquivado' && c.status !== 'perdido');
   const empreendimentosOptions = useStore((s) => s.empreendimentos);
   const ensureEmpreendimentosLoaded = useStore((s) => s.ensureEmpreendimentosLoaded);
   const createRodada = useStore((s) => s.createRodada);
@@ -467,6 +471,15 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     setErrors((er) => ({ ...er, [key]: '' }));
   }
 
+  // Guarda a div de cada campo validável, pra poder rolar até o primeiro erro ao tentar
+  // salvar — ver fieldRef()/handleSubmit(). `Object.keys(e)` em validate() já segue a mesma
+  // ordem visual dos campos no formulário, então o primeiro erro do objeto já é o primeiro
+  // campo com problema de cima pra baixo.
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  function fieldRef(key: string) {
+    return (el: HTMLDivElement | null) => { fieldRefs.current[key] = el; };
+  }
+
   // Total do orçamento — somado automaticamente a partir dos itens, nunca digitado.
   const orcamentoTotal = form.orcamentoItens.reduce((sum, item) => sum + (parseCurrencyBRL(item.valor) ?? 0), 0);
 
@@ -478,7 +491,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     if (!form.cidade.trim()) e.cidade = 'Informe a cidade';
     if (!form.uf.trim()) e.uf = 'Informe a UF';
     if (form.tipoAcao === 'outro' && !form.tipoAcaoOutro.trim()) e.tipoAcaoOutro = 'Descreva o tipo de ação';
-    if (!form.imobiliaria) e.imobiliaria = 'Selecione a imobiliária';
+    if (!form.imobiliaria) e.imobiliaria = form.vinculoTipo === 'corretor' ? 'Selecione o corretor' : 'Selecione a imobiliária';
     if (!form.metaMinParticipantes && !form.metaMinAgendamentos && !form.metaMinVendas) {
       e.metaMinima = 'Informe ao menos uma meta mínima: participantes, agendamentos ou vendas';
     }
@@ -489,6 +502,8 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     const e = validate();
     if (Object.keys(e).length > 0) {
       setErrors(e);
+      const firstErrorKey = Object.keys(e)[0];
+      fieldRefs.current[firstErrorKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -546,7 +561,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                 <input type="date" className="form-input" value={form.dataSolicitacao} onChange={(ev) => set('dataSolicitacao', ev.target.value)} />
               </div>
               <div />
-              <div>
+              <div ref={fieldRef('dataInicio')}>
                 <FormLabel required>Data prevista — início</FormLabel>
                 <input
                   type="date"
@@ -556,7 +571,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                 />
                 {errors.dataInicio && <p className="text-xs text-red-500 mt-1">{errors.dataInicio}</p>}
               </div>
-              <div>
+              <div ref={fieldRef('dataFim')}>
                 <FormLabel required>Data prevista — fim</FormLabel>
                 <input
                   type="date"
@@ -567,7 +582,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                 />
                 {errors.dataFim && <p className="text-xs text-red-500 mt-1">{errors.dataFim}</p>}
               </div>
-              <div>
+              <div ref={fieldRef('cidade')}>
                 <FormLabel required>Cidade</FormLabel>
                 <input
                   className={`form-input ${errors.cidade ? 'border-red-400' : ''}`}
@@ -576,7 +591,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                 />
                 {errors.cidade && <p className="text-xs text-red-500 mt-1">{errors.cidade}</p>}
               </div>
-              <div>
+              <div ref={fieldRef('uf')}>
                 <FormLabel required>UF</FormLabel>
                 <input
                   maxLength={2}
@@ -593,7 +608,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                 </select>
               </div>
               {form.tipoAcao === 'outro' && (
-                <div>
+                <div ref={fieldRef('tipoAcaoOutro')}>
                   <FormLabel required>Qual ação?</FormLabel>
                   <input
                     className={`form-input ${errors.tipoAcaoOutro ? 'border-red-400' : ''}`}
@@ -603,15 +618,39 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                   {errors.tipoAcaoOutro && <p className="text-xs text-red-500 mt-1">{errors.tipoAcaoOutro}</p>}
                 </div>
               )}
-              <div>
-                <FormLabel required>Imobiliária</FormLabel>
+              <div ref={fieldRef('imobiliaria')} className="sm:col-span-2">
+                <FormLabel required>Vincular a</FormLabel>
+                <div className="flex items-center gap-2 mb-2">
+                  {([
+                    { v: 'imobiliaria' as const, label: 'Imobiliária' },
+                    { v: 'corretor' as const, label: 'Corretor' },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => { set('vinculoTipo', opt.v); set('imobiliaria', ''); clearError('imobiliaria'); }}
+                      className="px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                      style={
+                        form.vinculoTipo === opt.v
+                          ? { backgroundColor: '#fff7ed', borderColor: '#d55006', color: '#d55006' }
+                          : { borderColor: '#e5e7eb', color: '#6b7280', backgroundColor: '#fff' }
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
                 <select
                   className={`form-input ${errors.imobiliaria ? 'border-red-400' : ''}`}
                   value={form.imobiliaria}
                   onChange={(ev) => { set('imobiliaria', ev.target.value); clearError('imobiliaria'); }}
                 >
-                  <option value="">Selecionar...</option>
-                  {imobiliariasOptions.map((i) => <option key={i.id} value={i.nome}>{i.nome}</option>)}
+                  <option value="">
+                    {form.vinculoTipo === 'imobiliaria' ? 'Selecionar imobiliária...' : 'Selecionar corretor...'}
+                  </option>
+                  {form.vinculoTipo === 'imobiliaria'
+                    ? imobiliariasOptions.map((i) => <option key={i.id} value={i.nome}>{i.nome}</option>)
+                    : corretoresOptions.map((c) => <option key={c.id} value={c.nomeCorretor}>{c.nomeCorretor}</option>)}
                 </select>
                 {errors.imobiliaria && <p className="text-xs text-red-500 mt-1">{errors.imobiliaria}</p>}
               </div>

@@ -1,17 +1,22 @@
 import { useMemo, useState } from 'react';
 import { X, User, Search, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
+import type { ClienteFinalComContexto } from '../store';
 import { ApiError } from '../api/client';
-import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL, getInitials } from '../utils';
+import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
 
 interface NewClienteModalProps {
   onClose: () => void;
   onCreated?: (corretorId: string) => void;
+  /** Presente = modo edição (dados + corretor responsável de um cliente já existente). */
+  cliente?: ClienteFinalComContexto;
 }
 
-export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
+export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModalProps) {
+  const isEdit = Boolean(cliente);
   const corretores = useStore((s) => s.corretores);
   const addClienteFinal = useStore((s) => s.addClienteFinal);
+  const updateClienteFinal = useStore((s) => s.updateClienteFinal);
 
   const corretorOptions = useMemo(
     () =>
@@ -22,14 +27,14 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
   );
 
   const [corretorSearch, setCorretorSearch] = useState('');
-  const [corretorId, setCorretorId] = useState('');
+  const [corretorId, setCorretorId] = useState(cliente?.corretorId ?? '');
 
-  const [nome, setNome] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [email, setEmail] = useState('');
-  const [interesse, setInteresse] = useState('');
-  const [orcamento, setOrcamento] = useState('');
-  const [observacoes, setObservacoes] = useState('');
+  const [nome, setNome] = useState(cliente?.nome ?? '');
+  const [telefone, setTelefone] = useState(cliente ? maskPhone(cliente.telefone) : '');
+  const [email, setEmail] = useState(cliente?.email ?? '');
+  const [interesse, setInteresse] = useState(cliente?.interesse ?? '');
+  const [orcamento, setOrcamento] = useState(cliente?.orcamento ? formatCurrencyBRL(cliente.orcamento) : '');
+  const [observacoes, setObservacoes] = useState(cliente?.observacoes ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -61,19 +66,26 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
 
     setSubmitting(true);
     setSubmitError('');
+    const data = {
+      nome: nome.trim(),
+      telefone: telefone.trim(),
+      email: email.trim() || undefined,
+      interesse: interesse.trim(),
+      orcamento: orcamento ? parseCurrencyBRL(orcamento) : undefined,
+      observacoes: observacoes.trim() || undefined,
+    };
     try {
-      await addClienteFinal(corretorId, {
-        nome: nome.trim(),
-        telefone: telefone.trim(),
-        email: email.trim() || undefined,
-        interesse: interesse.trim(),
-        orcamento: orcamento ? parseCurrencyBRL(orcamento) : undefined,
-        observacoes: observacoes.trim() || undefined,
-      });
+      if (cliente) {
+        await updateClienteFinal(cliente.corretorId, cliente.id, data, corretorId);
+      } else {
+        await addClienteFinal(corretorId, data);
+      }
       onCreated?.(corretorId);
       onClose();
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : 'Não foi possível cadastrar o cliente. Tente novamente.');
+      setSubmitError(
+        err instanceof ApiError ? err.message : `Não foi possível ${isEdit ? 'salvar' : 'cadastrar'} o cliente. Tente novamente.`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -93,8 +105,10 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
               <User size={18} style={{ color: '#d55006' }} />
             </div>
             <div>
-              <h2 className="font-questrial font-bold text-lg text-gray-900">Novo Cliente</h2>
-              <p className="text-xs text-gray-400">Cadastre o cliente e vincule a um corretor</p>
+              <h2 className="font-questrial font-bold text-lg text-gray-900">{isEdit ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+              <p className="text-xs text-gray-400">
+                {isEdit ? 'Atualize os dados e o corretor responsável' : 'Cadastre o cliente e vincule a um corretor'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
@@ -249,7 +263,7 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
             style={{ backgroundColor: '#d55006' }}
           >
-            {submitting ? 'Salvando...' : 'Cadastrar Cliente'}
+            {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Cliente'}
             {!submitting && <ChevronRight size={16} />}
           </button>
         </div>

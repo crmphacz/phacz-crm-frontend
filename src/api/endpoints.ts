@@ -41,6 +41,8 @@ export const authApi = {
   me: () => apiFetch<MeResult>('/api/auth/me'),
   forgotPassword: (email: string) =>
     apiFetch<{ message: string }>('/api/auth/forgot-password', { method: 'POST', body: { email } }),
+  resetPassword: (token: string, novaSenha: string) =>
+    apiFetch<{ message: string }>('/api/auth/reset-password', { method: 'POST', body: { token, novaSenha } }),
   // Troca de senha revoga a sessão atual no servidor (tokenVersion), então a API já devolve
   // um token novo — sem isso, a próxima chamada autenticada falharia com o token antigo.
   changePassword: (senhaAtual: string, novaSenha: string) =>
@@ -114,6 +116,18 @@ export const corretoresApi = {
 
   addCliente: (id: string, data: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>) =>
     apiFetch(`/api/corretores/${id}/clientes`, { method: 'POST', body: data }),
+
+  // `novoCorretorId` reatribui o cliente a outro corretor; omitido mantém o atual.
+  updateCliente: (
+    id: string,
+    cfId: string,
+    data: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>,
+    novoCorretorId?: string
+  ) =>
+    apiFetch(`/api/corretores/${id}/clientes/${cfId}`, {
+      method: 'PATCH',
+      body: { ...data, ...(novoCorretorId ? { corretorId: novoCorretorId } : {}) },
+    }),
 
   checkImobiliaria: (nome: string) =>
     apiFetch<{ existentes: ImobiliariaMatch[] }>('/api/corretores/imobiliaria-existente', { query: { nome } }),

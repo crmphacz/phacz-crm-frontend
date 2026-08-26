@@ -3,7 +3,7 @@ import { X, Building2, User, Mail, Tag, ChevronRight, AlertTriangle } from 'luci
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
 import { corretoresApi, type ImobiliariaMatch } from '../api/endpoints';
-import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
+import { maskPhone, maskCPF, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
 import type { TipoInteresse, CanalOrigem } from '../types';
 
 function responsavelLabel(m: ImobiliariaMatch): string {
@@ -27,6 +27,9 @@ export function NewCorretorModal() {
   const [email, setEmail] = useState('');
   const [imobiliaria, setImobiliaria] = useState('');
   const [ticketMedio, setTicketMedio] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [creci, setCreci] = useState('');
+  const [dataNascimento, setDataNascimento] = useState('');
   const [canal, setCanal] = useState<CanalOrigem>('');
   const [responsavelSDRId, setResponsavelSDRId] = useState('');
   const [interesses, setInteresses] = useState<TipoInteresse[]>([]);
@@ -85,6 +88,9 @@ export function NewCorretorModal() {
         emailCorretor: email.trim(),
         imobiliaria: imobiliaria.trim(),
         ticketMedio: ticketMedio ? parseCurrencyBRL(ticketMedio) : undefined,
+        cpf: cpf.trim() || undefined,
+        creci: creci.trim() || undefined,
+        dataNascimento: dataNascimento || undefined,
         canalOrigem: canal,
         responsavelSDRId: responsavelSDRId || undefined,
         tiposInteresse: interesses,
@@ -211,6 +217,35 @@ export function NewCorretorModal() {
                   inputMode="numeric"
                   value={ticketMedio}
                   onChange={(e) => setTicketMedio(maskCurrencyBRLInput(e.target.value))}
+                />
+              </div>
+              <div>
+                <FormLabel>CPF</FormLabel>
+                <input
+                  className="form-input"
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  maxLength={14}
+                  value={cpf}
+                  onChange={(e) => setCpf(maskCPF(e.target.value))}
+                />
+              </div>
+              <div>
+                <FormLabel>CRECI</FormLabel>
+                <input
+                  className="form-input"
+                  placeholder="Ex: 123456-F"
+                  value={creci}
+                  onChange={(e) => setCreci(e.target.value)}
+                />
+              </div>
+              <div>
+                <FormLabel>Data de nascimento</FormLabel>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={dataNascimento}
+                  onChange={(e) => setDataNascimento(e.target.value)}
                 />
               </div>
             </div>

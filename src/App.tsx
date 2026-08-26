@@ -14,6 +14,7 @@ import { PipelineRulesView } from './components/PipelineRulesView';
 import { IndicadoresView } from './components/IndicadoresView';
 import { LoginScreen } from './components/LoginScreen';
 import { ChangePasswordScreen } from './components/ChangePasswordScreen';
+import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { EmailMarketingView } from './components/EmailMarketingView';
 import { PhaczIAView } from './components/PhaczIAView';
@@ -46,6 +47,16 @@ export default function App() {
   // A política de privacidade precisa renderizar por cima de QUALQUER tela (inclusive antes
   // do login), então fica fora do if/else abaixo em vez de duplicada em cada branch.
   const privacyModal = showPrivacyPolicy && <PrivacyPolicyModal onClose={() => setShowPrivacyPolicy(false)} />;
+
+  // Link do e-mail de "esqueci minha senha" (ver resetLink em auth/routes.ts). App não usa
+  // roteador nenhum — isso é a única "rota" própria do front, tratada manualmente aqui, fora
+  // de todo o fluxo normal de login/app porque quem chega por esse link não está logado.
+  const resetPasswordToken = window.location.pathname === '/redefinir-senha'
+    ? new URLSearchParams(window.location.search).get('token')
+    : null;
+  if (resetPasswordToken) {
+    return <ResetPasswordScreen token={resetPasswordToken} />;
+  }
 
   if (isBootstrapping) {
     return (

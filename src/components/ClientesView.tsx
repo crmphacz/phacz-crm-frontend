@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Search, Building2, Phone, Mail, Link } from 'lucide-react';
 import { useStore, useAllClientesFinais } from '../store';
+import type { ClienteFinalComContexto } from '../store';
 import { STAGES } from '../data';
 import { formatCurrency, formatRelativeTime } from '../utils';
 import { NewClienteModal } from './NewClienteModal';
@@ -16,6 +17,7 @@ export function ClientesView() {
   const allClientes = useAllClientesFinais();
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
+  const [editingCliente, setEditingCliente] = useState<ClienteFinalComContexto | null>(null);
 
   const filtered = useMemo(() => {
     if (!search) return allClientes;
@@ -31,9 +33,16 @@ export function ClientesView() {
     );
   }, [allClientes, search]);
 
-  function handleRowClick(corretorId: string) {
-    setView('pipeline');
-    setSelectedCorretor(corretorId);
+  // Diretoria (única que escreve aqui) clica pra editar o cliente (dados + corretor
+  // responsável); os demais perfis com acesso a esta tela (Marketing/Administrativo/Recepção,
+  // só leitura) clicam pra ver o corretor no Pipeline, como já era.
+  function handleRowClick(cliente: ClienteFinalComContexto) {
+    if (isReadOnly) {
+      setView('pipeline');
+      setSelectedCorretor(cliente.corretorId);
+    } else {
+      setEditingCliente(cliente);
+    }
   }
 
   return (
@@ -92,7 +101,7 @@ export function ClientesView() {
               return (
                 <tr
                   key={c.id}
-                  onClick={() => handleRowClick(c.corretorId)}
+                  onClick={() => handleRowClick(c)}
                   className="border-b cursor-pointer bg-white hover:bg-gray-100 transition-colors"
                   style={{ borderColor: '#f9fafb' }}
                 >
@@ -166,6 +175,7 @@ export function ClientesView() {
       </div>
 
       {showNewModal && <NewClienteModal onClose={() => setShowNewModal(false)} />}
+      {editingCliente && <NewClienteModal cliente={editingCliente} onClose={() => setEditingCliente(null)} />}
     </div>
   );
 }

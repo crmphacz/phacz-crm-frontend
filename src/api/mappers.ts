@@ -3,7 +3,7 @@ import type {
   DestinatarioTipo, EmailTemplate, EmailCampaign,
   ChatMessage, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, TipoNotificacao,
   Empreendimento, EmpreendimentoDetail, Unidade, StatusUnidade,
-  TipoAcaoRodada, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal, PublicoEsperado, CarteiraPublico,
+  TipoAcaoRodada, VinculoRodadaTipo, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal, PublicoEsperado, CarteiraPublico,
   MaterialComercial, EstruturaOperacao, CategoriaOrcamento, ResponsavelEntrega, StatusEntrega, ComoConvite,
   ProximoPasso, InvestimentoOuMoradia, PlanoB, PotencialRetorno, PrioridadeTrimestre, Recomendacao,
   LogAcao,
@@ -155,6 +155,9 @@ export interface ApiCorretor {
   emailCorretor: string;
   imobiliaria: string;
   ticketMedio: number | null;
+  cpf: string | null;
+  creci: string | null;
+  dataNascimento: string | null;
   tiposInteresse: string[];
   possuiInvestidores: boolean;
   potencialParceria: boolean;
@@ -241,6 +244,9 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     emailCorretor: l.emailCorretor,
     imobiliaria: l.imobiliaria,
     ticketMedio: l.ticketMedio ?? undefined,
+    cpf: l.cpf ?? undefined,
+    creci: l.creci ?? undefined,
+    dataNascimento: l.dataNascimento ?? undefined,
     tiposInteresse: l.tiposInteresse,
     possuiInvestidores: l.possuiInvestidores,
     potencialParceria: l.potencialParceria,
@@ -283,6 +289,9 @@ export interface CreateCorretorPayload {
   emailCorretor?: string;
   imobiliaria?: string;
   ticketMedio?: number;
+  cpf?: string;
+  creci?: string;
+  dataNascimento?: string;
   tiposInteresse?: string[];
   possuiInvestidores?: boolean;
   potencialParceria?: boolean;
@@ -379,6 +388,9 @@ const tipoAcaoMap = makeEnumMap<string, TipoAcaoRodada>([
   ['RODADA', 'rodada'], ['CAFE_NA_OBRA', 'cafe_na_obra'], ['EVENTO_EXTERNO', 'evento_externo'],
   ['TRAFEGO_PAGO', 'trafego_pago'], ['ALMOCO_JANTAR', 'almoco_jantar'], ['OUTRO', 'outro'],
 ]);
+const vinculoRodadaTipoMap = makeEnumMap<string, VinculoRodadaTipo>([
+  ['IMOBILIARIA', 'imobiliaria'], ['CORRETOR', 'corretor'],
+]);
 const perfilImobiliariaMap = makeEnumMap<string, PerfilImobiliaria>([
   ['ALTO_PADRAO', 'alto_padrao'], ['MISTO', 'misto'], ['INVESTIDOR', 'investidor'], ['BAIXO_TICKET', 'baixo_ticket'],
 ]);
@@ -466,6 +478,7 @@ export interface ApiRodada {
   tipoAcao: string;
   tipoAcaoOutro: string;
   imobiliaria: string;
+  vinculoTipo: string;
   responsavelImobiliaria: string;
   gerenteVendasInternas: string;
   solicitanteRelacionamento: string;
@@ -550,6 +563,7 @@ export interface ApiRodadaResumo {
   cidade: string;
   uf: string;
   imobiliaria: string;
+  vinculoTipo: string;
   responsavelImobiliaria: string;
 }
 
@@ -561,6 +575,7 @@ export function mapRodadaResumoFromApi(r: ApiRodadaResumo): RodadaResumo {
     cidade: r.cidade,
     uf: r.uf,
     imobiliaria: r.imobiliaria,
+    vinculoTipo: vinculoRodadaTipoMap.toApp(r.vinculoTipo),
     responsavelImobiliaria: r.responsavelImobiliaria,
   };
 }
@@ -586,6 +601,7 @@ export function mapRodadaFromApi(r: ApiRodada): Rodada {
     tipoAcao: tipoAcaoMap.toApp(r.tipoAcao),
     tipoAcaoOutro: r.tipoAcaoOutro,
     imobiliaria: r.imobiliaria,
+    vinculoTipo: vinculoRodadaTipoMap.toApp(r.vinculoTipo),
     responsavelImobiliaria: r.responsavelImobiliaria,
     gerenteVendasInternas: r.gerenteVendasInternas,
     solicitanteRelacionamento: r.solicitanteRelacionamento,
@@ -688,6 +704,7 @@ export function mapCreateRodadaToApi(payload: CreateRodadaPayload): Record<strin
   return {
     ...payload,
     tipoAcao: tipoAcaoMap.toApi(payload.tipoAcao),
+    vinculoTipo: vinculoRodadaTipoMap.toApi(payload.vinculoTipo),
     parceiroPerfil: payload.parceiroPerfil ? perfilImobiliariaMap.toApi(payload.parceiroPerfil) : undefined,
     parceiroHistorico: payload.parceiroHistorico ? historicoParceriaMap.toApi(payload.parceiroHistorico) : undefined,
     intencaoPrincipal: payload.intencaoPrincipal ? intencaoPrincipalMap.toApi(payload.intencaoPrincipal) : undefined,
