@@ -349,32 +349,45 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (!token) return;
 
     set({ isBootstrapping: true });
+
+    // Fase 1 — valida o token. Falhar aqui É um problema de autenticação de verdade (token
+    // expirado/revogado): desloga e volta pro login.
+    let me;
     try {
-      const me = await authApi.me();
-      const currentUser = { id: me.id, nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor };
-
-      if (me.deveTrocarSenha) {
-        set({ isLoggedIn: true, currentUser, mustChangePassword: true });
-        return;
-      }
-
-      set({
-        isLoggedIn: true,
-        currentUser,
-        mustChangePassword: false,
-        view: getDefaultView(currentUser),
-      });
-
-      // Só o essencial pra a tela sair do loading: corretores (Pipeline, a view padrão de
-      // quase todo cargo) + usuários (usado por praticamente toda tela). O resto do boot
-      // (abaixo) roda em paralelo mas NÃO trava o spinner — antes, uma única chamada lenta
-      // entre as 14 travava a tela inteira, e uma falhando derrubava o login todo.
-      const [corretores, users] = await Promise.all([corretoresApi.list(), usersApi.list()]);
-      set({ corretores, users });
+      me = await authApi.me();
     } catch {
       clearToken();
-      set({ isLoggedIn: false, currentUser: null, mustChangePassword: false });
+      set({ isLoggedIn: false, currentUser: null, mustChangePassword: false, isBootstrapping: false });
       return;
+    }
+
+    const currentUser = { id: me.id, nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor };
+
+    if (me.deveTrocarSenha) {
+      set({ isLoggedIn: true, currentUser, mustChangePassword: true, isBootstrapping: false });
+      return;
+    }
+
+    set({
+      isLoggedIn: true,
+      currentUser,
+      mustChangePassword: false,
+      view: getDefaultView(currentUser),
+    });
+
+    // Fase 2 — carrega os dados essenciais (corretores + usuários; o resto do boot, abaixo,
+    // roda em paralelo sem travar o spinner). Falhar aqui NÃO é um problema de autenticação —
+    // o token já foi validado na fase 1 — então não desloga: isso só jogaria a pessoa de volta
+    // pro login, que faria login de novo, bateria na mesma falha de novo, sem saída até o
+    // problema real (backend/banco) ser corrigido. Em vez disso, mantém a sessão e avisa.
+    try {
+      const [corretores, users] = await Promise.all([corretoresApi.list(), usersApi.list()]);
+      set({ corretores, users });
+    } catch (err) {
+      get().showToast(
+        err instanceof ApiError ? err.message : 'Não foi possível carregar corretores e usuários. Tente recarregar a página.',
+        'error'
+      );
     } finally {
       set({ isBootstrapping: false });
     }

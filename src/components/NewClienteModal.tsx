@@ -4,6 +4,8 @@ import { useStore } from '../store';
 import type { ClienteFinalComContexto } from '../store';
 import { ApiError } from '../api/client';
 import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
+import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
+import { Combobox } from './Combobox';
 
 interface NewClienteModalProps {
   onClose: () => void;
@@ -32,6 +34,9 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
   const [nome, setNome] = useState(cliente?.nome ?? '');
   const [telefone, setTelefone] = useState(cliente ? maskPhone(cliente.telefone) : '');
   const [email, setEmail] = useState(cliente?.email ?? '');
+  const [uf, setUf] = useState(cliente?.uf ?? '');
+  const [cidade, setCidade] = useState(cliente?.cidade ?? '');
+  const cidadesOptions = useCidadesPorUf(uf);
   const [interesse, setInteresse] = useState(cliente?.interesse ?? '');
   const [orcamento, setOrcamento] = useState(cliente?.orcamento ? formatCurrencyBRL(cliente.orcamento) : '');
   const [observacoes, setObservacoes] = useState(cliente?.observacoes ?? '');
@@ -70,6 +75,8 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
       nome: nome.trim(),
       telefone: telefone.trim(),
       email: email.trim() || undefined,
+      cidade: cidade.trim() || undefined,
+      uf: uf || undefined,
       interesse: interesse.trim(),
       orcamento: orcamento ? parseCurrencyBRL(orcamento) : undefined,
       observacoes: observacoes.trim() || undefined,
@@ -212,6 +219,27 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <FormLabel>Estado</FormLabel>
+                <select
+                  className="form-input"
+                  value={uf}
+                  onChange={(e) => { setUf(e.target.value); setCidade(''); }}
+                >
+                  <option value="">Selecionar...</option>
+                  {UF_OPTIONS.map((u) => <option key={u.sigla} value={u.sigla}>{u.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <FormLabel>Cidade</FormLabel>
+                <Combobox
+                  value={cidade}
+                  onChange={setCidade}
+                  options={cidadesOptions.map((c) => ({ id: c, label: c }))}
+                  placeholder={uf ? 'Buscar cidade...' : 'Selecione o estado primeiro'}
+                  disabled={!uf}
                 />
               </div>
               <div>

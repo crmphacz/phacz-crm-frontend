@@ -26,6 +26,8 @@ export interface ClienteFinal {
   nome: string;
   telefone: string;
   email?: string;
+  cidade?: string;
+  uf?: string;
   interesse: string;
   orcamento?: number;
   observacoes?: string;
@@ -72,6 +74,8 @@ export interface Corretor {
   cpf?: string;
   creci?: string;
   dataNascimento?: string;
+  cidade?: string;
+  uf?: string;
   tiposInteresse: TipoInteresse[];
   possuiInvestidores: boolean;
   potencialParceria: boolean;

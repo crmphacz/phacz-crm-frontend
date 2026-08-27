@@ -16,6 +16,7 @@ import {
 } from '../utils';
 import { ApiError } from '../api/client';
 import { Combobox } from './Combobox';
+import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { canWriteCorretor, canDeleteLeadClienteOuCard } from '../permissions';
 import type { TipoInteracao, Temperatura, TipoInteresse, CanalOrigem } from '../types';
 
@@ -28,6 +29,7 @@ type TabId = 'geral' | 'clientes' | 'atividades' | 'propostas' | 'cadencia';
 export function CorretorDetailPanel() {
   const corretorOrNull = useSelectedCorretor();
   const corretor = corretorOrNull!;
+  const cidadesOptions = useCidadesPorUf(corretor?.uf ?? '');
 
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const currentUser = useStore((s) => s.currentUser);
@@ -525,6 +527,31 @@ export function CorretorDetailPanel() {
                     onChange={(v) => safeUpdateCorretor({ dataNascimento: v ? new Date(v).toISOString() : undefined })}
                     disabled={isReadOnly}
                   />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Estado</p>
+                      <select
+                        className="form-input text-sm"
+                        value={corretor.uf ?? ''}
+                        disabled={isReadOnly}
+                        onChange={(e) => safeUpdateCorretor({ uf: e.target.value, cidade: '' })}
+                      >
+                        <option value="">Selecionar...</option>
+                        {UF_OPTIONS.map((u) => <option key={u.sigla} value={u.sigla}>{u.nome}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Cidade</p>
+                      <Combobox
+                        value={corretor.cidade ?? ''}
+                        onChange={(v) => safeUpdateCorretor({ cidade: v })}
+                        options={cidadesOptions.map((c) => ({ id: c, label: c }))}
+                        placeholder={corretor.uf ? 'Buscar cidade...' : 'Selecione o estado primeiro'}
+                        disabled={isReadOnly || !corretor.uf}
+                        className="w-full text-sm font-medium rounded-lg px-2.5 py-1.5 border transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
                 </div>
               </Section>
 

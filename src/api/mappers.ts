@@ -111,6 +111,8 @@ export interface ApiClienteFinal {
   nome: string;
   telefone: string;
   email: string | null;
+  cidade: string | null;
+  uf: string | null;
   interesse: string;
   orcamento: number | null;
   observacoes: string | null;
@@ -158,6 +160,8 @@ export interface ApiCorretor {
   cpf: string | null;
   creci: string | null;
   dataNascimento: string | null;
+  cidade: string | null;
+  uf: string | null;
   tiposInteresse: string[];
   possuiInvestidores: boolean;
   potencialParceria: boolean;
@@ -197,6 +201,8 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
     nome: cf.nome,
     telefone: cf.telefone,
     email: cf.email ?? undefined,
+    cidade: cf.cidade ?? undefined,
+    uf: cf.uf ?? undefined,
     interesse: cf.interesse,
     orcamento: cf.orcamento ?? undefined,
     observacoes: cf.observacoes ?? undefined,
@@ -247,6 +253,8 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     cpf: l.cpf ?? undefined,
     creci: l.creci ?? undefined,
     dataNascimento: l.dataNascimento ?? undefined,
+    cidade: l.cidade ?? undefined,
+    uf: l.uf ?? undefined,
     tiposInteresse: l.tiposInteresse,
     possuiInvestidores: l.possuiInvestidores,
     potencialParceria: l.potencialParceria,
@@ -292,6 +300,8 @@ export interface CreateCorretorPayload {
   cpf?: string;
   creci?: string;
   dataNascimento?: string;
+  cidade?: string;
+  uf?: string;
   tiposInteresse?: string[];
   possuiInvestidores?: boolean;
   potencialParceria?: boolean;

@@ -4,6 +4,8 @@ import { useStore } from '../store';
 import { ApiError } from '../api/client';
 import { corretoresApi, type ImobiliariaMatch } from '../api/endpoints';
 import { maskPhone, maskCPF, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
+import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
+import { Combobox } from './Combobox';
 import type { TipoInteresse, CanalOrigem } from '../types';
 
 function responsavelLabel(m: ImobiliariaMatch): string {
@@ -30,6 +32,9 @@ export function NewCorretorModal() {
   const [cpf, setCpf] = useState('');
   const [creci, setCreci] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
+  const [uf, setUf] = useState('');
+  const [cidade, setCidade] = useState('');
+  const cidadesOptions = useCidadesPorUf(uf);
   const [canal, setCanal] = useState<CanalOrigem>('');
   const [responsavelSDRId, setResponsavelSDRId] = useState('');
   const [interesses, setInteresses] = useState<TipoInteresse[]>([]);
@@ -91,6 +96,8 @@ export function NewCorretorModal() {
         cpf: cpf.trim() || undefined,
         creci: creci.trim() || undefined,
         dataNascimento: dataNascimento || undefined,
+        cidade: cidade.trim() || undefined,
+        uf: uf || undefined,
         canalOrigem: canal,
         responsavelSDRId: responsavelSDRId || undefined,
         tiposInteresse: interesses,
@@ -246,6 +253,27 @@ export function NewCorretorModal() {
                   className="form-input"
                   value={dataNascimento}
                   onChange={(e) => setDataNascimento(e.target.value)}
+                />
+              </div>
+              <div>
+                <FormLabel>Estado</FormLabel>
+                <select
+                  className="form-input"
+                  value={uf}
+                  onChange={(e) => { setUf(e.target.value); setCidade(''); }}
+                >
+                  <option value="">Selecionar...</option>
+                  {UF_OPTIONS.map((u) => <option key={u.sigla} value={u.sigla}>{u.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <FormLabel>Cidade</FormLabel>
+                <Combobox
+                  value={cidade}
+                  onChange={setCidade}
+                  options={cidadesOptions.map((c) => ({ id: c, label: c }))}
+                  placeholder={uf ? 'Buscar cidade...' : 'Selecione o estado primeiro'}
+                  disabled={!uf}
                 />
               </div>
             </div>
