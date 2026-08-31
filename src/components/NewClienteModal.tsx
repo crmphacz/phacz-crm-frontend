@@ -12,10 +12,18 @@ interface NewClienteModalProps {
   onCreated?: (corretorId: string) => void;
   /** Presente = modo edição (dados + corretor responsável de um cliente já existente). */
   cliente?: ClienteFinalComContexto;
+  /**
+   * Em modo criação, já deixa esse corretor selecionado — usado ao abrir o modal pelo card
+   * do Pipeline / painel do corretor, onde o responsável já está definido pelo contexto.
+   */
+  corretorId?: string;
 }
 
-export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModalProps) {
+export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initialCorretorId }: NewClienteModalProps) {
   const isEdit = Boolean(cliente);
+  // Ao editar um cliente já existente, o modal abre TRAVADO (só leitura) — clicar em "Editar"
+  // libera os campos. Ao criar um novo, já abre liberado.
+  const [editing, setEditing] = useState(!isEdit);
   const corretores = useStore((s) => s.corretores);
   const addClienteFinal = useStore((s) => s.addClienteFinal);
   const updateClienteFinal = useStore((s) => s.updateClienteFinal);
@@ -29,7 +37,7 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
   );
 
   const [corretorSearch, setCorretorSearch] = useState('');
-  const [corretorId, setCorretorId] = useState(cliente?.corretorId ?? '');
+  const [corretorId, setCorretorId] = useState(cliente?.corretorId ?? initialCorretorId ?? '');
 
   const [nome, setNome] = useState(cliente?.nome ?? '');
   const [telefone, setTelefone] = useState(cliente ? maskPhone(cliente.telefone) : '');
@@ -52,7 +60,9 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
     );
   }, [corretorOptions, corretorSearch]);
 
-  const selectedCorretor = corretorOptions.find((c) => c.id === corretorId);
+  // Busca na lista completa (não só nas opções filtradas) pra um corretor pré-selecionado
+  // pelo contexto — ex.: card arquivado/perdido — ainda aparecer como selecionado.
+  const selectedCorretor = corretores.find((c) => c.id === corretorId);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -112,9 +122,15 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
               <User size={18} style={{ color: '#d55006' }} />
             </div>
             <div>
-              <h2 className="font-questrial font-bold text-lg text-gray-900">{isEdit ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+              <h2 className="font-questrial font-bold text-lg text-gray-900">
+                {!isEdit ? 'Novo Cliente' : editing ? 'Editar Cliente' : 'Cliente'}
+              </h2>
               <p className="text-xs text-gray-400">
-                {isEdit ? 'Atualize os dados e o corretor responsável' : 'Cadastre o cliente e vincule a um corretor'}
+                {!isEdit
+                  ? 'Cadastre o cliente e vincule a um corretor'
+                  : editing
+                    ? 'Atualize os dados e o corretor responsável'
+                    : 'Clique em "Editar" para alterar os dados'}
               </p>
             </div>
           </div>
@@ -124,7 +140,7 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-5">
+        <fieldset disabled={!editing} className="flex-1 min-w-0 overflow-y-auto border-0 m-0 px-4 sm:px-6 py-4 sm:py-5 space-y-5">
           {/* Corretor */}
           <FormSection title="Corretor responsável">
             {selectedCorretor ? (
@@ -151,9 +167,10 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
             ) : (
               <div>
                 <div className="relative mb-2">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                   <input
-                    className={`form-input pl-8 ${errors.corretor ? 'border-red-400' : ''}`}
+                    className={`form-input ${errors.corretor ? 'border-red-400' : ''}`}
+                    style={{ paddingLeft: '2.25rem' }}
                     placeholder="Buscar corretor ou imobiliária..."
                     value={corretorSearch}
                     onChange={(e) => { setCorretorSearch(e.target.value); setErrors((er) => ({ ...er, corretor: '' })); }}
@@ -275,7 +292,7 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
           </FormSection>
 
           {submitError && <p className="text-xs text-red-500">{submitError}</p>}
-        </div>
+        </fieldset>
 
         {/* Footer */}
         <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl" style={{ borderColor: '#e5e7eb' }}>
@@ -283,17 +300,28 @@ export function NewClienteModal({ onClose, onCreated, cliente }: NewClienteModal
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
           >
-            Cancelar
+            {editing ? 'Cancelar' : 'Fechar'}
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
-            style={{ backgroundColor: '#d55006' }}
-          >
-            {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Cliente'}
-            {!submitting && <ChevronRight size={16} />}
-          </button>
+          {editing ? (
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+              {!submitting && <ChevronRight size={16} />}
+            </button>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              Editar
+              <ChevronRight size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>

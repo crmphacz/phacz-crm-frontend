@@ -12,13 +12,15 @@ import { STAGES, CADENCIAS } from '../data';
 import {
   formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG,
   TIPO_INTERACAO_CONFIG, getInitials,
-  validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
+  validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF, maskPhone,
 } from '../utils';
 import { ApiError } from '../api/client';
+import { empreendimentosApi } from '../api/endpoints';
 import { Combobox } from './Combobox';
+import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { canWriteCorretor, canDeleteLeadClienteOuCard } from '../permissions';
-import type { TipoInteracao, Temperatura, TipoInteresse, CanalOrigem } from '../types';
+import type { TipoInteracao, Temperatura, TipoInteresse, CanalOrigem, Corretor, Unidade } from '../types';
 
 function alertError(err: unknown, fallback: string) {
   alert(err instanceof ApiError ? err.message : fallback);
@@ -29,7 +31,15 @@ type TabId = 'geral' | 'clientes' | 'atividades' | 'propostas' | 'cadencia';
 export function CorretorDetailPanel() {
   const corretorOrNull = useSelectedCorretor();
   const corretor = corretorOrNull!;
-  const cidadesOptions = useCidadesPorUf(corretor?.uf ?? '');
+
+  // Aba Geral: os campos abrem TRAVADOS (só leitura). Clicando em "Editar dados" eles
+  // liberam, as mudanças ficam num rascunho local (`draft`) e só vão pra API quando o
+  // usuário clica em "Salvar" — antes cada tecla disparava um PATCH + re-render da base
+  // inteira de corretores, o que deixava o painel lento.
+  const [editingGeral, setEditingGeral] = useState(false);
+  const [draft, setDraft] = useState<Partial<Corretor>>({});
+  const ufAtual = ((editingGeral && 'uf' in draft ? (draft.uf as string | undefined) : corretor?.uf) ?? '');
+  const cidadesOptions = useCidadesPorUf(ufAtual);
 
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const currentUser = useStore((s) => s.currentUser);
@@ -38,12 +48,12 @@ export function CorretorDetailPanel() {
   const isReadOnly = !canWriteCorretor(currentUser, corretor);
   const canDelete = canDeleteLeadClienteOuCard(currentUser);
   const canaisOrigem = useStore((s) => s.canaisOrigem);
+  const imobiliariasOptions = useStore((s) => s.imobiliariasOptions);
   const tiposInteresseOptions = useStore((s) => s.tiposInteresseOptions);
   const condicoesPagamentoOptions = useStore((s) => s.condicoesPagamentoOptions);
   const updateCorretor = useStore((s) => s.updateCorretor);
   const moveCorretor = useStore((s) => s.moveCorretor);
   const addInteracao = useStore((s) => s.addInteracao);
-  const addClienteFinal = useStore((s) => s.addClienteFinal);
   const removeClienteFinal = useStore((s) => s.removeClienteFinal);
   const addProposta = useStore((s) => s.addProposta);
   const updateProposta = useStore((s) => s.updateProposta);
@@ -54,6 +64,8 @@ export function CorretorDetailPanel() {
   const corretores = useStore((s) => s.corretores);
   const users = useStore((s) => s.users);
   const hydrateCorretorDetail = useStore((s) => s.hydrateCorretorDetail);
+  const empreendimentos = useStore((s) => s.empreendimentos);
+  const ensureEmpreendimentosLoaded = useStore((s) => s.ensureEmpreendimentosLoaded);
 
   // A listagem não traz mais interacoes/propostas completos (ver corretorListInclude no
   // backend) — ao abrir o painel de um corretor, busca o registro completo e substitui a
@@ -63,12 +75,39 @@ export function CorretorDetailPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corretorOrNull?.id]);
 
+  // Ao trocar de corretor, sai do modo edição e joga fora qualquer rascunho não salvo.
+  useEffect(() => {
+    setEditingGeral(false);
+    setDraft({});
+  }, [corretorOrNull?.id]);
+
   const sdrNames = users.filter((u) => u.cargo === 'SDR' && u.ativo).map((u) => u.nome);
   const grNames = users.filter((u) => u.cargo === 'GR' && u.ativo).map((u) => u.nome);
   const gvNames = users.filter((u) => u.cargo === 'GV' && u.ativo).map((u) => u.nome);
 
-  function safeUpdateCorretor(updates: Partial<typeof corretor>) {
-    updateCorretor(corretor.id, updates).catch((err) => alertError(err, 'Não foi possível salvar a alteração.'));
+  /** Valor exibido de um campo da aba Geral: o do rascunho se já foi mexido, senão o salvo. */
+  function shown<K extends keyof Corretor>(key: K): Corretor[K] {
+    return (key in draft ? draft[key] : corretor[key]) as Corretor[K];
+  }
+  function patchDraft(updates: Partial<Corretor>) {
+    setDraft((d) => ({ ...d, ...updates }));
+  }
+  async function handleSaveGeral() {
+    if (Object.keys(draft).length === 0) {
+      setEditingGeral(false);
+      return;
+    }
+    try {
+      await updateCorretor(corretor.id, draft);
+      setDraft({});
+      setEditingGeral(false);
+    } catch (err) {
+      alertError(err, 'Não foi possível salvar as alterações.');
+    }
+  }
+  function handleCancelGeral() {
+    setDraft({});
+    setEditingGeral(false);
   }
 
   const [tab, setTab] = useState<TabId>('geral');
@@ -78,20 +117,19 @@ export function CorretorDetailPanel() {
   const [wonValue, setWonValue] = useState('');
   const [archiveReason, setArchiveReason] = useState('');
 
-  // Atividade form
+  // Atividade form — "Quem realizou" é um select dos usuários do sistema e sempre abre já
+  // apontando pra quem está logado criando o registro.
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [actType, setActType] = useState<TipoInteracao>('nota');
   const [actResumo, setActResumo] = useState('');
-  const [actResponsavel, setActResponsavel] = useState('');
+  const [actResponsavel, setActResponsavel] = useState(currentUser?.nome ?? '');
+  useEffect(() => {
+    if (showActivityForm) setActResponsavel(currentUser?.nome ?? '');
+  }, [showActivityForm, currentUser?.nome]);
 
-  // Cliente form
-  const [showClienteForm, setShowClienteForm] = useState(false);
-  const [cfNome, setCfNome] = useState('');
-  const [cfTel, setCfTel] = useState('');
-  const [cfEmail, setCfEmail] = useState('');
-  const [cfInteresse, setCfInteresse] = useState('');
-  const [cfOrcamento, setCfOrcamento] = useState('');
-  const [cfObs, setCfObs] = useState('');
+  // Cliente — usa o mesmo modal da tela de Clientes (NewClienteModal), já com este corretor
+  // pré-selecionado como responsável.
+  const [showClienteModal, setShowClienteModal] = useState(false);
 
   // Proposta form
   const [showPropostaForm, setShowPropostaForm] = useState(false);
@@ -103,11 +141,38 @@ export function CorretorDetailPanel() {
   const [pClienteId, setPClienteId] = useState('');
   const [pArquivo, setPArquivo] = useState<File | null>(null);
   const [pSubmitting, setPSubmitting] = useState(false);
+  // Empreendimento (id do selecionado) + unidades carregadas sob demanda desse empreendimento.
+  const [pEmpId, setPEmpId] = useState('');
+  const [pUnidades, setPUnidades] = useState<Unidade[]>([]);
+  const [pUnidadesLoading, setPUnidadesLoading] = useState(false);
+  const pUnidadesDisponiveis = pUnidades.filter((u) => u.status === 'disponivel');
+
+  // Ao abrir o formulário de proposta, garante a lista de empreendimentos carregada.
+  useEffect(() => {
+    if (showPropostaForm) ensureEmpreendimentosLoaded().catch(() => undefined);
+  }, [showPropostaForm, ensureEmpreendimentosLoaded]);
+
+  // Ao escolher um empreendimento, busca as unidades dele (o dropdown de unidade só habilita depois disso).
+  useEffect(() => {
+    if (!pEmpId) {
+      setPUnidades([]);
+      return;
+    }
+    let cancelled = false;
+    setPUnidadesLoading(true);
+    empreendimentosApi
+      .get(pEmpId)
+      .then((detail) => { if (!cancelled) setPUnidades(detail.unidades); })
+      .catch(() => { if (!cancelled) setPUnidades([]); })
+      .finally(() => { if (!cancelled) setPUnidadesLoading(false); });
+    return () => { cancelled = true; };
+  }, [pEmpId]);
 
   const [ticketMedioInput, setTicketMedioInput] = useState('');
   useEffect(() => {
+    // Ressincroniza também ao sair do modo edição (Cancelar), pra descartar o que foi digitado.
     setTicketMedioInput(corretorOrNull?.ticketMedio ? formatCurrencyBRL(corretorOrNull.ticketMedio) : '');
-  }, [corretorOrNull?.id, corretorOrNull?.ticketMedio]);
+  }, [corretorOrNull?.id, corretorOrNull?.ticketMedio, editingGeral]);
 
   if (!corretorOrNull) return null;
 
@@ -165,28 +230,10 @@ export function CorretorDetailPanel() {
         responsavel: actResponsavel || 'Não informado',
         etapa: corretor.etapa,
       });
-      setActResumo(''); setActType('nota'); setActResponsavel('');
+      setActResumo(''); setActType('nota'); setActResponsavel(currentUser?.nome ?? '');
       setShowActivityForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a atividade.');
-    }
-  }
-
-  async function handleSaveCliente() {
-    if (!cfNome.trim() || !cfTel.trim()) return;
-    try {
-      await addClienteFinal(corretor.id, {
-        nome: cfNome.trim(),
-        telefone: cfTel.trim(),
-        email: cfEmail.trim() || undefined,
-        interesse: cfInteresse.trim(),
-        orcamento: cfOrcamento ? parseCurrencyBRL(cfOrcamento) : undefined,
-        observacoes: cfObs.trim() || undefined,
-      });
-      setCfNome(''); setCfTel(''); setCfEmail(''); setCfInteresse(''); setCfOrcamento(''); setCfObs('');
-      setShowClienteForm(false);
-    } catch (err) {
-      alertError(err, 'Não foi possível adicionar o cliente final.');
     }
   }
 
@@ -211,19 +258,13 @@ export function CorretorDetailPanel() {
         responsavel: corretor.responsavelGV || 'GV',
         etapa: corretor.etapa,
       });
-      setPEmp(''); setPUnidade(''); setPValor(''); setPCondicoes(''); setPClienteNome(''); setPClienteId(''); setPArquivo(null);
+      setPEmp(''); setPEmpId(''); setPUnidades([]); setPUnidade(''); setPValor(''); setPCondicoes(''); setPClienteNome(''); setPClienteId(''); setPArquivo(null);
       setShowPropostaForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a proposta.');
     } finally {
       setPSubmitting(false);
     }
-  }
-
-  function handleClienteNomeChange(text: string) {
-    setPClienteNome(text);
-    const selected = corretor.clientesFinais.find((cf) => cf.id === pClienteId);
-    if (selected && selected.nome !== text) setPClienteId('');
   }
 
   async function handleGerarNegocio(cfId: string) {
@@ -258,9 +299,9 @@ export function CorretorDetailPanel() {
   }
 
   function toggleInteresse(id: TipoInteresse) {
-    const current = corretor.tiposInteresse;
+    const current = shown('tiposInteresse');
     const updated = current.includes(id) ? current.filter((i) => i !== id) : [...current, id];
-    safeUpdateCorretor({ tiposInteresse: updated });
+    patchDraft({ tiposInteresse: updated });
   }
 
   const tabs: { id: TabId; label: string; icon: React.ElementType; count?: number }[] = [
@@ -441,100 +482,141 @@ export function CorretorDetailPanel() {
         {/* Panel Body */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ─── GERAL TAB — totalmente editável ─── */}
+          {/* ─── GERAL TAB — só edita depois de clicar em "Editar dados" ─── */}
           {tab === 'geral' && (
-            <fieldset disabled={isReadOnly} className="border-0 m-0 min-w-0 p-5 space-y-5">
+            <>
+              {!isReadOnly && (
+                <div className="flex items-center justify-end gap-2 px-5 pt-4">
+                  {editingGeral ? (
+                    <>
+                      <button
+                        onClick={handleCancelGeral}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-500 hover:bg-gray-100 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleSaveGeral}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-colors"
+                        style={{ backgroundColor: '#d55006' }}
+                      >
+                        <CheckCheck size={13} />
+                        Salvar alterações
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setEditingGeral(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors hover:bg-gray-50"
+                      style={{ borderColor: '#e5e7eb', color: '#374151' }}
+                    >
+                      <Edit3 size={13} />
+                      Editar dados
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <fieldset disabled={isReadOnly || !editingGeral} className="border-0 m-0 min-w-0 px-5 pb-5 pt-3 space-y-5">
               {/* Corretor */}
               <Section title="Dados do Corretor" icon={<Building2 size={14} style={{ color: '#d55006' }} />}>
                 <div className="space-y-3">
                   <EditField
                     label="Nome completo"
-                    value={corretor.nomeCorretor}
-                    onChange={(v) => safeUpdateCorretor({ nomeCorretor: v })}
+                    value={shown('nomeCorretor')}
+                    onChange={(v) => patchDraft({ nomeCorretor: v })}
                     placeholder="Nome do corretor"
-                    disabled={isReadOnly}
+                    disabled={isReadOnly || !editingGeral}
                   />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <EditFieldLink
                       label="Telefone"
-                      value={corretor.telefoneCorretor}
-                      onChange={(v) => safeUpdateCorretor({ telefoneCorretor: v })}
-                      href={`tel:${corretor.telefoneCorretor}`}
+                      value={maskPhone(shown('telefoneCorretor'))}
+                      onChange={(v) => patchDraft({ telefoneCorretor: maskPhone(v) })}
+                      href={`tel:${corretor.telefoneCorretor.replace(/\D/g, '')}`}
                       icon={<Phone size={11} />}
                       placeholder="(11) 99999-9999"
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || !editingGeral}
                     />
                     <EditFieldLink
                       label="WhatsApp"
-                      value={corretor.whatsappCorretor}
-                      onChange={(v) => safeUpdateCorretor({ whatsappCorretor: v })}
+                      value={maskPhone(shown('whatsappCorretor'))}
+                      onChange={(v) => patchDraft({ whatsappCorretor: maskPhone(v) })}
                       href={`https://wa.me/55${corretor.whatsappCorretor.replace(/\D/g, '')}`}
                       icon={<ExternalLink size={11} />}
                       placeholder="(11) 99999-9999"
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || !editingGeral}
                     />
                   </div>
                   <EditFieldLink
                     label="E-mail"
-                    value={corretor.emailCorretor}
-                    onChange={(v) => safeUpdateCorretor({ emailCorretor: v })}
+                    value={shown('emailCorretor')}
+                    onChange={(v) => patchDraft({ emailCorretor: v })}
                     href={`mailto:${corretor.emailCorretor}`}
                     icon={<Mail size={11} />}
                     placeholder="email@imobiliaria.com"
                     type="email"
-                    disabled={isReadOnly}
+                    disabled={isReadOnly || !editingGeral}
                   />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <EditField
-                      label="Imobiliária"
-                      value={corretor.imobiliaria}
-                      onChange={(v) => safeUpdateCorretor({ imobiliaria: v })}
-                      placeholder="Nome da imobiliária"
-                      disabled={isReadOnly}
-                    />
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Imobiliária</p>
+                      <select
+                        className="form-input text-sm"
+                        value={shown('imobiliaria')}
+                        onChange={(e) => patchDraft({ imobiliaria: e.target.value })}
+                      >
+                        <option value="">Selecionar...</option>
+                        {imobiliariasOptions.filter((i) => i.ativo).map((i) => (
+                          <option key={i.id} value={i.nome}>{i.nome}</option>
+                        ))}
+                        {shown('imobiliaria') && !imobiliariasOptions.some((i) => i.nome === shown('imobiliaria')) && (
+                          <option value={shown('imobiliaria')}>{shown('imobiliaria')}</option>
+                        )}
+                      </select>
+                    </div>
                     <EditField
                       label="Ticket médio"
                       value={ticketMedioInput}
                       onChange={(v) => {
                         const masked = maskCurrencyBRLInput(v);
                         setTicketMedioInput(masked);
-                        safeUpdateCorretor({ ticketMedio: parseCurrencyBRL(masked) });
+                        patchDraft({ ticketMedio: parseCurrencyBRL(masked) });
                       }}
                       placeholder="R$ 0,00"
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || !editingGeral}
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <EditField
                       label="CPF"
-                      value={corretor.cpf ?? ''}
-                      onChange={(v) => safeUpdateCorretor({ cpf: maskCPF(v) })}
+                      value={shown('cpf') ?? ''}
+                      onChange={(v) => patchDraft({ cpf: maskCPF(v) })}
                       placeholder="000.000.000-00"
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || !editingGeral}
                     />
                     <EditField
                       label="CRECI"
-                      value={corretor.creci ?? ''}
-                      onChange={(v) => safeUpdateCorretor({ creci: v })}
+                      value={shown('creci') ?? ''}
+                      onChange={(v) => patchDraft({ creci: v })}
                       placeholder="Ex: 123456-F"
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || !editingGeral}
                     />
                   </div>
                   <EditField
                     label="Data de nascimento"
                     type="date"
-                    value={corretor.dataNascimento ? corretor.dataNascimento.substring(0, 10) : ''}
-                    onChange={(v) => safeUpdateCorretor({ dataNascimento: v ? new Date(v).toISOString() : undefined })}
-                    disabled={isReadOnly}
+                    value={(shown('dataNascimento') ?? '').substring(0, 10)}
+                    onChange={(v) => patchDraft({ dataNascimento: v ? new Date(v).toISOString() : undefined })}
+                    disabled={isReadOnly || !editingGeral}
                   />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Estado</p>
                       <select
                         className="form-input text-sm"
-                        value={corretor.uf ?? ''}
-                        disabled={isReadOnly}
-                        onChange={(e) => safeUpdateCorretor({ uf: e.target.value, cidade: '' })}
+                        value={shown('uf') ?? ''}
+                        onChange={(e) => patchDraft({ uf: e.target.value, cidade: '' })}
                       >
                         <option value="">Selecionar...</option>
                         {UF_OPTIONS.map((u) => <option key={u.sigla} value={u.sigla}>{u.nome}</option>)}
@@ -543,11 +625,11 @@ export function CorretorDetailPanel() {
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Cidade</p>
                       <Combobox
-                        value={corretor.cidade ?? ''}
-                        onChange={(v) => safeUpdateCorretor({ cidade: v })}
+                        value={shown('cidade') ?? ''}
+                        onChange={(v) => patchDraft({ cidade: v })}
                         options={cidadesOptions.map((c) => ({ id: c, label: c }))}
-                        placeholder={corretor.uf ? 'Buscar cidade...' : 'Selecione o estado primeiro'}
-                        disabled={isReadOnly || !corretor.uf}
+                        placeholder={ufAtual ? 'Buscar cidade...' : 'Selecione o estado primeiro'}
+                        disabled={isReadOnly || !editingGeral || !ufAtual}
                         className="w-full text-sm font-medium rounded-lg px-2.5 py-1.5 border transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                     </div>
@@ -563,14 +645,14 @@ export function CorretorDetailPanel() {
                     <div className="flex flex-wrap gap-1.5">
                       {[
                         ...tiposInteresseOptions.filter((t) => t.ativo).map((t) => t.nome),
-                        ...corretor.tiposInteresse.filter((nome) => !tiposInteresseOptions.some((t) => t.nome === nome)),
+                        ...shown('tiposInteresse').filter((nome) => !tiposInteresseOptions.some((t) => t.nome === nome)),
                       ].map((nome) => {
-                        const active = corretor.tiposInteresse.includes(nome);
+                        const active = shown('tiposInteresse').includes(nome);
                         return (
                           <button
                             key={nome}
                             onClick={() => toggleInteresse(nome)}
-                            className="text-xs px-3 py-1.5 rounded-full font-semibold border-2 transition-all"
+                            className="text-xs px-3 py-1.5 rounded-full font-semibold border-2 transition-all disabled:opacity-60"
                             style={
                               active
                                 ? { backgroundColor: '#d55006', color: '#fff', borderColor: '#d55006' }
@@ -590,12 +672,12 @@ export function CorretorDetailPanel() {
                       { field: 'potencialParceria' as const, label: '+2.5M potencial' },
                       { field: 'treinamento' as const, label: 'No treinamento' },
                     ].map(({ field, label }) => {
-                      const active = Boolean(corretor[field]);
+                      const active = Boolean(shown(field));
                       return (
                         <button
                           key={field}
-                          onClick={() => safeUpdateCorretor({ [field]: !active })}
-                          className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold border-2 transition-all"
+                          onClick={() => patchDraft({ [field]: !active } as Partial<Corretor>)}
+                          className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold border-2 transition-all disabled:opacity-60"
                           style={
                             active
                               ? { backgroundColor: '#ecfdf5', color: '#059669', borderColor: '#6ee7b7' }
@@ -609,7 +691,7 @@ export function CorretorDetailPanel() {
                     })}
                   </div>
 
-                  {corretor.treinamento && (
+                  {shown('treinamento') && (
                     <div>
                       <p className="text-xs text-gray-400 mb-2">Datas do treinamento</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -618,8 +700,8 @@ export function CorretorDetailPanel() {
                           <input
                             type="date"
                             className="form-input text-sm"
-                            value={corretor.dataAgendamentoTreinamento ? corretor.dataAgendamentoTreinamento.substring(0, 10) : ''}
-                            onChange={(e) => safeUpdateCorretor({ dataAgendamentoTreinamento: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                            value={(shown('dataAgendamentoTreinamento') ?? '').substring(0, 10)}
+                            onChange={(e) => patchDraft({ dataAgendamentoTreinamento: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
                           />
                         </div>
                         <div>
@@ -627,8 +709,8 @@ export function CorretorDetailPanel() {
                           <input
                             type="date"
                             className="form-input text-sm"
-                            value={corretor.dataRealizacaoTreinamento ? corretor.dataRealizacaoTreinamento.substring(0, 10) : ''}
-                            onChange={(e) => safeUpdateCorretor({ dataRealizacaoTreinamento: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
+                            value={(shown('dataRealizacaoTreinamento') ?? '').substring(0, 10)}
+                            onChange={(e) => patchDraft({ dataRealizacaoTreinamento: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
                           />
                         </div>
                       </div>
@@ -644,12 +726,12 @@ export function CorretorDetailPanel() {
                     <p className="text-xs text-gray-400 mb-1">Canal de origem</p>
                     <select
                       className="form-input text-sm"
-                      value={corretor.canalOrigem}
-                      onChange={(e) => safeUpdateCorretor({ canalOrigem: e.target.value as CanalOrigem })}
+                      value={shown('canalOrigem')}
+                      onChange={(e) => patchDraft({ canalOrigem: e.target.value as CanalOrigem })}
                     >
                       {canaisOrigem.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
-                      {!canaisOrigem.some((c) => c.nome === corretor.canalOrigem) && (
-                        <option value={corretor.canalOrigem}>{corretor.canalOrigem}</option>
+                      {!canaisOrigem.some((c) => c.nome === shown('canalOrigem')) && (
+                        <option value={shown('canalOrigem')}>{shown('canalOrigem')}</option>
                       )}
                     </select>
                   </div>
@@ -657,9 +739,9 @@ export function CorretorDetailPanel() {
                     <p className="text-xs text-gray-400 mb-1">Temperatura</p>
                     <select
                       className="form-input text-sm font-semibold"
-                      value={corretor.temperatura}
-                      onChange={(e) => safeUpdateCorretor({ temperatura: e.target.value as Temperatura })}
-                      style={{ color: tempConfig.text }}
+                      value={shown('temperatura')}
+                      onChange={(e) => patchDraft({ temperatura: e.target.value as Temperatura })}
+                      style={{ color: TEMPERATURA_CONFIG[shown('temperatura')].text }}
                     >
                       <option value="quente">🔥 Quente (&lt;30 dias)</option>
                       <option value="morno">🌤 Morno (até 2 meses)</option>
@@ -683,25 +765,25 @@ export function CorretorDetailPanel() {
                   <TeamSelect
                     role="SDR"
                     color="#64748b"
-                    value={corretor.responsavelSDR}
+                    value={shown('responsavelSDR')}
                     options={sdrNames}
-                    onUpdate={(v) => safeUpdateCorretor({ responsavelSDR: v })}
+                    onUpdate={(v) => patchDraft({ responsavelSDR: v })}
                     description="Qualificação e nutrição (etapas 1–5)"
                   />
                   <TeamSelect
                     role="GR — Gerente de Relacionamento"
                     color="#0d9488"
-                    value={corretor.responsavelGR}
+                    value={shown('responsavelGR')}
                     options={grNames}
-                    onUpdate={(v) => safeUpdateCorretor({ responsavelGR: v })}
+                    onUpdate={(v) => patchDraft({ responsavelGR: v })}
                     description="Relacionamento ativo e vínculo emocional (etapas 6, 8)"
                   />
                   <TeamSelect
                     role="GV — Gerente de Vendas"
                     color="#d55006"
-                    value={corretor.responsavelGV}
+                    value={shown('responsavelGV')}
                     options={gvNames}
-                    onUpdate={(v) => safeUpdateCorretor({ responsavelGV: v })}
+                    onUpdate={(v) => patchDraft({ responsavelGV: v })}
                     description="Proposta, negociação e fechamento (etapas 7–9)"
                   />
                 </div>
@@ -710,16 +792,17 @@ export function CorretorDetailPanel() {
               {/* Observações */}
               <Section title="Observações" icon={<Edit3 size={14} style={{ color: '#d55006' }} />}>
                 <textarea
-                  className="w-full text-sm p-3 rounded-xl border resize-none transition-colors focus:outline-none"
+                  className="w-full text-sm p-3 rounded-xl border resize-none transition-colors focus:outline-none disabled:opacity-60 disabled:bg-gray-50"
                   style={{ borderColor: '#e5e7eb', minHeight: 90 }}
                   onFocus={(e) => (e.target.style.borderColor = '#d55006')}
                   onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
-                  value={corretor.observacoes}
+                  value={shown('observacoes')}
                   placeholder="Adicione observações, pontos de atenção, contexto do corretor..."
-                  onChange={(e) => safeUpdateCorretor({ observacoes: e.target.value })}
+                  onChange={(e) => patchDraft({ observacoes: e.target.value })}
                 />
               </Section>
-            </fieldset>
+              </fieldset>
+            </>
           )}
 
           {/* ─── CLIENTES FINAIS TAB ─── */}
@@ -738,7 +821,7 @@ export function CorretorDetailPanel() {
                 </div>
                 {!isNegocio && (
                   <button
-                    onClick={() => setShowClienteForm(true)}
+                    onClick={() => setShowClienteModal(true)}
                     className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl text-white"
                     style={{ backgroundColor: '#d55006' }}
                   >
@@ -748,16 +831,7 @@ export function CorretorDetailPanel() {
                 )}
               </div>
 
-              {showClienteForm && (
-                <ClienteForm
-                  nome={cfNome} setNome={setCfNome} tel={cfTel} setTel={setCfTel}
-                  email={cfEmail} setEmail={setCfEmail} interesse={cfInteresse} setInteresse={setCfInteresse}
-                  orcamento={cfOrcamento} setOrcamento={setCfOrcamento} obs={cfObs} setObs={setCfObs}
-                  onSave={handleSaveCliente} onCancel={() => setShowClienteForm(false)}
-                />
-              )}
-
-              {!isNegocio && corretor.clientesFinais.length === 0 && !showClienteForm && (
+              {!isNegocio && corretor.clientesFinais.length === 0 && (
                 <EmptyState icon={<Users size={28} />} title="Nenhum cliente final" description="Adicione os compradores que esse corretor está representando no pipeline." />
               )}
 
@@ -874,12 +948,22 @@ export function CorretorDetailPanel() {
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Quem realizou</label>
-                      <input
+                      <select
                         className="form-input text-sm"
-                        placeholder="Nome do responsável"
                         value={actResponsavel}
                         onChange={(e) => setActResponsavel(e.target.value)}
-                      />
+                      >
+                        {actResponsavel && !users.some((u) => u.ativo && u.nome === actResponsavel) && (
+                          <option value={actResponsavel}>{actResponsavel}</option>
+                        )}
+                        {users
+                          .filter((u) => u.ativo)
+                          .slice()
+                          .sort((a, b) => a.nome.localeCompare(b.nome))
+                          .map((u) => (
+                            <option key={u.id} value={u.nome}>{u.nome}</option>
+                          ))}
+                      </select>
                     </div>
                   </div>
                   <div>
@@ -957,22 +1041,71 @@ export function CorretorDetailPanel() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="sm:col-span-2">
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Cliente final</label>
-                      <Combobox
+                      <select
                         className="form-input text-sm"
-                        placeholder="Buscar cliente cadastrado ou digitar nome..."
-                        value={pClienteNome}
-                        onChange={handleClienteNomeChange}
-                        onSelect={(opt) => setPClienteId(opt.id)}
-                        options={corretor.clientesFinais.map((cf) => ({ id: cf.id, label: cf.nome, sublabel: cf.telefone }))}
-                      />
+                        value={pClienteId}
+                        disabled={corretor.clientesFinais.length === 0}
+                        onChange={(e) => {
+                          const cf = corretor.clientesFinais.find((c) => c.id === e.target.value);
+                          setPClienteId(cf?.id ?? '');
+                          setPClienteNome(cf?.nome ?? '');
+                        }}
+                      >
+                        <option value="">
+                          {corretor.clientesFinais.length === 0
+                            ? 'Nenhum cliente cadastrado na aba Clientes'
+                            : 'Selecionar cliente...'}
+                        </option>
+                        {corretor.clientesFinais.map((cf) => (
+                          <option key={cf.id} value={cf.id}>
+                            {cf.nome}{cf.telefone ? ` — ${cf.telefone}` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Empreendimento *</label>
-                      <input className="form-input text-sm" placeholder="Ex: Jardins do Sul" value={pEmp} onChange={(e) => setPEmp(e.target.value)} />
+                      <select
+                        className="form-input text-sm"
+                        value={pEmpId}
+                        onChange={(e) => {
+                          const emp = empreendimentos.find((x) => x.id === e.target.value);
+                          setPEmpId(emp?.id ?? '');
+                          setPEmp(emp?.nome ?? '');
+                          setPUnidade('');
+                        }}
+                      >
+                        <option value="">
+                          {empreendimentos.length === 0 ? 'Nenhum empreendimento cadastrado' : 'Selecionar empreendimento...'}
+                        </option>
+                        {empreendimentos.map((emp) => (
+                          <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Unidade *</label>
-                      <input className="form-input text-sm" placeholder="Ex: Ap. 802" value={pUnidade} onChange={(e) => setPUnidade(e.target.value)} />
+                      <select
+                        className="form-input text-sm"
+                        value={pUnidade}
+                        disabled={!pEmpId || pUnidadesLoading}
+                        onChange={(e) => setPUnidade(e.target.value)}
+                      >
+                        <option value="">
+                          {!pEmpId
+                            ? 'Selecione o empreendimento primeiro'
+                            : pUnidadesLoading
+                              ? 'Carregando unidades...'
+                              : pUnidadesDisponiveis.length === 0
+                                ? 'Nenhuma unidade disponível'
+                                : 'Selecionar unidade...'}
+                        </option>
+                        {pUnidadesDisponiveis.map((u) => (
+                          <option key={u.id} value={u.numero}>
+                            {u.numero}{u.tipo ? ` — ${u.tipo}` : ''}{u.metragemPrivativa ? ` · ${u.metragemPrivativa} m²` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Valor *</label>
@@ -1178,6 +1311,14 @@ export function CorretorDetailPanel() {
         </div>
       </div>
 
+      {/* Novo cliente final — mesmo modal da tela de Clientes, já com este corretor como responsável */}
+      {showClienteModal && (
+        <NewClienteModal
+          corretorId={corretor.id}
+          onClose={() => setShowClienteModal(false)}
+        />
+      )}
+
       {/* Confirm modals */}
       {showArchiveConfirm && (
         <ConfirmModal
@@ -1354,49 +1495,3 @@ function ConfirmModal({ title, description, confirmLabel, confirmColor, onConfir
   );
 }
 
-function ClienteForm({
-  nome, setNome, tel, setTel, email, setEmail,
-  interesse, setInteresse, orcamento, setOrcamento,
-  obs, setObs, onSave, onCancel,
-}: {
-  nome: string; setNome: (v: string) => void; tel: string; setTel: (v: string) => void;
-  email: string; setEmail: (v: string) => void; interesse: string; setInteresse: (v: string) => void;
-  orcamento: string; setOrcamento: (v: string) => void; obs: string; setObs: (v: string) => void;
-  onSave: () => void; onCancel: () => void;
-}) {
-  return (
-    <div className="rounded-xl p-4 border space-y-3" style={{ borderColor: '#e5e7eb', backgroundColor: '#fafafa' }}>
-      <h4 className="text-sm font-bold text-gray-800" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Novo cliente final</h4>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-semibold text-gray-500 block mb-1">Nome *</label>
-          <input className="form-input text-sm" placeholder="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500 block mb-1">Telefone *</label>
-          <input className="form-input text-sm" placeholder="(11) 99999-9999" value={tel} onChange={(e) => setTel(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500 block mb-1">E-mail</label>
-          <input className="form-input text-sm" placeholder="email@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500 block mb-1">Orçamento</label>
-          <input className="form-input text-sm" placeholder="R$ 0,00" value={orcamento} onChange={(e) => setOrcamento(maskCurrencyBRLInput(e.target.value))} />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="text-xs font-semibold text-gray-500 block mb-1">Interesse / Tipo de imóvel</label>
-          <input className="form-input text-sm" placeholder="Ex: Apartamento 3 quartos, zona sul, pronto" value={interesse} onChange={(e) => setInteresse(e.target.value)} />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="text-xs font-semibold text-gray-500 block mb-1">Observações</label>
-          <textarea className="form-input resize-none text-sm" style={{ minHeight: 60 }} placeholder="Contexto adicional..." value={obs} onChange={(e) => setObs(e.target.value)} />
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <button onClick={onSave} disabled={!nome.trim() || !tel.trim()} className="px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ backgroundColor: '#d55006' }}>Salvar</button>
-        <button onClick={onCancel} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-colors">Cancelar</button>
-      </div>
-    </div>
-  );
-}
