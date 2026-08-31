@@ -139,8 +139,10 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
           </button>
         </div>
 
-        {/* Body */}
-        <fieldset disabled={!editing} className="flex-1 min-w-0 overflow-y-auto border-0 m-0 px-4 sm:px-6 py-4 sm:py-5 space-y-5">
+        {/* Body — o scroll fica no div; o fieldset é só um bloco pra travar os campos (fieldset
+            como flex-item com overflow tem bug de render e "vaza" pra fora do modal). */}
+        <div className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">
+        <fieldset disabled={!editing} className="border-0 m-0 p-0 min-w-0 space-y-5">
           {/* Corretor */}
           <FormSection title="Corretor responsável">
             {selectedCorretor ? (
@@ -293,6 +295,7 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
 
           {submitError && <p className="text-xs text-red-500">{submitError}</p>}
         </fieldset>
+        </div>
 
         {/* Footer */}
         <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl" style={{ borderColor: '#e5e7eb' }}>
