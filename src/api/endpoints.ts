@@ -245,8 +245,8 @@ export const emailApi = {
       templateId: string;
       destinatarioTipo: DestinatarioTipo;
       etapaAlvo?: number;
-      empreendimentoAlvo?: string;
-      clienteIds?: string[];
+      tipoInteresseAlvo?: string;
+      corretorIds?: string[];
     }): Promise<{ campaign: EmailCampaign; resultadoEnvio: { simulated: boolean; enviados: number; falhas: number } }> => {
       const res = await apiFetch<{ campaign: ApiEmailCampaign; resultadoEnvio: { simulated: boolean; enviados: number; falhas: number } }>(
         '/api/email/campaigns/send',

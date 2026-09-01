@@ -165,8 +165,8 @@ interface StoreState {
     templateId: string;
     destinatarioTipo: DestinatarioTipo;
     etapaAlvo?: number;
-    empreendimentoAlvo?: string;
-    clienteIds?: string[];
+    tipoInteresseAlvo?: string;
+    corretorIds?: string[];
   }) => Promise<{ enviados: number; falhas: number; simulated: boolean }>;
   deleteEmailCampaign: (id: string) => Promise<void>;
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Mail, Send, Copy, Trash2, Eye, Users, Filter, Building2, Sparkles } from 'lucide-react';
+import { Plus, Mail, Send, Copy, Trash2, Eye, Users, Filter, Tag, Sparkles } from 'lucide-react';
 import { useStore } from '../store';
 import { STAGES } from '../data';
 import { formatRelativeTime } from '../utils';
@@ -255,13 +255,13 @@ function IconBtn({ icon, title, onClick, danger }: { icon: React.ReactNode; titl
 
 function DestinatarioBadge({ campaign }: { campaign: EmailCampaign }) {
   if (campaign.destinatarioTipo === 'individual') {
-    return <BadgePill icon={<Users size={11} />} label="Clientes específicos" />;
+    return <BadgePill icon={<Users size={11} />} label="Corretores específicos" />;
   }
   if (campaign.destinatarioTipo === 'funil') {
     const stage = STAGES.find((s) => s.id === campaign.etapaAlvo);
     return <BadgePill icon={<Filter size={11} />} label={stage ? `Funil: ${stage.nomeAbrev}` : 'Funil'} />;
   }
-  return <BadgePill icon={<Building2 size={11} />} label={campaign.empreendimentoAlvo ?? 'Empreendimento'} />;
+  return <BadgePill icon={<Tag size={11} />} label={campaign.empreendimentoAlvo ? `Qualificação: ${campaign.empreendimentoAlvo}` : 'Qualificação'} />;
 }
 
 function BadgePill({ icon, label }: { icon: React.ReactNode; label: string }) {
