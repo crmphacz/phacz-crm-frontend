@@ -39,7 +39,7 @@ const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] 
 
 const NAV_SECONDARY: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'indicadores', icon: BarChart2, label: 'Indicadores' },
-  { id: 'tabelas-empreendimentos', icon: Table2, label: 'Tabela de Empreendimentos' },
+  { id: 'tabelas-empreendimentos', icon: Table2, label: 'Tabelas de Custos' },
   { id: 'historico-acoes', icon: History, label: 'Histórico de Ações' },
 ];
 
@@ -143,15 +143,15 @@ export function Sidebar() {
               <li key={id}>
                 <button
                   onClick={() => setView(id)}
-                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
                       : {}
                   }
                 >
-                  <Icon size={17} />
-                  {label}
+                  <Icon size={17} className="flex-shrink-0" />
+                  <span className="truncate">{label}</span>
                   {id === 'pipeline' && activeCorretores > 0 && !isActive && (
                     <span
                       className="ml-auto text-xs px-1.5 py-0.5 rounded-full font-bold"
@@ -181,15 +181,15 @@ export function Sidebar() {
                   <li key={id}>
                     <button
                       onClick={() => setView(id)}
-                      className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                      className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                       style={
                         isActive
                           ? { backgroundColor: '#d55006', color: '#fff' }
                           : { color: '#9ca3af' }
                       }
                     >
-                      <Icon size={17} />
-                      {label}
+                      <Icon size={17} className="flex-shrink-0" />
+                      <span className="truncate">{label}</span>
                     </button>
                   </li>
                 );
@@ -211,15 +211,15 @@ export function Sidebar() {
               <li key={id}>
                 <button
                   onClick={() => setView(id)}
-                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
                       : {}
                   }
                 >
-                  <Icon size={17} />
-                  {label}
+                  <Icon size={17} className="flex-shrink-0" />
+                  <span className="truncate">{label}</span>
                 </button>
               </li>
             );
@@ -239,15 +239,15 @@ export function Sidebar() {
               <li key={id}>
                 <button
                   onClick={() => setView(id)}
-                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
                       : {}
                   }
                 >
-                  <Icon size={17} />
-                  {label}
+                  <Icon size={17} className="flex-shrink-0" />
+                  <span className="truncate">{label}</span>
                 </button>
               </li>
             );
@@ -267,15 +267,15 @@ export function Sidebar() {
               <li key={id}>
                 <button
                   onClick={() => setView(id)}
-                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
                       : {}
                   }
                 >
-                  <Icon size={17} />
-                  {label}
+                  <Icon size={17} className="flex-shrink-0" />
+                  <span className="truncate">{label}</span>
                   {!isActive && (
                     <span
                       className="ml-auto text-xs px-1.5 py-0.5 rounded-full font-bold"
