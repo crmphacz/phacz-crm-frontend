@@ -21,6 +21,7 @@ import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor } from '../permissions';
 import { WhatsappSendModal } from './WhatsappSendModal';
+import { WhatsappIcon } from './WhatsappIcon';
 import type { TipoInteracao, Temperatura, TipoInteresse, CanalOrigem, Corretor, Unidade } from '../types';
 
 function alertError(err: unknown, fallback: string) {
@@ -368,7 +369,7 @@ export function CorretorDetailPanel() {
                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
                   style={{ color: '#059669', backgroundColor: '#ecfdf5' }}
                 >
-                  <MessageSquare size={15} />
+                  <WhatsappIcon size={16} />
                 </button>
               )}
               <span
@@ -555,7 +556,7 @@ export function CorretorDetailPanel() {
                       value={maskPhone(shown('whatsappCorretor'))}
                       onChange={(v) => patchDraft({ whatsappCorretor: maskPhone(v) })}
                       href={`https://wa.me/55${corretor.whatsappCorretor.replace(/\D/g, '')}`}
-                      icon={<ExternalLink size={11} />}
+                      icon={<WhatsappIcon size={12} />}
                       placeholder="(11) 99999-9999"
                       disabled={isReadOnly || !editingGeral}
                     />

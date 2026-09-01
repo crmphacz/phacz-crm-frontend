@@ -13,6 +13,7 @@ import {
   Bell,
   BellOff,
   CalendarDays,
+  Cake,
   History,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
@@ -28,6 +29,7 @@ const NAV_MAIN: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'clientes', icon: UserCheck, label: 'Clientes' },
   { id: 'empreendimentos', icon: Building2, label: 'Empreendimentos' },
   { id: 'rodadas', icon: CalendarDays, label: 'Calendário de Rodadas' },
+  { id: 'agenda', icon: Cake, label: 'Agenda' },
 ];
 
 const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] = [
@@ -142,7 +144,7 @@ export function Sidebar() {
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
-                      : { color: '#9ca3af' }
+                      : {}
                   }
                 >
                   <Icon size={17} />
@@ -210,7 +212,7 @@ export function Sidebar() {
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
-                      : { color: '#9ca3af' }
+                      : {}
                   }
                 >
                   <Icon size={17} />
@@ -238,7 +240,7 @@ export function Sidebar() {
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
-                      : { color: '#9ca3af' }
+                      : {}
                   }
                 >
                   <Icon size={17} />
@@ -266,7 +268,7 @@ export function Sidebar() {
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
-                      : { color: '#9ca3af' }
+                      : {}
                   }
                 >
                   <Icon size={17} />

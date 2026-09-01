@@ -56,7 +56,13 @@ h1, h2, h3, h4, h5, h6, .font-questrial {
 
 /* Sidebar */
 .sidebar-item {
-  transition: background-color 0.15s ease, color 0.15s ease;
+  color: #9ca3af;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+/* Hover delicado — só nos itens inativos: o item ativo tem cor/fundo inline, que prevalecem. */
+.sidebar-item:hover {
+  background-color: rgba(255, 255, 255, 0.055);
+  color: #e5e7eb;
 }
 
 /* Animate panel */

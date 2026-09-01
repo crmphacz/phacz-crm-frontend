@@ -143,6 +143,12 @@ export function formatPhone(phone: string): string {
   return phone.replace(/\D/g, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
 }
 
+/** Telefone BR no formato do link do WhatsApp: só dígitos, com DDI 55. */
+export function toWaNumber(telefone: string): string {
+  const digits = telefone.replace(/\D/g, '');
+  return digits.startsWith('55') ? digits : `55${digits}`;
+}
+
 /** Formata um telefone progressivamente enquanto o usuário digita: (11) 91234-5678. */
 export function maskPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);

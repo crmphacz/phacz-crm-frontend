@@ -49,6 +49,11 @@ export function canDeleteLeadClienteOuCard(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora';
 }
 
+/** Agenda de aniversários: todos os perfis visualizam; só a Diretoria envia a mensagem de parabéns. */
+export function canSendAniversario(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora';
+}
+
 /** Calendário de Rodadas: Diretoria e GR criam/editam. Exclusão continua só com a Diretoria. */
 export function canWriteRodadas(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora' || user?.cargo === 'GR';

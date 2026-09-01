@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Search, Building2, Phone, Mail, Link, MessageSquare } from 'lucide-react';
+import { Plus, Search, Building2, Phone, Mail, Link } from 'lucide-react';
 import { useStore, useAllClientesFinais, clienteComprou } from '../store';
 import type { ClienteFinalComContexto } from '../store';
 import { STAGES } from '../data';
@@ -7,6 +7,7 @@ import { formatCurrency, formatRelativeTime } from '../utils';
 import { canWhatsappCliente } from '../permissions';
 import { NewClienteModal } from './NewClienteModal';
 import { WhatsappSendModal } from './WhatsappSendModal';
+import { WhatsappIcon } from './WhatsappIcon';
 
 export function ClientesView() {
   const currentUser = useStore((s) => s.currentUser);
@@ -137,7 +138,7 @@ export function ClientesView() {
                           className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-colors"
                           style={{ color: '#059669', backgroundColor: '#ecfdf5' }}
                         >
-                          <MessageSquare size={12} />
+                          <WhatsappIcon size={13} />
                         </button>
                       )}
                     </div>

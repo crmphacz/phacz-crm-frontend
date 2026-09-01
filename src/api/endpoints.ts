@@ -14,7 +14,7 @@ import type {
   Corretor, ClienteFinal, Interacao, Proposta, EmailTemplate, EmailCampaign,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
-  LogAcao, TipoInteracao,
+  LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario,
 } from '../types';
 
 export type { CreateCorretorPayload, AppUser } from './mappers.js';
@@ -254,6 +254,20 @@ export const emailApi = {
       return { campaign: mapEmailCampaignFromApi(res.campaign), resultadoEnvio: res.resultadoEnvio };
     },
   },
+};
+
+// ── Agenda / Aniversários ──────────────────────────────────────────
+
+export const agendaApi = {
+  aniversarios: (ano: number, mes: number) =>
+    apiFetch<AniversarioAgenda[]>('/api/agenda/aniversarios', { query: { ano, mes } }),
+  sugestao: (corretorId: string) =>
+    apiFetch<{ mensagem: string; gerado: boolean }>(`/api/agenda/aniversarios/${corretorId}/sugestao`, { method: 'POST' }),
+  registrar: (corretorId: string, ano: number, mensagem: string) =>
+    apiFetch<{ saudacao: SaudacaoAniversario }>(`/api/agenda/aniversarios/${corretorId}/registrar`, {
+      method: 'POST',
+      body: { ano, mensagem },
+    }),
 };
 
 // ── WhatsApp ───────────────────────────────────────────────────────

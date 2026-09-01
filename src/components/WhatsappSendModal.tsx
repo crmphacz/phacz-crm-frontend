@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, ExternalLink, MessageSquare } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useStore } from '../store';
 import { whatsappApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
-import { formatPhone } from '../utils';
+import { formatPhone, toWaNumber } from '../utils';
+import { WhatsappIcon } from './WhatsappIcon';
 
 interface WhatsappSendModalProps {
   /** Passe `corretorId` OU `clienteFinalId`. */
@@ -13,12 +14,6 @@ interface WhatsappSendModalProps {
   onClose: () => void;
   /** Chamado depois de abrir a conversa — usado para re-hidratar o card e mostrar a interação registrada. */
   onSent?: () => void;
-}
-
-/** Normaliza um telefone brasileiro para o formato do link do WhatsApp (só dígitos, com DDI 55). */
-function toWaNumber(telefone: string): string {
-  const digits = telefone.replace(/\D/g, '');
-  return digits.startsWith('55') ? digits : `55${digits}`;
 }
 
 export function WhatsappSendModal({ alvo, nomeDestinatario, telefone, onClose, onSent }: WhatsappSendModalProps) {
@@ -66,8 +61,8 @@ export function WhatsappSendModal({ alvo, nomeDestinatario, telefone, onClose, o
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-2 sm:mx-4 flex flex-col" style={{ maxHeight: '90vh' }}>
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b" style={{ borderColor: '#e5e7eb' }}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#ecfdf5' }}>
-              <MessageSquare size={18} style={{ color: '#059669' }} />
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#ecfdf5', color: '#059669' }}>
+              <WhatsappIcon size={18} />
             </div>
             <div>
               <h2 className="font-questrial font-bold text-lg text-gray-900">Enviar WhatsApp</h2>
@@ -112,7 +107,7 @@ export function WhatsappSendModal({ alvo, nomeDestinatario, telefone, onClose, o
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: '#059669' }}
           >
-            <ExternalLink size={15} />
+            <WhatsappIcon size={16} />
             {busy ? 'Abrindo...' : 'Abrir no WhatsApp'}
           </button>
         </div>

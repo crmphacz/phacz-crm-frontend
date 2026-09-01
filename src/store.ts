@@ -27,6 +27,7 @@ export type ViewMode =
   | 'email-marketing'
   | 'phacz-ia'
   | 'rodadas'
+  | 'agenda'
   | 'empreendimentos'
   | 'historico-acoes';
 

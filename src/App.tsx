@@ -19,6 +19,7 @@ import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { EmailMarketingView } from './components/EmailMarketingView';
 import { PhaczIAView } from './components/PhaczIAView';
 import { RodadasCalendarView } from './components/RodadasCalendarView';
+import { AgendaView } from './components/AgendaView';
 import { EmpreendimentosListView } from './components/EmpreendimentosListView';
 import { HistoricoAcoesView } from './components/HistoricoAcoesView';
 import { ToastContainer } from './components/ToastContainer';
@@ -138,6 +139,7 @@ export default function App() {
           {view === 'email-marketing' && <EmailMarketingView />}
           {view === 'phacz-ia' && <PhaczIAView />}
           {view === 'rodadas' && <RodadasCalendarView />}
+          {view === 'agenda' && <AgendaView />}
           {view === 'empreendimentos' && <EmpreendimentosListView />}
           {view === 'historico-acoes' && <HistoricoAcoesView />}
         </main>

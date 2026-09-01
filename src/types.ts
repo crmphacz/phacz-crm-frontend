@@ -449,6 +449,26 @@ export interface Notificacao {
   criadoEm: string;
 }
 
+// ── Agenda / Aniversários ───────────────────────────────────────────
+
+export interface SaudacaoAniversario {
+  enviadoPorNome: string;
+  enviadoEm: string; // ISO
+  mensagem: string;
+}
+
+export interface AniversarioAgenda {
+  corretorId: string;
+  nomeCorretor: string;
+  imobiliaria: string;
+  telefone: string;
+  whatsapp: string;
+  dia: number; // 1-31
+  dataNascimento: string; // ISO
+  idade: number;
+  saudacao: SaudacaoAniversario | null;
+}
+
 // ── Empreendimentos & Unidades ──────────────────────────────────────
 
 export type StatusUnidade = 'vendido' | 'em_contrato' | 'disponivel' | 'em_negociacao' | 'alugado';
