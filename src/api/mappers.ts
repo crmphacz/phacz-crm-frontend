@@ -756,7 +756,11 @@ export function mapCreateRodadaToApi(payload: CreateRodadaPayload): Record<strin
 
 // ── Notificações ────────────────────────────────────────────────────
 
-const tipoNotificacaoMap: Record<string, TipoNotificacao> = { RODADA_CRIADA: 'rodada_criada' };
+const tipoNotificacaoMap: Record<string, TipoNotificacao> = {
+  RODADA_CRIADA: 'rodada_criada',
+  ANIVERSARIO_HOJE: 'aniversario_hoje',
+  ANIVERSARIO_ENVIADO: 'aniversario_enviado',
+};
 
 export interface ApiNotificacao {
   id: string;

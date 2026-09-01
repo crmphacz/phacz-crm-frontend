@@ -125,6 +125,9 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
       return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
     case 'email-marketing':
       return user.cargo === 'Marketing';
+    case 'tabelas-empreendimentos':
+      // Dados financeiros: só Diretoria (+ Administrativo/Recepção, já liberados no topo).
+      return false;
     default:
       return true;
   }

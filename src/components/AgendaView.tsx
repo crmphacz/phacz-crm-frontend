@@ -138,12 +138,14 @@ export function AgendaView() {
                       <button
                         key={a.corretorId}
                         onClick={() => setSelected(a)}
-                        title={`${a.nomeCorretor} — ${a.saudacao ? 'parabéns enviado' : 'enviar parabéns'}`}
+                        title={`${a.nomeCorretor} — ${a.saudacao ? 'parabéns enviado' : a.hoje ? 'aniversário hoje — enviar parabéns' : 'enviar disponível no dia'}`}
                         className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate transition-colors hover:brightness-95"
                         style={
                           a.saudacao
                             ? { backgroundColor: '#f0fdf4', color: '#166534' }
-                            : { backgroundColor: '#fff7ed', color: '#c2410c' }
+                            : a.hoje
+                              ? { backgroundColor: '#d55006', color: '#fff' }
+                              : { backgroundColor: '#fff7ed', color: '#c2410c' }
                         }
                       >
                         {a.saudacao ? <Check size={11} className="flex-shrink-0" /> : <Cake size={11} className="flex-shrink-0" />}

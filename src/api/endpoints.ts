@@ -15,6 +15,7 @@ import type {
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
   LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario,
+  TabelaEmpreendimentoResumo, TabelaEmpreendimentoDetalhe, CelulaAlterada,
 } from '../types';
 
 export type { CreateCorretorPayload, AppUser } from './mappers.js';
@@ -254,6 +255,24 @@ export const emailApi = {
       return { campaign: mapEmailCampaignFromApi(res.campaign), resultadoEnvio: res.resultadoEnvio };
     },
   },
+};
+
+// ── Tabela de Empreendimentos ─────────────────────────────────────
+
+export const tabelasEmpreendimentosApi = {
+  list: () => apiFetch<TabelaEmpreendimentoResumo[]>('/api/tabelas-empreendimentos'),
+  get: (id: string) => apiFetch<TabelaEmpreendimentoDetalhe>(`/api/tabelas-empreendimentos/${id}`),
+  create: (nome: string) =>
+    apiFetch<{ id: string; nome: string }>('/api/tabelas-empreendimentos', { method: 'POST', body: { nome } }),
+  save: (
+    id: string,
+    payload: { nome?: string; dados: unknown; celulas: CelulaAlterada[] }
+  ) =>
+    apiFetch<{ ok: boolean; celulasAlteradas: number; atualizadoEm: string; atualizadoPorNome: string | null }>(
+      `/api/tabelas-empreendimentos/${id}`,
+      { method: 'PUT', body: payload }
+    ),
+  remove: (id: string) => apiFetch<void>(`/api/tabelas-empreendimentos/${id}`, { method: 'DELETE' }),
 };
 
 // ── Agenda / Aniversários ──────────────────────────────────────────

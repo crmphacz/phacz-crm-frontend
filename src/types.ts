@@ -436,7 +436,7 @@ export function isRodadaCompleta(r: Rodada | RodadaResumo): r is Rodada {
 
 // ── Notificações ────────────────────────────────────────────────────
 
-export type TipoNotificacao = 'rodada_criada';
+export type TipoNotificacao = 'rodada_criada' | 'aniversario_hoje' | 'aniversario_enviado';
 
 export interface Notificacao {
   id: string;
@@ -447,6 +447,29 @@ export interface Notificacao {
   rodadaId?: string;
   rodadaDataInicio?: string; // "YYYY-MM-DD", usado para abrir o mês certo no calendário
   criadoEm: string;
+}
+
+// ── Tabela de Empreendimentos ──────────────────────────────────────
+
+export interface TabelaEmpreendimentoResumo {
+  id: string;
+  nome: string;
+  criadoEm: string;
+  atualizadoEm: string;
+  criadoPorNome: string | null;
+  atualizadoPorNome: string | null;
+}
+
+export interface TabelaEmpreendimentoDetalhe extends TabelaEmpreendimentoResumo {
+  /** Snapshot do editor (array de abas no formato do fortune-sheet). */
+  dados: unknown;
+}
+
+export interface CelulaAlterada {
+  aba: string;
+  ref: string;
+  valor: string;
+  formula: string | null;
 }
 
 // ── Agenda / Aniversários ───────────────────────────────────────────
@@ -466,6 +489,8 @@ export interface AniversarioAgenda {
   dia: number; // 1-31
   dataNascimento: string; // ISO
   idade: number;
+  /** True se o aniversário é HOJE — só nesse dia a Diretoria pode enviar a mensagem. */
+  hoje: boolean;
   saudacao: SaudacaoAniversario | null;
 }
 

@@ -78,6 +78,10 @@ export function AniversarioModal({ aniversario, ano, onClose, onRegistered }: An
   }
 
   const jaEnviado = Boolean(saudacao);
+  const podeEnviarAgora = podeEnviar && aniversario.hoje && !jaEnviado;
+  const dataAniversarioBR = `${String(aniversario.dia).padStart(2, '0')}/${String(
+    new Date(aniversario.dataNascimento).getUTCMonth() + 1,
+  ).padStart(2, '0')}`;
 
   return (
     <div
@@ -124,6 +128,15 @@ export function AniversarioModal({ aniversario, ano, onClose, onRegistered }: An
             </div>
           )}
 
+          {!jaEnviado && podeEnviar && !aniversario.hoje && (
+            <div className="flex items-start gap-2 rounded-xl px-3 py-2.5" style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a' }}>
+              <Lock size={14} style={{ color: '#b45309', flexShrink: 0, marginTop: 1 }} />
+              <p className="text-xs" style={{ color: '#92400e' }}>
+                O envio fica disponível <span className="font-semibold">no dia do aniversário</span> ({dataAniversarioBR}). A sugestão abaixo já fica pronta para revisar.
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1.5">
               Mensagem
@@ -143,7 +156,7 @@ export function AniversarioModal({ aniversario, ano, onClose, onRegistered }: An
                 style={{ minHeight: 140 }}
                 value={mensagem}
                 onChange={(e) => setMensagem(e.target.value)}
-                disabled={jaEnviado || !podeEnviar}
+                disabled={jaEnviado || !podeEnviarAgora}
                 placeholder="Escreva a mensagem de parabéns..."
               />
             )}
@@ -155,9 +168,9 @@ export function AniversarioModal({ aniversario, ano, onClose, onRegistered }: An
         {/* Footer */}
         <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl" style={{ borderColor: '#e5e7eb' }}>
           <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
-            {jaEnviado || !podeEnviar ? 'Fechar' : 'Cancelar'}
+            {podeEnviarAgora ? 'Cancelar' : 'Fechar'}
           </button>
-          {!jaEnviado && podeEnviar && (
+          {podeEnviarAgora && (
             <button
               onClick={handleEnviar}
               disabled={enviando || carregandoSugestao || !mensagem.trim()}

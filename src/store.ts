@@ -29,6 +29,7 @@ export type ViewMode =
   | 'rodadas'
   | 'agenda'
   | 'empreendimentos'
+  | 'tabelas-empreendimentos'
   | 'historico-acoes';
 
 export interface Toast {
@@ -832,7 +833,11 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   abrirNotificacaoRodada: (n) => {
-    set({ view: 'rodadas', selectedCorretorId: null, rodadaFocoData: n.rodadaDataInicio ?? null });
+    if (n.tipo === 'aniversario_hoje' || n.tipo === 'aniversario_enviado') {
+      set({ view: 'agenda', selectedCorretorId: null });
+    } else {
+      set({ view: 'rodadas', selectedCorretorId: null, rodadaFocoData: n.rodadaDataInicio ?? null });
+    }
     if (!n.lida) get().markNotificacaoLida(n.id);
   },
 

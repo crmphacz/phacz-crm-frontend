@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Building2, Menu } from 'lucide-react';
 import { useStore } from './store';
 import { Sidebar } from './components/Sidebar';
@@ -23,6 +23,11 @@ import { AgendaView } from './components/AgendaView';
 import { EmpreendimentosListView } from './components/EmpreendimentosListView';
 import { HistoricoAcoesView } from './components/HistoricoAcoesView';
 import { ToastContainer } from './components/ToastContainer';
+
+// Carrega sob demanda: puxa a biblioteca de planilha (fortune-sheet), pesada.
+const TabelasEmpreendimentosView = lazy(() =>
+  import('./components/TabelasEmpreendimentosView').then((m) => ({ default: m.TabelasEmpreendimentosView }))
+);
 
 export default function App() {
   const view = useStore((s) => s.view);
@@ -140,6 +145,11 @@ export default function App() {
           {view === 'phacz-ia' && <PhaczIAView />}
           {view === 'rodadas' && <RodadasCalendarView />}
           {view === 'agenda' && <AgendaView />}
+          {view === 'tabelas-empreendimentos' && (
+            <Suspense fallback={<div className="h-full flex items-center justify-center text-sm text-gray-400">Carregando editor…</div>}>
+              <TabelasEmpreendimentosView />
+            </Suspense>
+          )}
           {view === 'empreendimentos' && <EmpreendimentosListView />}
           {view === 'historico-acoes' && <HistoricoAcoesView />}
         </main>

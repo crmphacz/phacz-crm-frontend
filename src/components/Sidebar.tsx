@@ -15,6 +15,7 @@ import {
   CalendarDays,
   Cake,
   History,
+  Table2,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
 import { getInitials } from '../utils';
@@ -38,6 +39,7 @@ const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] 
 
 const NAV_SECONDARY: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'indicadores', icon: BarChart2, label: 'Indicadores' },
+  { id: 'tabelas-empreendimentos', icon: Table2, label: 'Tabela de Empreendimentos' },
   { id: 'historico-acoes', icon: History, label: 'Histórico de Ações' },
 ];
 
@@ -69,6 +71,7 @@ export function Sidebar() {
 
   const visibleConfigItems = NAV_CONFIG.filter((item) => !item.diretoraOnly || currentUser?.cargo === 'Diretora');
   const visibleMainItems = NAV_MAIN.filter((item) => canAccessView(currentUser, item.id));
+  const visibleSecondaryItems = NAV_SECONDARY.filter((item) => canAccessView(currentUser, item.id));
   const visibleMarketingItems = NAV_MARKETING.filter((item) => canAccessView(currentUser, item.id));
 
   async function togglePush() {
@@ -202,7 +205,7 @@ export function Sidebar() {
           Análise
         </p>
         <ul className="space-y-0.5 mb-6">
-          {NAV_SECONDARY.map(({ id, icon: Icon, label }) => {
+          {visibleSecondaryItems.map(({ id, icon: Icon, label }) => {
             const isActive = view === id;
             return (
               <li key={id}>
