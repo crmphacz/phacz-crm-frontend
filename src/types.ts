@@ -11,6 +11,8 @@ export interface UserProfile {
   cargo: UserCargo;
   email: string;
   cor: string;
+  /** Número da Meta pelo qual esta pessoa dispara WhatsApp, formatado para exibição. Vazio = não configurado. */
+  whatsappNumeroExibicao: string;
 }
 
 export interface TarefaCadencia {

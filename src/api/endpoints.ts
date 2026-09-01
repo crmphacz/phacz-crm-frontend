@@ -23,7 +23,7 @@ export type { CreateCorretorPayload, AppUser } from './mappers.js';
 
 export interface LoginResult {
   token: string;
-  user: { id: string; nome: string; email: string; cargo: string; cor: string; deveTrocarSenha: boolean };
+  user: { id: string; nome: string; email: string; cargo: string; cor: string; deveTrocarSenha: boolean; whatsappNumeroExibicao?: string | null };
 }
 
 export interface MeResult {
@@ -33,6 +33,7 @@ export interface MeResult {
   cargo: string;
   cor: string;
   deveTrocarSenha: boolean;
+  whatsappNumeroExibicao?: string | null;
 }
 
 export const authApi = {
@@ -59,9 +60,9 @@ export const usersApi = {
     return users.map(mapUserFromApi);
   },
   // Sem campo de senha: o backend gera uma senha provisória e manda por e-mail (ver POST /api/users).
-  create: (data: { nome: string; email: string; cargo: UserCargo; cor?: string }) =>
+  create: (data: { nome: string; email: string; cargo: UserCargo; cor?: string; whatsappPhoneNumberId?: string; whatsappNumeroExibicao?: string }) =>
     apiFetch<ApiUser>('/api/users', { method: 'POST', body: { ...data, cargo: mapCargoToApi(data.cargo) } }).then(mapUserFromApi),
-  update: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => {
+  update: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean; whatsappPhoneNumberId: string; whatsappNumeroExibicao: string }>) => {
     const payload: Record<string, unknown> = { ...data };
     if (data.cargo) payload.cargo = mapCargoToApi(data.cargo);
     return apiFetch<ApiUser>(`/api/users/${id}`, { method: 'PATCH', body: payload }).then(mapUserFromApi);
@@ -258,8 +259,20 @@ export const emailApi = {
 // ── WhatsApp ───────────────────────────────────────────────────────
 
 export const whatsappApi = {
-  send: (corretorId: string, message: string) =>
-    apiFetch<{ simulated: boolean }>('/api/whatsapp/send', { method: 'POST', body: { corretorId, message } }),
+  /**
+   * Passe `corretorId` OU `clienteFinalId` (apenas um). Hoje é sempre `logOnly: true`: só
+   * valida a permissão e registra a interação no card — o envio de fato é feito pela pessoa
+   * no WhatsApp Web/app dela (link "click to chat"). Sem `logOnly`, tentaria enviar pela Meta.
+   */
+  send: (
+    alvo: { corretorId: string } | { clienteFinalId: string },
+    message: string,
+    opts?: { logOnly?: boolean }
+  ) =>
+    apiFetch<{ simulated: boolean; logOnly?: boolean }>('/api/whatsapp/send', {
+      method: 'POST',
+      body: { ...alvo, message, ...(opts?.logOnly ? { logOnly: true } : {}) },
+    }),
 };
 
 // ── Push ───────────────────────────────────────────────────────────

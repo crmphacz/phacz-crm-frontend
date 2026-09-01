@@ -173,8 +173,8 @@ interface StoreState {
   clearChat: () => Promise<void>;
 
   // Usuários da plataforma (Diretora)
-  createUser: (data: { nome: string; email: string; cargo: UserCargo; cor?: string }) => Promise<AppUser>;
-  updateUser: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => Promise<AppUser>;
+  createUser: (data: { nome: string; email: string; cargo: UserCargo; cor?: string; whatsappPhoneNumberId?: string; whatsappNumeroExibicao?: string }) => Promise<AppUser>;
+  updateUser: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean; whatsappPhoneNumberId: string; whatsappNumeroExibicao: string }>) => Promise<AppUser>;
   deactivateUser: (id: string) => Promise<void>;
 
   // Canais de Origem
@@ -290,6 +290,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         email: result.user.email,
         cargo: mapCargoFromApi(result.user.cargo),
         cor: result.user.cor,
+        whatsappNumeroExibicao: result.user.whatsappNumeroExibicao ?? '',
       };
 
       if (result.user.deveTrocarSenha) {
@@ -361,7 +362,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       return;
     }
 
-    const currentUser = { id: me.id, nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor };
+    const currentUser = { id: me.id, nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor, whatsappNumeroExibicao: me.whatsappNumeroExibicao ?? '' };
 
     if (me.deveTrocarSenha) {
       set({ isLoggedIn: true, currentUser, mustChangePassword: true, isBootstrapping: false });
@@ -876,6 +877,7 @@ export interface ClienteFinalComContexto extends ClienteFinal {
   nomeCorretor: string;
   imobiliaria: string;
   etapaCorretor: number;
+  statusCorretor: Corretor['status'];
 }
 
 export const useAllClientesFinais = (): ClienteFinalComContexto[] => {
@@ -887,8 +889,18 @@ export const useAllClientesFinais = (): ClienteFinalComContexto[] => {
       nomeCorretor: l.nomeCorretor,
       imobiliaria: l.imobiliaria,
       etapaCorretor: l.etapa,
+      statusCorretor: l.status,
     }))
   );
+};
+
+/** Um cliente "já comprou" se o corretor dele — ou o card de negócio gerado a partir dele — está GANHO. */
+export const clienteComprou = (cf: ClienteFinalComContexto, corretores: Corretor[]): boolean => {
+  if (cf.statusCorretor === 'ganho') return true;
+  if (cf.negocioGerado && cf.negocioCorretorId) {
+    return corretores.find((c) => c.id === cf.negocioCorretorId)?.status === 'ganho';
+  }
+  return false;
 };
 
 export const useFilteredCorretores = () => {

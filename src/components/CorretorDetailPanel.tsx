@@ -19,7 +19,8 @@ import { empreendimentosApi } from '../api/endpoints';
 import { Combobox } from './Combobox';
 import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
-import { canWriteCorretor, canDeleteLeadClienteOuCard } from '../permissions';
+import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor } from '../permissions';
+import { WhatsappSendModal } from './WhatsappSendModal';
 import type { TipoInteracao, Temperatura, TipoInteresse, CanalOrigem, Corretor, Unidade } from '../types';
 
 function alertError(err: unknown, fallback: string) {
@@ -130,6 +131,7 @@ export function CorretorDetailPanel() {
   // Cliente — usa o mesmo modal da tela de Clientes (NewClienteModal), já com este corretor
   // pré-selecionado como responsável.
   const [showClienteModal, setShowClienteModal] = useState(false);
+  const [showWhatsappModal, setShowWhatsappModal] = useState(false);
 
   // Proposta form
   const [showPropostaForm, setShowPropostaForm] = useState(false);
@@ -359,6 +361,16 @@ export function CorretorDetailPanel() {
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
+              {canWhatsappCorretor(currentUser, corretor) && (
+                <button
+                  onClick={() => setShowWhatsappModal(true)}
+                  title="Enviar WhatsApp"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+                  style={{ color: '#059669', backgroundColor: '#ecfdf5' }}
+                >
+                  <MessageSquare size={15} />
+                </button>
+              )}
               <span
                 className="text-xs px-2.5 py-1 rounded-full font-semibold"
                 style={{ backgroundColor: tempConfig.bg, color: tempConfig.text }}
@@ -1316,6 +1328,16 @@ export function CorretorDetailPanel() {
         <NewClienteModal
           corretorId={corretor.id}
           onClose={() => setShowClienteModal(false)}
+        />
+      )}
+
+      {showWhatsappModal && (
+        <WhatsappSendModal
+          alvo={{ corretorId: corretor.id }}
+          nomeDestinatario={corretor.nomeCorretor}
+          telefone={corretor.whatsappCorretor || corretor.telefoneCorretor}
+          onClose={() => setShowWhatsappModal(false)}
+          onSent={() => hydrateCorretorDetail(corretor.id).catch(() => undefined)}
         />
       )}
 

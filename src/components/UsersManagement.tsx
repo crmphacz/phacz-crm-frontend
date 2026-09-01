@@ -164,8 +164,8 @@ export function UsersManagement() {
 function UserFormModal({ user, onClose, onCreate, onUpdate, onCreated }: {
   user: AppUser | null;
   onClose: () => void;
-  onCreate: (data: { nome: string; email: string; cargo: UserCargo; cor?: string }) => Promise<AppUser>;
-  onUpdate: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => Promise<AppUser>;
+  onCreate: (data: { nome: string; email: string; cargo: UserCargo; cor?: string; whatsappPhoneNumberId?: string; whatsappNumeroExibicao?: string }) => Promise<AppUser>;
+  onUpdate: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean; whatsappPhoneNumberId: string; whatsappNumeroExibicao: string }>) => Promise<AppUser>;
   onCreated: (email: string) => void;
 }) {
   const isEditing = Boolean(user);
@@ -173,6 +173,8 @@ function UserFormModal({ user, onClose, onCreate, onUpdate, onCreated }: {
   const [email, setEmail] = useState(user?.email ?? '');
   const [cargo, setCargo] = useState<UserCargo>(user?.cargo ?? 'SDR');
   const [cor, setCor] = useState(user?.cor ?? CARGO_COLORS.SDR);
+  const [waNumero, setWaNumero] = useState(user?.whatsappNumeroExibicao ?? '');
+  const [waPhoneId, setWaPhoneId] = useState(user?.whatsappPhoneNumberId ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -184,9 +186,22 @@ function UserFormModal({ user, onClose, onCreate, onUpdate, onCreated }: {
     setSubmitting(true);
     try {
       if (isEditing && user) {
-        await onUpdate(user.id, { nome: nome.trim(), cargo, cor });
+        await onUpdate(user.id, {
+          nome: nome.trim(),
+          cargo,
+          cor,
+          whatsappNumeroExibicao: waNumero.trim(),
+          whatsappPhoneNumberId: waPhoneId.trim(),
+        });
       } else {
-        await onCreate({ nome: nome.trim(), email: email.trim(), cargo, cor });
+        await onCreate({
+          nome: nome.trim(),
+          email: email.trim(),
+          cargo,
+          cor,
+          whatsappNumeroExibicao: waNumero.trim() || undefined,
+          whatsappPhoneNumberId: waPhoneId.trim() || undefined,
+        });
         onCreated(email.trim());
       }
       onClose();
@@ -271,6 +286,37 @@ function UserFormModal({ user, onClose, onCreate, onUpdate, onCreated }: {
             <div className="flex items-center gap-2">
               <input type="color" value={cor} onChange={(e) => setCor(e.target.value)} className="w-9 h-9 rounded-lg border cursor-pointer flex-shrink-0" style={{ borderColor: '#e5e7eb', padding: 2 }} />
               <input className="form-input" value={cor} onChange={(e) => setCor(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="pt-1 border-t" style={{ borderColor: '#f3f4f6' }}>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mt-3 mb-2">WhatsApp (Meta) — para uso futuro</p>
+            <p className="text-xs text-gray-400 mb-2">
+              Hoje o disparo abre o WhatsApp Web/app da pessoa para envio manual — estes campos não são usados ainda.
+              Ficam prontos para quando a integração com a API da Meta for ativada.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Número de envio (exibição)</label>
+                <input
+                  className="form-input"
+                  placeholder="+55 47 99973-1108"
+                  value={waNumero}
+                  onChange={(e) => setWaNumero(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Phone Number ID</label>
+                <input
+                  className="form-input"
+                  placeholder="Ex: 123456789012345"
+                  value={waPhoneId}
+                  onChange={(e) => setWaPhoneId(e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  O ID do número no WhatsApp Cloud API (Meta → WhatsApp → API Setup). Deixe vazio para usar o número padrão do sistema.
+                </p>
+              </div>
             </div>
           </div>
 

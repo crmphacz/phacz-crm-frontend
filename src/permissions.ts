@@ -76,13 +76,27 @@ export function canWriteEmailMarketing(user: UserProfile | null): boolean {
 }
 
 /**
- * Envio de WhatsApp: Marketing manda pra qualquer corretor; SDR/GV/GR só pros do próprio
- * kanban (é uma interação registrada no card, mesma regra de posse das outras escritas).
+ * Disparo de WhatsApp para um CORRETOR (parceiro do funil). Espelha `canWhatsappCorretor` no
+ * backend: Diretoria e Marketing mandam para qualquer corretor; SDR/GV/GR só para os do
+ * próprio kanban; Administrativo/Recepção nunca. O envio sai pelo número da Meta do próprio
+ * usuário (ver `whatsappNumeroExibicao`).
  */
-export function canSendWhatsapp(user: UserProfile | null, corretor: Corretor): boolean {
+export function canWhatsappCorretor(user: UserProfile | null, corretor: Corretor): boolean {
   if (!user) return false;
   if (user.cargo === 'Diretora' || user.cargo === 'Marketing') return true;
   return canWriteCorretor(user, corretor);
+}
+
+/**
+ * Disparo de WhatsApp para um CLIENTE FINAL. Espelha `canWhatsappCliente` no backend:
+ * Diretoria manda para qualquer cliente; Marketing e Recepção só para clientes que JÁ
+ * COMPRARAM; os demais perfis não mandam para cliente.
+ */
+export function canWhatsappCliente(user: UserProfile | null, comprou: boolean): boolean {
+  if (!user) return false;
+  if (user.cargo === 'Diretora') return true;
+  if (user.cargo === 'Marketing' || user.cargo === 'Recepcao') return comprou;
+  return false;
 }
 
 /**

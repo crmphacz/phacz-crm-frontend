@@ -82,6 +82,8 @@ export interface ApiUser {
   cargo: string;
   cor: string;
   ativo: boolean;
+  whatsappPhoneNumberId?: string | null;
+  whatsappNumeroExibicao?: string | null;
 }
 
 export interface AppUser {
@@ -91,10 +93,21 @@ export interface AppUser {
   cargo: UserCargo;
   cor: string;
   ativo: boolean;
+  whatsappPhoneNumberId: string;
+  whatsappNumeroExibicao: string;
 }
 
 export function mapUserFromApi(u: ApiUser): AppUser {
-  return { id: u.id, nome: u.nome, email: u.email, cargo: mapCargoFromApi(u.cargo), cor: u.cor, ativo: u.ativo };
+  return {
+    id: u.id,
+    nome: u.nome,
+    email: u.email,
+    cargo: mapCargoFromApi(u.cargo),
+    cor: u.cor,
+    ativo: u.ativo,
+    whatsappPhoneNumberId: u.whatsappPhoneNumberId ?? '',
+    whatsappNumeroExibicao: u.whatsappNumeroExibicao ?? '',
+  };
 }
 
 // ── Corretores ──────────────────────────────────────────────────────

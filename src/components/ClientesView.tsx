@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Plus, Search, Building2, Phone, Mail, Link } from 'lucide-react';
-import { useStore, useAllClientesFinais } from '../store';
+import { Plus, Search, Building2, Phone, Mail, Link, MessageSquare } from 'lucide-react';
+import { useStore, useAllClientesFinais, clienteComprou } from '../store';
 import type { ClienteFinalComContexto } from '../store';
 import { STAGES } from '../data';
 import { formatCurrency, formatRelativeTime } from '../utils';
+import { canWhatsappCliente } from '../permissions';
 import { NewClienteModal } from './NewClienteModal';
+import { WhatsappSendModal } from './WhatsappSendModal';
 
 export function ClientesView() {
   const currentUser = useStore((s) => s.currentUser);
@@ -15,9 +17,11 @@ export function ClientesView() {
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
 
   const allClientes = useAllClientesFinais();
+  const corretores = useStore((s) => s.corretores);
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingCliente, setEditingCliente] = useState<ClienteFinalComContexto | null>(null);
+  const [whatsappCliente, setWhatsappCliente] = useState<ClienteFinalComContexto | null>(null);
 
   const filtered = useMemo(() => {
     if (!search) return allClientes;
@@ -121,9 +125,21 @@ export function ClientesView() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Phone size={11} className="flex-shrink-0" />
-                      {c.telefone}
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Phone size={11} className="flex-shrink-0" />
+                        {c.telefone}
+                      </div>
+                      {canWhatsappCliente(currentUser, clienteComprou(c, corretores)) && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setWhatsappCliente(c); }}
+                          title="Enviar WhatsApp"
+                          className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-colors"
+                          style={{ color: '#059669', backgroundColor: '#ecfdf5' }}
+                        >
+                          <MessageSquare size={12} />
+                        </button>
+                      )}
                     </div>
                     {c.email && (
                       <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
@@ -176,6 +192,14 @@ export function ClientesView() {
 
       {showNewModal && <NewClienteModal onClose={() => setShowNewModal(false)} />}
       {editingCliente && <NewClienteModal cliente={editingCliente} onClose={() => setEditingCliente(null)} />}
+      {whatsappCliente && (
+        <WhatsappSendModal
+          alvo={{ clienteFinalId: whatsappCliente.id }}
+          nomeDestinatario={whatsappCliente.nome}
+          telefone={whatsappCliente.telefone}
+          onClose={() => setWhatsappCliente(null)}
+        />
+      )}
     </div>
   );
 }
