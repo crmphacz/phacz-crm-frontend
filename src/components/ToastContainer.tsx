@@ -1,14 +1,26 @@
-import { CheckCircle2, XCircle, X } from 'lucide-react';
+import { CheckCircle2, XCircle, X, Loader2 } from 'lucide-react';
 import { useStore } from '../store';
 
 export function ToastContainer() {
   const toasts = useStore((s) => s.toasts);
+  const navLoading = useStore((s) => s.navLoading);
   const dismissToast = useStore((s) => s.dismissToast);
 
-  if (toasts.length === 0) return null;
+  if (toasts.length === 0 && !navLoading) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 w-full max-w-sm px-2 sm:px-0">
+      {/* Toast de navegação: sem botão de fechar e sem timeout — some sozinho quando a tela
+          recém-aberta sinaliza que terminou de carregar (ver useViewReady / finishNavLoading). */}
+      {navLoading && (
+        <div
+          className="flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg bg-white border"
+          style={{ borderColor: '#fed7aa' }}
+        >
+          <Loader2 size={18} className="flex-shrink-0 animate-spin" style={{ color: '#d55006' }} />
+          <p className="text-sm text-gray-700 flex-1">Carregando informações…</p>
+        </div>
+      )}
       {toasts.map((t) => (
         <div
           key={t.id}

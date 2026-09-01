@@ -69,6 +69,9 @@ export const usersApi = {
     return apiFetch<ApiUser>(`/api/users/${id}`, { method: 'PATCH', body: payload }).then(mapUserFromApi);
   },
   remove: (id: string) => apiFetch<void>(`/api/users/${id}`, { method: 'DELETE' }),
+  // Dispara o e-mail com o link de redefinição de senha para o próprio usuário (só Diretora).
+  sendPasswordReset: (id: string) =>
+    apiFetch<{ message: string }>(`/api/users/${id}/send-password-reset`, { method: 'POST' }),
 };
 
 // ── Corretores ──────────────────────────────────────────────────────

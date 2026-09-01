@@ -139,6 +139,11 @@ export function getInitials(name: string): string {
     .toUpperCase();
 }
 
+/** Só o primeiro nome — usado onde o espaço é curto (ex.: rodapé da sidebar). */
+export function getFirstName(name: string): string {
+  return name.trim().split(/\s+/)[0] || name;
+}
+
 export function formatPhone(phone: string): string {
   return phone.replace(/\D/g, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
 }

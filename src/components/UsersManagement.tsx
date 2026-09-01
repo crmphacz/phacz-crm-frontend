@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UserPlus, Pencil, Ban, RotateCcw, X, ShieldCheck } from 'lucide-react';
+import { UserPlus, Pencil, Ban, RotateCcw, X, ShieldCheck, KeyRound } from 'lucide-react';
 import { useStore } from '../store';
 import { getInitials } from '../utils';
 import { ApiError } from '../api/client';
@@ -34,11 +34,13 @@ export function UsersManagement() {
   const createUser = useStore((s) => s.createUser);
   const updateUser = useStore((s) => s.updateUser);
   const deactivateUser = useStore((s) => s.deactivateUser);
+  const sendUserPasswordReset = useStore((s) => s.sendUserPasswordReset);
   const showToast = useStore((s) => s.showToast);
 
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [error, setError] = useState('');
+  const [resettingId, setResettingId] = useState<string | null>(null);
 
   if (currentUser?.cargo !== 'Diretora') return null;
 
@@ -54,6 +56,19 @@ export function UsersManagement() {
     setEditingUser(user);
     setError('');
     setShowForm(true);
+  }
+
+  async function handleSendPasswordReset(user: AppUser) {
+    if (!window.confirm(`Enviar um link de redefinição de senha para ${user.nome} (${user.email})? O link expira em 1 hora.`)) return;
+    setResettingId(user.id);
+    try {
+      const message = await sendUserPasswordReset(user.id);
+      showToast(message);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Não foi possível enviar o link de redefinição.', 'error');
+    } finally {
+      setResettingId(null);
+    }
   }
 
   async function handleToggleAtivo(user: AppUser) {
@@ -127,6 +142,16 @@ export function UsersManagement() {
               >
                 <Pencil size={14} />
               </button>
+              {user.ativo && (
+                <button
+                  onClick={() => handleSendPasswordReset(user)}
+                  disabled={resettingId === user.id}
+                  title="Enviar link de redefinição de senha"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition-colors disabled:opacity-50"
+                >
+                  <KeyRound size={14} className={resettingId === user.id ? 'animate-pulse' : ''} />
+                </button>
+              )}
               {currentUser.email !== user.email && (
                 <button
                   onClick={() => handleToggleAtivo(user)}

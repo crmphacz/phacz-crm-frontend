@@ -274,8 +274,8 @@ export function EmailBuilder({ initialTemplate, onClose, onSaved, onRequestSend 
           </div>
 
           {/* Canvas */}
-          <div className="flex-1 md:overflow-y-auto flex justify-center py-6 md:py-10 px-3 md:px-6" style={{ backgroundColor: '#e9ebee' }}>
-            <div className="w-full bg-white rounded-2xl" style={{ maxWidth: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', minHeight: 400 }}>
+          <div className="flex-1 md:overflow-y-auto flex items-start justify-center py-6 md:py-10 px-3 md:px-6" style={{ backgroundColor: '#e9ebee' }}>
+            <div className="w-full bg-white rounded-2xl flex-shrink-0" style={{ maxWidth: 600, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', minHeight: 400 }}>
               {blocks.length === 0 ? (
                 <EmptyCanvasDropZone />
               ) : (

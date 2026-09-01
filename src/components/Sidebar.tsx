@@ -18,8 +18,9 @@ import {
   Table2,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
-import { getInitials } from '../utils';
+import { getInitials, getFirstName } from '../utils';
 import { NotificationBell } from './NotificationBell';
+import { MyProfileModal } from './MyProfileModal';
 import { canAccessView } from '../permissions';
 import logo from '../images/logo-dark@2x.png';
 
@@ -65,6 +66,7 @@ export function Sidebar() {
   const disablePush = useStore((s) => s.disablePush);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushError, setPushError] = useState('');
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const activeCorretores = corretores.filter((l) => l.status === 'ativo' || l.status === 'nutricao').length;
   const wonCorretores = corretores.filter((l) => l.status === 'ganho').length;
@@ -293,19 +295,29 @@ export function Sidebar() {
 
       {/* User / Logout */}
       <div className="px-4 py-4 border-t" style={{ borderColor: '#292929' }}>
-        <div className="flex items-center gap-3 mb-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-bold"
-            style={{ backgroundColor: currentUser?.cor ?? '#d55006', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+        <div className="flex items-center gap-1.5 mb-3">
+          <button
+            type="button"
+            onClick={() => setShowProfileModal(true)}
+            title="Ver meu perfil"
+            aria-label="Abrir meu perfil"
+            className="group flex items-center gap-3 flex-1 min-w-0 rounded-xl px-2 py-1.5 -ml-1 cursor-pointer transition-colors hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           >
-            {currentUser ? getInitials(currentUser.nome) : '?'}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-white truncate">{currentUser?.nome ?? '—'}</div>
-            <div className="text-xs truncate" style={{ color: '#6b7280' }}>
-              {currentUser?.cargo ?? ''}
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-bold"
+              style={{ backgroundColor: currentUser?.cor ?? '#d55006', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+            >
+              {currentUser ? getInitials(currentUser.nome) : '?'}
             </div>
-          </div>
+            <div className="min-w-0 flex-1 text-left">
+              <div className="text-sm font-semibold text-white truncate group-hover:underline underline-offset-2 decoration-white/40">
+                {currentUser ? getFirstName(currentUser.nome) : '—'}
+              </div>
+              <div className="text-xs truncate" style={{ color: '#6b7280' }}>
+                {currentUser?.cargo ?? ''}
+              </div>
+            </div>
+          </button>
           {pushSupported && (
             <button
               onClick={togglePush}
@@ -333,6 +345,8 @@ export function Sidebar() {
           <p className="text-xs mb-1" style={{ color: '#f87171' }}>{pushError}</p>
         )}
       </div>
+
+      {showProfileModal && <MyProfileModal onClose={() => setShowProfileModal(false)} />}
     </aside>
   );
 }

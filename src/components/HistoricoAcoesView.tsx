@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, History, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { logAcaoApi } from '../api/endpoints';
+import { useViewReady } from '../navLoading';
 import type { LogAcao } from '../types';
 
 const PAGE_SIZE = 30;
@@ -16,6 +17,10 @@ export function HistoricoAcoesView() {
   const [ate, setAte] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Dispensa o toast de navegação assim que a primeira página do histórico chega.
+  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
+  useViewReady(primeiraCargaFeita);
 
   // Debounce da busca livre — evita disparar uma requisição a cada tecla digitada.
   const [searchInput, setSearchInput] = useState('');
@@ -51,7 +56,10 @@ export function HistoricoAcoesView() {
         setError(err instanceof Error ? err.message : 'Não foi possível carregar o histórico de ações.');
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setPrimeiraCargaFeita(true);
+        }
       });
     return () => {
       cancelled = true;

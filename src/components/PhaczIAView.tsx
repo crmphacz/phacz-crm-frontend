@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Sparkles, Send, Trash2, Users, Filter, Building2, FileText } from 'lucide-react';
 import { useStore } from '../store';
+import { useViewReady } from '../navLoading';
 import { formatRelativeTime, getInitials } from '../utils';
 import { ApiError } from '../api/client';
 
@@ -22,8 +23,10 @@ export function PhaczIAView() {
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [ready, setReady] = useState(false);
+  useViewReady(ready);
   useEffect(() => {
-    ensurePhaczIaLoaded().catch(() => undefined);
+    ensurePhaczIaLoaded().catch(() => undefined).finally(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

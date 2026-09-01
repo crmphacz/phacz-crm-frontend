@@ -32,6 +32,21 @@ export type ViewMode =
   | 'tabelas-empreendimentos'
   | 'historico-acoes';
 
+/**
+ * Telas que carregam dados de forma assíncrona ao abrir — só nelas o toast de
+ * "Carregando informações…" aparece na troca de menu. Cada uma chama `useViewReady(...)`
+ * (ver src/navLoading.ts) para dispensar o toast quando o conteúdo está na tela.
+ */
+const NAV_ASYNC_VIEWS = new Set<ViewMode>([
+  'email-marketing',
+  'phacz-ia',
+  'rodadas',
+  'empreendimentos',
+  'tabelas-empreendimentos',
+  'agenda',
+  'historico-acoes',
+]);
+
 export interface Toast {
   id: string;
   message: string;
@@ -56,6 +71,11 @@ interface StoreState {
   companyProfile: CompanyProfile | null;
   selectedCorretorId: string | null;
   view: ViewMode;
+  // Toast de "Carregando informações…" mostrado ao trocar de menu para uma tela que busca
+  // dados ao montar. `navLoadSeq` identifica a navegação atual — um sinal de "pronto" de uma
+  // navegação já superada é ignorado (ver finishNavLoading).
+  navLoading: boolean;
+  navLoadSeq: number;
   filterTemperatura: Temperatura | 'all';
   filterEtapa: number | 'all';
   filterResponsavel: string | 'all';
@@ -118,6 +138,8 @@ interface StoreState {
 
   // Setters
   setView: (v: ViewMode) => void;
+  /** Chamado pela tela recém-aberta quando seus dados terminaram de carregar. */
+  finishNavLoading: (seq: number) => void;
   setSelectedCorretor: (id: string | null) => void;
   setFilterTemperatura: (t: Temperatura | 'all') => void;
   setFilterEtapa: (e: number | 'all') => void;
@@ -178,6 +200,7 @@ interface StoreState {
   createUser: (data: { nome: string; email: string; cargo: UserCargo; cor?: string; whatsappPhoneNumberId?: string; whatsappNumeroExibicao?: string }) => Promise<AppUser>;
   updateUser: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean; whatsappPhoneNumberId: string; whatsappNumeroExibicao: string }>) => Promise<AppUser>;
   deactivateUser: (id: string) => Promise<void>;
+  sendUserPasswordReset: (id: string) => Promise<string>;
 
   // Canais de Origem
   createCanalOrigem: (nome: string) => Promise<CanalOrigemItem>;
@@ -245,6 +268,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   companyProfile: null,
   selectedCorretorId: null,
   view: 'pipeline',
+  navLoading: false,
+  navLoadSeq: 0,
   filterTemperatura: 'all',
   filterEtapa: 'all',
   filterResponsavel: 'all',
@@ -324,6 +349,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       mustChangePassword: false,
       selectedCorretorId: null,
       view: 'pipeline',
+      navLoading: false,
+      navLoadSeq: 0,
       corretores: [],
       users: [],
       canaisOrigem: [],
@@ -477,7 +504,30 @@ export const useStore = create<StoreState>()((set, get) => ({
     set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
   },
 
-  setView: (v) => set({ view: v, selectedCorretorId: null }),
+  setView: (v) => {
+    // Clicar no menu já ativo não dispara toast/navegação — só fecha o painel de detalhe se
+    // estiver aberto (comportamento antigo do setView).
+    if (get().view === v) {
+      if (get().selectedCorretorId) set({ selectedCorretorId: null });
+      return;
+    }
+    // Só as telas que buscam dados ao montar mostram o toast — as demais renderizam na hora
+    // a partir do estado já carregado no bootstrap, não há o que esperar.
+    const mostraToast = NAV_ASYNC_VIEWS.has(v);
+    const navLoadSeq = get().navLoadSeq + 1;
+    set({ view: v, selectedCorretorId: null, navLoadSeq, navLoading: mostraToast });
+    if (mostraToast) {
+      // Rede de segurança: se a tela nunca sinalizar "pronto" (erro de rede, tela sem gate),
+      // o toast some sozinho em 15s em vez de ficar preso.
+      setTimeout(() => get().finishNavLoading(navLoadSeq), 15_000);
+    }
+  },
+
+  finishNavLoading: (seq) => {
+    // Ignora sinais de navegações antigas — a pessoa pode ter trocado de menu de novo antes
+    // desta terminar de carregar.
+    if (get().navLoadSeq === seq) set({ navLoading: false });
+  },
   setSelectedCorretor: (id) => set({ selectedCorretorId: id }),
   setFilterTemperatura: (t) => set({ filterTemperatura: t }),
   setFilterEtapa: (e) => set({ filterEtapa: e }),
@@ -664,6 +714,11 @@ export const useStore = create<StoreState>()((set, get) => ({
   deactivateUser: async (id) => {
     await usersApi.remove(id);
     set((state) => ({ users: state.users.map((u) => (u.id === id ? { ...u, ativo: false } : u)) }));
+  },
+
+  sendUserPasswordReset: async (id) => {
+    const { message } = await usersApi.sendPasswordReset(id);
+    return message;
   },
 
   createCanalOrigem: async (nome) => {

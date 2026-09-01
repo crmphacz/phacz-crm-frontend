@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Mail, Send, Copy, Trash2, Eye, Users, Filter, Tag, Sparkles } from 'lucide-react';
 import { useStore } from '../store';
+import { useViewReady } from '../navLoading';
 import { STAGES } from '../data';
 import { formatRelativeTime } from '../utils';
 import { canWriteEmailMarketing } from '../permissions';
@@ -21,8 +22,10 @@ export function EmailMarketingView() {
   const deleteEmailCampaign = useStore((s) => s.deleteEmailCampaign);
   const ensureEmailMarketingLoaded = useStore((s) => s.ensureEmailMarketingLoaded);
 
+  const [ready, setReady] = useState(false);
+  useViewReady(ready);
   useEffect(() => {
-    ensureEmailMarketingLoaded().catch(() => undefined);
+    ensureEmailMarketingLoaded().catch(() => undefined).finally(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

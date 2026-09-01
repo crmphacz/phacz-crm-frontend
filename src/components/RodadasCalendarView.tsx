@@ -9,6 +9,7 @@ import {
   CalendarDays, LayoutGrid, List as ListIcon,
 } from 'lucide-react';
 import { useStore } from '../store';
+import { useViewReady } from '../navLoading';
 import { ApiError } from '../api/client';
 import { formatCurrency, parseDateKeyLocal, formatDateKeyBR } from '../utils';
 import { canViewRodadas, canWriteRodadas, canViewFullRodada } from '../permissions';
@@ -60,8 +61,10 @@ export function RodadasCalendarView() {
   const clearRodadaFoco = useStore((s) => s.clearRodadaFoco);
   const ensureRodadasLoaded = useStore((s) => s.ensureRodadasLoaded);
 
+  const [ready, setReady] = useState(false);
+  useViewReady(ready);
   useEffect(() => {
-    ensureRodadasLoaded().catch(() => undefined);
+    ensureRodadasLoaded().catch(() => undefined).finally(() => setReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Table2, Trash2, X, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
+import { useViewReady } from '../navLoading';
 import { tabelasEmpreendimentosApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { formatRelativeTime } from '../utils';
@@ -22,6 +23,11 @@ export function TabelasEmpreendimentosView() {
   const [salvandoNovo, setSalvandoNovo] = useState(false);
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
+  // Dispensa o toast de navegação (a tela é carregada sob demanda — só o chunk já pode
+  // demorar) quando a lista de tabelas chega pela primeira vez.
+  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
+  useViewReady(primeiraCargaFeita);
+
   function carregar() {
     setLoading(true);
     setErro('');
@@ -29,7 +35,7 @@ export function TabelasEmpreendimentosView() {
       .list()
       .then(setTabelas)
       .catch((err) => setErro(err instanceof ApiError ? err.message : 'Não foi possível carregar as tabelas.'))
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setPrimeiraCargaFeita(true); });
   }
 
   useEffect(() => {

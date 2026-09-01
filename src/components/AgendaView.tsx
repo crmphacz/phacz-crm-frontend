@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Cake, Check } from 'lucide-react';
 import { agendaApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { useViewReady } from '../navLoading';
 import { AniversarioModal } from './AniversarioModal';
 import type { AniversarioAgenda, SaudacaoAniversario } from '../types';
 
@@ -23,6 +24,10 @@ export function AgendaView() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<AniversarioAgenda | null>(null);
 
+  // Primeira carga: dispensa o toast de navegação quando a agenda do mês chega.
+  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
+  useViewReady(primeiraCargaFeita);
+
   const ano = currentMonth.getFullYear();
   const mes = currentMonth.getMonth() + 1;
 
@@ -34,7 +39,7 @@ export function AgendaView() {
       .aniversarios(ano, mes)
       .then((r) => { if (vivo) setAniversarios(r); })
       .catch((err) => { if (vivo) setError(err instanceof ApiError ? err.message : 'Não foi possível carregar a agenda.'); })
-      .finally(() => { if (vivo) setLoading(false); });
+      .finally(() => { if (vivo) { setLoading(false); setPrimeiraCargaFeita(true); } });
     return () => { vivo = false; };
   }, [ano, mes]);
 
