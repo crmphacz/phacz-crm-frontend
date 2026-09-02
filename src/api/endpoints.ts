@@ -4,14 +4,14 @@ import {
   mapEmailTemplateFromApi, mapEmailCampaignFromApi, mapChatMessageFromApi, mapCargoToApi,
   mapDestinatarioTipoToApi, mapRodadaFromApi, mapRodadaListItemFromApi, mapCreateRodadaToApi, mapNotificacaoFromApi,
   mapEmpreendimentoFromApi, mapEmpreendimentoDetailFromApi, mapUnidadeFromApi, mapStatusUnidadeToApi,
-  mapLogAcaoFromApi, mapTipoInteracaoFromApi,
+  mapLogAcaoFromApi, mapTipoInteracaoFromApi, mapClienteFinalComContextoFromApi,
   type ApiUser, type ApiCorretor, type ApiEmailTemplate, type ApiEmailCampaign, type ApiChatMessage,
   type ApiRodada, type ApiRodadaResumo, type ApiNotificacao, type ApiEmpreendimento, type ApiEmpreendimentoDetail, type ApiUnidade,
-  type ApiLogAcao,
+  type ApiLogAcao, type ApiClienteFinalComContexto,
   type CreateCorretorPayload, type AppUser,
 } from './mappers.js';
 import type {
-  Corretor, ClienteFinal, Interacao, Proposta, EmailTemplate, EmailCampaign,
+  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, EmailTemplate, EmailCampaign,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
   LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario,
@@ -85,15 +85,67 @@ export interface ImobiliariaMatch {
   responsavelGR: { nome: string } | null;
 }
 
+export interface CorretoresPagedParams {
+  page?: number;
+  pageSize?: number;
+  /** Minúsculo, como no app (`ativo`, `nutricao`...) — convertido pra o enum do backend aqui dentro. */
+  status?: string;
+  search?: string;
+  sort?: 'nomeCorretor' | 'etapa' | 'temperatura' | 'dataUltimaInteracao' | 'dataEntrada';
+  dir?: 'asc' | 'desc';
+}
+
+export interface CorretoresPagedResult {
+  corretores: Corretor[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ClientesPagedParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sort?: 'nome' | 'dataAdicionado' | 'orcamento';
+  dir?: 'asc' | 'desc';
+}
+
+export interface ClientesPagedResult {
+  clientes: (ClienteFinalComContexto & { comprou: boolean })[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export const corretoresApi = {
   list: async (): Promise<Corretor[]> => {
-    // 2000: teto seguro pra sempre trazer a base inteira (Pipeline/Corretores/Clientes filtram
-    // e ordenam no client, não dá pra paginar de verdade sem redesenhar essas telas). Os 200
-    // antigos eram batidos sem nenhum filtro de status — corretores arquivados/antigos podiam
-    // já estar sendo truncados silenciosamente. A listagem não traz mais interacoes/propostas
-    // (ver corretorListInclude no backend), então um teto alto continua barato.
+    // 2000: teto seguro pra sempre trazer a base inteira — usado só pelo Pipeline (kanban),
+    // que ainda filtra/ordena no client (é um quadro, não dá pra paginar de verdade sem
+    // redesenhar a tela). Corretores e Clientes NÃO usam mais isto: cada uma pagina de
+    // verdade (listPaged / listClientesPaged logo abaixo), com o total real do banco.
     const res = await apiFetch<{ corretores: ApiCorretor[]; total: number }>('/api/corretores', { query: { pageSize: 2000 } });
     return res.corretores.map(mapCorretorFromApi);
+  },
+  // Paginação real (usada pela tela de Corretores): `total` é sempre a contagem do banco pro
+  // filtro aplicado, nunca o tamanho da página carregada — é o que corrige o número "travado"
+  // que antes vinha de `filtered.length` sobre um recorte client-side.
+  listPaged: async (params: CorretoresPagedParams): Promise<CorretoresPagedResult> => {
+    const { status, ...rest } = params;
+    const res = await apiFetch<{ corretores: ApiCorretor[]; total: number; page: number; pageSize: number }>(
+      '/api/corretores',
+      { query: { ...rest, status: status && status !== 'all' ? status.toUpperCase() : undefined } }
+    );
+    return { ...res, corretores: res.corretores.map(mapCorretorFromApi) };
+  },
+  // Idem, mas pra tela de Clientes — GET /api/corretores/clientes (ver corretoresRouter no
+  // backend). Cada linha já vem achatada com o contexto do corretor responsável e `comprou`
+  // calculado no servidor.
+  listClientesPaged: async (params: ClientesPagedParams): Promise<ClientesPagedResult> => {
+    const res = await apiFetch<{ clientes: ApiClienteFinalComContexto[]; total: number; page: number; pageSize: number }>(
+      '/api/corretores/clientes',
+      { query: { ...params } }
+    );
+    return { ...res, clientes: res.clientes.map(mapClienteFinalComContextoFromApi) };
   },
   get: (id: string): Promise<Corretor> => apiFetch<ApiCorretor>(`/api/corretores/${id}`).then(mapCorretorFromApi),
   create: (payload: CreateCorretorPayload): Promise<Corretor> =>

@@ -106,6 +106,8 @@ export interface Corretor {
   // Timestamps
   dataEntrada: string;
   dataUltimaInteracao: string;
+  /** Última interação real (ou movimentação de etapa/distribuição/fechamento); ausente = corretor sem nenhuma atividade registrada. Só vem preenchido na listagem paginada (GET /api/corretores). */
+  ultimaAtividadeEm?: string;
   dataDistribuicao?: string;
   dataFechamento?: string;
   etapaTimestamps: Record<string, string>;
@@ -127,6 +129,15 @@ export interface Corretor {
   observacoes: string;
   motivoPerda?: string;
   valorFechamento?: number;
+}
+
+/** ClienteFinal + contexto do corretor responsável — usado na tela de Clientes (lista achatada, um cliente por linha). */
+export interface ClienteFinalComContexto extends ClienteFinal {
+  corretorId: string;
+  nomeCorretor: string;
+  imobiliaria: string;
+  etapaCorretor: number;
+  statusCorretor: StatusCorretor;
 }
 
 export interface StageConfig {

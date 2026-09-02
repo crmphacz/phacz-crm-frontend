@@ -87,6 +87,16 @@ h1, h2, h3, h4, h5, h6, .font-questrial {
 .modal-backdrop {
   animation: fadeIn 0.15s ease-out;
 }
+
+/* Loader de tela cheia (ver ViewLoader.tsx) — entrada suave, evita o "pop" abrupto quando o
+   conteúdo real ainda não chegou. */
+.view-loader-in {
+  animation: viewLoaderIn 0.2s ease-out;
+}
+@keyframes viewLoaderIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

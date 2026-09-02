@@ -5,8 +5,11 @@ import {
   Handshake, FileText, CheckCircle2,
 } from 'lucide-react';
 import { useStore } from '../store';
+import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { formatCurrency, formatRelativeTime } from '../utils';
+import { ApiError } from '../api/client';
 import { dashboardApi, type AtividadeRecente } from '../api/endpoints';
 import type { Corretor } from '../types';
 
@@ -17,6 +20,19 @@ export function Dashboard() {
   const currentUser = useStore((s) => s.currentUser);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const setView = useStore((s) => s.setView);
+  const reloadCorretores = useStore((s) => s.reloadCorretores);
+  const showToast = useStore((s) => s.showToast);
+
+  // Busca os corretores de novo toda vez que o Dashboard é aberto — mesma lógica do Pipeline:
+  // a automação de tráfego inclui leads o tempo todo, os números não podem ficar defasados.
+  const [ready, setReady] = useState(false);
+  useViewReady(ready);
+  useEffect(() => {
+    reloadCorretores()
+      .catch((err) => showToast(err instanceof ApiError ? err.message : 'Não foi possível atualizar o dashboard agora.', 'error'))
+      .finally(() => setReady(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const cargo = currentUser?.cargo ?? 'Diretora';
   const defaultTab: DashTab =
@@ -38,6 +54,8 @@ export function Dashboard() {
     setView('pipeline');
     setSelectedCorretor(corretor.id);
   }
+
+  if (!ready) return <ViewLoader label="Carregando dashboard…" />;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

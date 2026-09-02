@@ -1,5 +1,5 @@
 import type {
-  Corretor, ClienteFinal, Interacao, Proposta, Temperatura, StatusCorretor, TipoInteracao,
+  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, Temperatura, StatusCorretor, TipoInteracao,
   DestinatarioTipo, EmailTemplate, EmailCampaign,
   ChatMessage, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, TipoNotificacao,
   Empreendimento, EmpreendimentoDetail, Unidade, StatusUnidade,
@@ -193,6 +193,8 @@ export interface ApiCorretor {
   canalOrigem: string;
   dataEntrada: string;
   dataUltimaInteracao: string;
+  // Só vem no GET /api/corretores (listagem paginada) — ver comentário do campo em Corretor (types.ts).
+  ultimaAtividadeEm?: string | null;
   dataDistribuicao: string | null;
   dataFechamento: string | null;
   etapaTimestamps: Record<string, string>;
@@ -223,6 +225,30 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
     negocioGerado: cf.negocioGerado,
     negocioCorretorId: cf.negocioCorretorId ?? undefined,
     empreendimentoInteresse: cf.empreendimentoInteresse ?? undefined,
+  };
+}
+
+// ── Listagem paginada de clientes (GET /api/corretores/clientes) ──────
+// Cada linha já vem achatada com o contexto do corretor responsável + `comprou` calculado no
+// backend (ver corretoresRouter.get('/clientes', ...)) — a tela de Clientes não precisa mais
+// do array inteiro de corretores pra montar isso no client.
+
+export interface ApiClienteFinalComContexto extends ApiClienteFinal {
+  corretor: { id: string; nomeCorretor: string; imobiliaria: string; etapa: number; status: string };
+  comprou: boolean;
+}
+
+export function mapClienteFinalComContextoFromApi(
+  cf: ApiClienteFinalComContexto
+): ClienteFinalComContexto & { comprou: boolean } {
+  return {
+    ...mapClienteFinalFromApi(cf),
+    corretorId: cf.corretorId,
+    nomeCorretor: cf.corretor.nomeCorretor,
+    imobiliaria: cf.corretor.imobiliaria,
+    etapaCorretor: cf.corretor.etapa,
+    statusCorretor: statusCorretorMap.toApp(cf.corretor.status),
+    comprou: cf.comprou,
   };
 }
 
@@ -286,6 +312,7 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     canalOrigem: l.canalOrigem,
     dataEntrada: l.dataEntrada,
     dataUltimaInteracao: l.dataUltimaInteracao,
+    ultimaAtividadeEm: l.ultimaAtividadeEm ?? undefined,
     dataDistribuicao: l.dataDistribuicao ?? undefined,
     dataFechamento: l.dataFechamento ?? undefined,
     etapaTimestamps: l.etapaTimestamps ?? {},

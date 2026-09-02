@@ -28,7 +28,7 @@ const NAV_MAIN: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'pipeline', icon: KanbanSquare, label: 'Pipeline' },
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { id: 'corretores', icon: Users, label: 'Corretores' },
-  { id: 'clientes', icon: UserCheck, label: 'Clientes' },
+  { id: 'clientes', icon: UserCheck, label: 'Clientes Finais' },
   { id: 'empreendimentos', icon: Building2, label: 'Empreendimentos' },
   { id: 'rodadas', icon: CalendarDays, label: 'Calendário de Rodadas' },
   { id: 'agenda', icon: Cake, label: 'Agenda' },

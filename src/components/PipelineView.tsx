@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Search, X, Zap, GripVertical } from 'lucide-react';
 import {
   DndContext,
@@ -13,6 +13,8 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useStore, useFilteredCorretores } from '../store';
+import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { ApiError } from '../api/client';
 import { CorretorCard } from './CorretorCard';
@@ -46,9 +48,22 @@ export function PipelineView() {
   const corretores = useStore((s) => s.corretores);
   const currentUser = useStore((s) => s.currentUser);
   const canCreate = canCreateCorretor(currentUser);
+  const reloadCorretores = useStore((s) => s.reloadCorretores);
+  const showToast = useStore((s) => s.showToast);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [funnelFilter, setFunnelFilter] = useState<FunnelFilter>('todos');
+
+  // Busca os corretores de novo toda vez que o Pipeline é aberto — a automação de tráfego
+  // inclui leads no banco o tempo todo, e ninguém deveria precisar dar F5 pra ver os novos.
+  const [ready, setReady] = useState(false);
+  useViewReady(ready);
+  useEffect(() => {
+    reloadCorretores()
+      .catch((err) => showToast(err instanceof ApiError ? err.message : 'Não foi possível atualizar o pipeline agora.', 'error'))
+      .finally(() => setReady(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -99,6 +114,8 @@ export function PipelineView() {
       alert(err instanceof ApiError ? err.message : 'Não foi possível mover o corretor de etapa.');
     }
   }
+
+  if (!ready) return <ViewLoader label="Carregando pipeline…" />;
 
   return (
     <div className="flex flex-col h-full">

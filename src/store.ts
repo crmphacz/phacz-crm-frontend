@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  Corretor, ClienteFinal, Interacao, Proposta, Temperatura, UserProfile, CanalOrigem,
+  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, Temperatura, UserProfile, CanalOrigem,
   EmailTemplate, EmailCampaign, ChatMessage, DestinatarioTipo, UserCargo,
   Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, Empreendimento, CreateEmpreendimentoPayload,
 } from './types';
@@ -14,6 +14,11 @@ import { mapCargoFromApi } from './api/mappers.js';
 import { getToken, setToken, clearToken, ApiError } from './api/client.js';
 import { isPushSupported, getExistingPushSubscription, subscribeToPush, unsubscribeFromPush } from './push';
 import { getDefaultView } from './permissions';
+
+// Reexportado por conveniência — NewClienteModal/ClientesView importam este tipo daqui (`from
+// '../store'`) desde antes dele existir em types.ts; mora lá agora só pra endpoints.ts poder
+// usá-lo também sem criar um import circular (endpoints.ts é importado por este arquivo).
+export type { ClienteFinalComContexto };
 
 export type ViewMode =
   | 'pipeline'
@@ -38,6 +43,8 @@ export type ViewMode =
  * (ver src/navLoading.ts) para dispensar o toast quando o conteúdo está na tela.
  */
 const NAV_ASYNC_VIEWS = new Set<ViewMode>([
+  'pipeline',
+  'dashboard',
   'email-marketing',
   'phacz-ia',
   'rodadas',
@@ -45,6 +52,8 @@ const NAV_ASYNC_VIEWS = new Set<ViewMode>([
   'tabelas-empreendimentos',
   'agenda',
   'historico-acoes',
+  'corretores',
+  'clientes',
 ]);
 
 export interface Toast {
@@ -127,6 +136,11 @@ interface StoreState {
   ensurePhaczIaLoaded: () => Promise<void>;
   ensureRodadasLoaded: () => Promise<void>;
   ensureEmpreendimentosLoaded: () => Promise<void>;
+
+  // Ao contrário dos `ensure*Loaded` acima, este SEMPRE busca de novo (nunca é no-op) — chamado
+  // toda vez que Pipeline ou Dashboard são abertos, pra refletir leads que a automação de
+  // tráfego pode ter incluído no banco enquanto a pessoa estava em outra tela.
+  reloadCorretores: () => Promise<void>;
 
   // Busca o corretor completo (com interacoes/propostas) e substitui a entrada leve no array —
   // usado ao abrir o painel de detalhe, já que a listagem não traz mais esses dois campos.
@@ -475,6 +489,11 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (get().empreendimentosLoaded) return;
     const empreendimentos = await empreendimentosApi.list();
     set({ empreendimentos, empreendimentosLoaded: true });
+  },
+
+  reloadCorretores: async () => {
+    const corretores = await corretoresApi.list();
+    set({ corretores });
   },
 
   hydrateCorretorDetail: async (id) => {
@@ -931,37 +950,6 @@ export const useSelectedCorretor = () => {
   const corretores = useStore((s) => s.corretores);
   const selectedCorretorId = useStore((s) => s.selectedCorretorId);
   return corretores.find((l) => l.id === selectedCorretorId) ?? null;
-};
-
-export interface ClienteFinalComContexto extends ClienteFinal {
-  corretorId: string;
-  nomeCorretor: string;
-  imobiliaria: string;
-  etapaCorretor: number;
-  statusCorretor: Corretor['status'];
-}
-
-export const useAllClientesFinais = (): ClienteFinalComContexto[] => {
-  const corretores = useStore((s) => s.corretores);
-  return corretores.flatMap((l) =>
-    l.clientesFinais.map((cf) => ({
-      ...cf,
-      corretorId: l.id,
-      nomeCorretor: l.nomeCorretor,
-      imobiliaria: l.imobiliaria,
-      etapaCorretor: l.etapa,
-      statusCorretor: l.status,
-    }))
-  );
-};
-
-/** Um cliente "já comprou" se o corretor dele — ou o card de negócio gerado a partir dele — está GANHO. */
-export const clienteComprou = (cf: ClienteFinalComContexto, corretores: Corretor[]): boolean => {
-  if (cf.statusCorretor === 'ganho') return true;
-  if (cf.negocioGerado && cf.negocioCorretorId) {
-    return corretores.find((c) => c.id === cf.negocioCorretorId)?.status === 'ganho';
-  }
-  return false;
 };
 
 export const useFilteredCorretores = () => {
