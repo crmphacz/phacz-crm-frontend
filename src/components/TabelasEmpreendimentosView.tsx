@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Table2, Trash2, X, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { tabelasEmpreendimentosApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { formatRelativeTime } from '../utils';
@@ -87,6 +88,8 @@ export function TabelasEmpreendimentosView() {
       />
     );
   }
+
+  if (!primeiraCargaFeita) return <ViewLoader label="Carregando tabelas…" />;
 
   return (
     <div className="flex flex-col h-full">

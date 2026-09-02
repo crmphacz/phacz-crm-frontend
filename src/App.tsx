@@ -23,6 +23,7 @@ import { AgendaView } from './components/AgendaView';
 import { EmpreendimentosListView } from './components/EmpreendimentosListView';
 import { HistoricoAcoesView } from './components/HistoricoAcoesView';
 import { ToastContainer } from './components/ToastContainer';
+import { ViewLoader } from './components/ViewLoader';
 
 // Carrega sob demanda: puxa a biblioteca de planilha (fortune-sheet), pesada.
 const TabelasEmpreendimentosView = lazy(() =>
@@ -146,7 +147,7 @@ export default function App() {
           {view === 'rodadas' && <RodadasCalendarView />}
           {view === 'agenda' && <AgendaView />}
           {view === 'tabelas-empreendimentos' && (
-            <Suspense fallback={<div className="h-full flex items-center justify-center text-sm text-gray-400">Carregando editor…</div>}>
+            <Suspense fallback={<ViewLoader label="Carregando editor…" />}>
               <TabelasEmpreendimentosView />
             </Suspense>
           )}

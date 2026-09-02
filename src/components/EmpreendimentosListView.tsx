@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Building2, MapPin, Layers, CheckCircle2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import type { Empreendimento } from '../types';
 import { EmpreendimentoFormModal } from './EmpreendimentoFormModal';
 import { EmpreendimentoDetailView } from './EmpreendimentoDetailView';
@@ -21,6 +22,8 @@ export function EmpreendimentosListView() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+
+  if (!ready) return <ViewLoader />;
 
   if (detailId) {
     return <EmpreendimentoDetailView id={detailId} onClose={() => setDetailId(null)} />;

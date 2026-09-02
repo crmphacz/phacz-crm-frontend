@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search, History, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { logAcaoApi } from '../api/endpoints';
 import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import type { LogAcao } from '../types';
 
 const PAGE_SIZE = 30;
@@ -67,6 +68,9 @@ export function HistoricoAcoesView() {
   }, [search, entidadeFiltro, de, ate, page]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Só revela a tabela/filtros quando a primeira página do histórico chegou.
+  if (!primeiraCargaFeita) return <ViewLoader />;
 
   return (
     <div className="flex flex-col h-full">

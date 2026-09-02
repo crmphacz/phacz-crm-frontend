@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Mail, Send, Copy, Trash2, Eye, Users, Filter, Tag, Sparkles } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { formatRelativeTime } from '../utils';
 import { canWriteEmailMarketing } from '../permissions';
@@ -41,6 +42,8 @@ export function EmailMarketingView() {
   function openNewEmail() {
     setBuilderTemplate(null);
   }
+
+  if (!ready) return <ViewLoader />;
 
   return (
     <div className="h-full overflow-y-auto" style={{ backgroundColor: '#e6e3de' }}>

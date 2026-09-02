@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Cake, Check } from 'lucide-react';
 import { agendaApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { AniversarioModal } from './AniversarioModal';
 import type { AniversarioAgenda, SaudacaoAniversario } from '../types';
 
@@ -66,6 +67,10 @@ export function AgendaView() {
     setAniversarios((prev) => prev.map((a) => (a.corretorId === corretorId ? { ...a, saudacao } : a)));
     setSelected((cur) => (cur && cur.corretorId === corretorId ? { ...cur, saudacao } : cur));
   }
+
+  // Primeira carga: mostra só a animação até a agenda do mês chegar. Trocas de mês depois
+  // disso mantêm o calendário na tela (o "Carregando…" do cabeçalho cobre esse caso).
+  if (!primeiraCargaFeita) return <ViewLoader />;
 
   return (
     <div className="flex flex-col h-full">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Bot, Sparkles, Send, Trash2, Users, Filter, Building2, FileText } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { formatRelativeTime, getInitials } from '../utils';
 import { ApiError } from '../api/client';
 
@@ -53,6 +54,8 @@ export function PhaczIAView() {
     e.preventDefault();
     sendMessage(input);
   }
+
+  if (!ready) return <ViewLoader label="Carregando conversa…" />;
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: '#f0f2f5' }}>

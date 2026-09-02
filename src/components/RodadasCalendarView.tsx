@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { ApiError } from '../api/client';
 import { formatCurrency, parseDateKeyLocal, formatDateKeyBR } from '../utils';
 import { canViewRodadas, canWriteRodadas, canViewFullRodada } from '../permissions';
@@ -162,6 +163,8 @@ export function RodadasCalendarView() {
       </div>
     );
   }
+
+  if (!ready) return <ViewLoader />;
 
   return (
     <div className="flex flex-col h-full">
