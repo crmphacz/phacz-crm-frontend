@@ -46,6 +46,11 @@ export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptio
 
   const response = await fetch(buildUrl(path, options.query), {
     method: options.method ?? 'GET',
+    // Respostas de API autenticada nunca deveriam vir do cache HTTP do navegador: um GET
+    // repetido (ex: /auth/me logo após o login) podia voltar 304 (sem corpo) por causa do ETag
+    // que o Express gera automaticamente — e como 304 está fora do range 200-299, virava um
+    // ApiError falso-positivo aqui embaixo, derrubando a sessão que acabara de ser criada.
+    cache: 'no-store',
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -72,6 +77,7 @@ export async function apiFetch<T = unknown>(path: string, options: ApiFetchOptio
 export async function downloadFile(path: string, filename: string, query?: ApiFetchOptions['query']): Promise<void> {
   const token = getToken();
   const response = await fetch(buildUrl(path, query), {
+    cache: 'no-store',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 

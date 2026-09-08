@@ -394,14 +394,20 @@ export const useStore = create<StoreState>()((set, get) => ({
 
     set({ isBootstrapping: true });
 
-    // Fase 1 — valida o token. Falhar aqui É um problema de autenticação de verdade (token
-    // expirado/revogado): desloga e volta pro login.
+    // Fase 1 — valida o token. Só desloga se o servidor de fato rejeitou o token (401/403);
+    // qualquer outra falha (rede instável, erro de parsing, etc.) não é prova de que a sessão
+    // é inválida, então preserva o estado de login já setado por quem chamou initFromToken.
     let me;
     try {
       me = await authApi.me();
-    } catch {
-      clearToken();
-      set({ isLoggedIn: false, currentUser: null, mustChangePassword: false, isBootstrapping: false });
+    } catch (err) {
+      const isAuthFailure = err instanceof ApiError && (err.status === 401 || err.status === 403);
+      if (isAuthFailure) {
+        clearToken();
+        set({ isLoggedIn: false, currentUser: null, mustChangePassword: false, isBootstrapping: false });
+      } else {
+        set({ isBootstrapping: false });
+      }
       return;
     }
 
