@@ -1,6 +1,6 @@
 import { formatDistanceToNow, differenceInHours, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Corretor, StageConfig, StatusUnidade } from './types';
+import type { Corretor, StageConfig } from './types';
 
 export function formatRelativeTime(iso: string): string {
   return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: ptBR });
@@ -71,15 +71,6 @@ export const TIPO_INTERACAO_CONFIG = {
   proposta: { label: 'Proposta', icon: '📄' },
 } as const;
 
-/** Cor de badge própria e consistente para cada um dos 5 status de unidade em toda a tela. */
-export const STATUS_UNIDADE_CONFIG: Record<StatusUnidade, { label: string; bg: string; text: string }> = {
-  disponivel: { label: 'Disponível', bg: '#dcfce7', text: '#15803d' },
-  vendido: { label: 'Vendido', bg: '#374151', text: '#ffffff' },
-  em_negociacao: { label: 'Em negociação', bg: '#fef9c3', text: '#854d0e' },
-  em_contrato: { label: 'Em contrato', bg: '#dbeafe', text: '#1e40af' },
-  alugado: { label: 'Alugado', bg: '#f3e8ff', text: '#7e22ce' },
-};
-
 export const TIPO_INTERESSE_LABELS: Record<string, string> = {
   prontos: 'Prontos',
   planta: 'Na planta',
@@ -139,19 +130,8 @@ export function getInitials(name: string): string {
     .toUpperCase();
 }
 
-/** Só o primeiro nome — usado onde o espaço é curto (ex.: rodapé da sidebar). */
-export function getFirstName(name: string): string {
-  return name.trim().split(/\s+/)[0] || name;
-}
-
 export function formatPhone(phone: string): string {
   return phone.replace(/\D/g, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-}
-
-/** Telefone BR no formato do link do WhatsApp: só dígitos, com DDI 55. */
-export function toWaNumber(telefone: string): string {
-  const digits = telefone.replace(/\D/g, '');
-  return digits.startsWith('55') ? digits : `55${digits}`;
 }
 
 /** Formata um telefone progressivamente enquanto o usuário digita: (11) 91234-5678. */
@@ -162,16 +142,6 @@ export function maskPhone(value: string): string {
   if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
   if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-}
-
-/** Formata um CPF progressivamente enquanto o usuário digita: 123.456.789-01. */
-export function maskCPF(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
-  if (digits.length === 0) return '';
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
 /** Formata um número como moeda brasileira completa: 245000 -> "R$ 245.000,00". */
@@ -196,26 +166,4 @@ export function parseCurrencyBRL(value: string): number | undefined {
   const digits = value.replace(/\D/g, '');
   if (!digits) return undefined;
   return Number(digits) / 100;
-}
-
-/** Formata metragem com 2 casas decimais: 192.7 -> "192,70 m²". */
-export function formatMetragem(value: number): string {
-  return `${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²`;
-}
-
-/**
- * Constrói uma Date local (sem deslocamento de fuso) a partir de uma chave "YYYY-MM-DD".
- * Datas "sem hora" vindas da API (ex: início de obra, data de entrega) são strings assim —
- * usar `new Date(str)` direto as interpretaria como UTC e poderia exibir o dia errado
- * dependendo do fuso do navegador.
- */
-export function parseDateKeyLocal(key: string): Date {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-/** Formata "2026-08-13" como "13/08/2026", só com manipulação de string (sem risco de fuso). */
-export function formatDateKeyBR(key: string): string {
-  const [y, m, d] = key.split('-');
-  return `${d}/${m}/${y}`;
 }

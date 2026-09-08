@@ -1,24 +1,17 @@
 import { create } from 'zustand';
 import type {
-  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, Temperatura, UserProfile, CanalOrigem,
+  Corretor, ClienteFinal, Interacao, Proposta, Temperatura, UserProfile, CanalOrigem,
   EmailTemplate, EmailCampaign, ChatMessage, DestinatarioTipo, UserCargo,
-  Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, Empreendimento, CreateEmpreendimentoPayload,
 } from './types';
 import {
   authApi, usersApi, corretoresApi, emailApi, iaApi, canaisOrigemApi, companyProfileApi, tiposInteresseApi, imobiliariasApi,
-  condicoesPagamentoApi, pushApi, savedSearchesApi, rodadasApi, notificacoesApi, empreendimentosApi,
+  condicoesPagamentoApi, pushApi, savedSearchesApi,
   type CreateCorretorPayload, type AppUser, type CanalOrigemItem, type CompanyProfile, type TipoInteresseItem, type ImobiliariaItem,
   type CondicaoPagamentoItem, type SavedSearchItem,
 } from './api/endpoints.js';
 import { mapCargoFromApi } from './api/mappers.js';
 import { getToken, setToken, clearToken, ApiError } from './api/client.js';
 import { isPushSupported, getExistingPushSubscription, subscribeToPush, unsubscribeFromPush } from './push';
-import { getDefaultView } from './permissions';
-
-// Reexportado por conveniência — NewClienteModal/ClientesView importam este tipo daqui (`from
-// '../store'`) desde antes dele existir em types.ts; mora lá agora só pra endpoints.ts poder
-// usá-lo também sem criar um import circular (endpoints.ts é importado por este arquivo).
-export type { ClienteFinalComContexto };
 
 export type ViewMode =
   | 'pipeline'
@@ -30,37 +23,7 @@ export type ViewMode =
   | 'config-regras'
   | 'indicadores'
   | 'email-marketing'
-  | 'phacz-ia'
-  | 'rodadas'
-  | 'agenda'
-  | 'empreendimentos'
-  | 'tabelas-empreendimentos'
-  | 'historico-acoes';
-
-/**
- * Telas que carregam dados de forma assíncrona ao abrir — só nelas o toast de
- * "Carregando informações…" aparece na troca de menu. Cada uma chama `useViewReady(...)`
- * (ver src/navLoading.ts) para dispensar o toast quando o conteúdo está na tela.
- */
-const NAV_ASYNC_VIEWS = new Set<ViewMode>([
-  'pipeline',
-  'dashboard',
-  'email-marketing',
-  'phacz-ia',
-  'rodadas',
-  'empreendimentos',
-  'tabelas-empreendimentos',
-  'agenda',
-  'historico-acoes',
-  'corretores',
-  'clientes',
-]);
-
-export interface Toast {
-  id: string;
-  message: string;
-  type: 'success' | 'error';
-}
+  | 'phacz-ia';
 
 export interface PipelineFiltros {
   searchQuery: string;
@@ -80,11 +43,6 @@ interface StoreState {
   companyProfile: CompanyProfile | null;
   selectedCorretorId: string | null;
   view: ViewMode;
-  // Toast de "Carregando informações…" mostrado ao trocar de menu para uma tela que busca
-  // dados ao montar. `navLoadSeq` identifica a navegação atual — um sinal de "pronto" de uma
-  // navegação já superada é ignorado (ver finishNavLoading).
-  navLoading: boolean;
-  navLoadSeq: number;
   filterTemperatura: Temperatura | 'all';
   filterEtapa: number | 'all';
   filterResponsavel: string | 'all';
@@ -96,28 +54,11 @@ interface StoreState {
   isBootstrapping: boolean;
   authError: string | null;
   currentUser: UserProfile | null;
-  /** Primeiro acesso com senha provisória: bloqueia a tela normal até trocar a senha. */
-  mustChangePassword: boolean;
-  /** Acessível antes e depois do login (a tela de login também tem o link). */
-  showPrivacyPolicy: boolean;
-
-  toasts: Toast[];
 
   emailTemplates: EmailTemplate[];
   emailCampaigns: EmailCampaign[];
-  emailMarketingLoaded: boolean;
 
   chatMessages: ChatMessage[];
-  phaczIaLoaded: boolean;
-
-  rodadas: (Rodada | RodadaResumo)[];
-  rodadasLoaded: boolean;
-  notificacoes: Notificacao[];
-  notificacoesNaoLidas: number;
-  rodadaFocoData: string | null;
-
-  empreendimentos: Empreendimento[];
-  empreendimentosLoaded: boolean;
 
   pushSupported: boolean;
   pushPermission: NotificationPermission | 'unsupported';
@@ -127,33 +68,9 @@ interface StoreState {
   login: (email: string, senha: string) => Promise<boolean>;
   logout: () => void;
   initFromToken: () => Promise<void>;
-  changePasswordFirstAccess: (senhaAtual: string, novaSenha: string) => Promise<void>;
-  setShowPrivacyPolicy: (v: boolean) => void;
-
-  // Carregamento sob demanda (chamado no mount da view correspondente — ver App.tsx/views).
-  // Cada um só busca na primeira vez; chamadas seguintes são no-op.
-  ensureEmailMarketingLoaded: () => Promise<void>;
-  ensurePhaczIaLoaded: () => Promise<void>;
-  ensureRodadasLoaded: () => Promise<void>;
-  ensureEmpreendimentosLoaded: () => Promise<void>;
-
-  // Ao contrário dos `ensure*Loaded` acima, este SEMPRE busca de novo (nunca é no-op) — chamado
-  // toda vez que Pipeline ou Dashboard são abertos, pra refletir leads que a automação de
-  // tráfego pode ter incluído no banco enquanto a pessoa estava em outra tela.
-  reloadCorretores: () => Promise<void>;
-
-  // Busca o corretor completo (com interacoes/propostas) e substitui a entrada leve no array —
-  // usado ao abrir o painel de detalhe, já que a listagem não traz mais esses dois campos.
-  hydrateCorretorDetail: (id: string) => Promise<void>;
-
-  // Toasts
-  showToast: (message: string, type?: Toast['type']) => void;
-  dismissToast: (id: string) => void;
 
   // Setters
   setView: (v: ViewMode) => void;
-  /** Chamado pela tela recém-aberta quando seus dados terminaram de carregar. */
-  finishNavLoading: (seq: number) => void;
   setSelectedCorretor: (id: string | null) => void;
   setFilterTemperatura: (t: Temperatura | 'all') => void;
   setFilterEtapa: (e: number | 'all') => void;
@@ -174,12 +91,6 @@ interface StoreState {
 
   // ClienteFinal CRUD
   addClienteFinal: (corretorId: string, cf: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado'>) => Promise<void>;
-  updateClienteFinal: (
-    corretorId: string,
-    cfId: string,
-    cf: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>,
-    novoCorretorId?: string
-  ) => Promise<void>;
   removeClienteFinal: (corretorId: string, cfId: string) => Promise<void>;
 
   // Interação
@@ -201,8 +112,8 @@ interface StoreState {
     templateId: string;
     destinatarioTipo: DestinatarioTipo;
     etapaAlvo?: number;
-    tipoInteresseAlvo?: string;
-    corretorIds?: string[];
+    empreendimentoAlvo?: string;
+    clienteIds?: string[];
   }) => Promise<{ enviados: number; falhas: number; simulated: boolean }>;
   deleteEmailCampaign: (id: string) => Promise<void>;
 
@@ -211,10 +122,9 @@ interface StoreState {
   clearChat: () => Promise<void>;
 
   // Usuários da plataforma (Diretora)
-  createUser: (data: { nome: string; email: string; cargo: UserCargo; cor?: string; whatsappPhoneNumberId?: string; whatsappNumeroExibicao?: string }) => Promise<AppUser>;
-  updateUser: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean; whatsappPhoneNumberId: string; whatsappNumeroExibicao: string }>) => Promise<AppUser>;
+  createUser: (data: { nome: string; email: string; senha: string; cargo: UserCargo; cor?: string }) => Promise<AppUser>;
+  updateUser: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => Promise<AppUser>;
   deactivateUser: (id: string) => Promise<void>;
-  sendUserPasswordReset: (id: string) => Promise<string>;
 
   // Canais de Origem
   createCanalOrigem: (nome: string) => Promise<CanalOrigemItem>;
@@ -237,7 +147,7 @@ interface StoreState {
   removeCondicaoPagamento: (id: string) => Promise<void>;
 
   // Perfil da Empresa
-  updateCompanyProfile: (data: Partial<{ nome: string; cnpj: string; cidade: string; dpoNome: string; dpoEmail: string }>) => Promise<CompanyProfile>;
+  updateCompanyProfile: (data: Partial<{ nome: string; cnpj: string; cidade: string }>) => Promise<CompanyProfile>;
 
   // Notificações push
   refreshPushStatus: () => Promise<void>;
@@ -248,24 +158,6 @@ interface StoreState {
   createSavedSearch: (nome: string) => Promise<SavedSearchItem>;
   removeSavedSearch: (id: string) => Promise<void>;
   applySavedSearch: (search: SavedSearchItem) => void;
-
-  // Calendário de Rodadas
-  createRodada: (data: CreateRodadaPayload) => Promise<Rodada>;
-  updateRodada: (id: string, data: CreateRodadaPayload) => Promise<Rodada>;
-  removeRodada: (id: string) => Promise<void>;
-
-  // Notificações in-app
-  loadNotificacoes: () => Promise<void>;
-  markNotificacaoLida: (id: string) => Promise<void>;
-  markAllNotificacoesLidas: () => Promise<void>;
-  abrirNotificacaoRodada: (n: Notificacao) => void;
-  clearRodadaFoco: () => void;
-
-  // Empreendimentos & Unidades
-  createEmpreendimento: (data: CreateEmpreendimentoPayload) => Promise<Empreendimento>;
-  updateEmpreendimento: (id: string, data: CreateEmpreendimentoPayload) => Promise<Empreendimento>;
-  removeEmpreendimento: (id: string) => Promise<void>;
-  refreshEmpreendimentoSummary: (id: string) => Promise<void>;
 }
 
 function findUserIdByName(users: AppUser[], nome: string): string | undefined {
@@ -282,8 +174,6 @@ export const useStore = create<StoreState>()((set, get) => ({
   companyProfile: null,
   selectedCorretorId: null,
   view: 'pipeline',
-  navLoading: false,
-  navLoadSeq: 0,
   filterTemperatura: 'all',
   filterEtapa: 'all',
   filterResponsavel: 'all',
@@ -295,26 +185,11 @@ export const useStore = create<StoreState>()((set, get) => ({
   isBootstrapping: false,
   authError: null,
   currentUser: null,
-  mustChangePassword: false,
-  showPrivacyPolicy: false,
-
-  toasts: [],
 
   emailTemplates: [],
   emailCampaigns: [],
-  emailMarketingLoaded: false,
 
   chatMessages: [],
-  phaczIaLoaded: false,
-
-  rodadas: [],
-  rodadasLoaded: false,
-  notificacoes: [],
-  notificacoesNaoLidas: 0,
-  rodadaFocoData: null,
-
-  empreendimentos: [],
-  empreendimentosLoaded: false,
 
   pushSupported: isPushSupported(),
   pushPermission: isPushSupported() ? Notification.permission : 'unsupported',
@@ -325,23 +200,15 @@ export const useStore = create<StoreState>()((set, get) => ({
     try {
       const result = await authApi.login(email, senha);
       setToken(result.token);
-      const currentUser = {
-        id: result.user.id,
-        nome: result.user.nome,
-        email: result.user.email,
-        cargo: mapCargoFromApi(result.user.cargo),
-        cor: result.user.cor,
-        whatsappNumeroExibicao: result.user.whatsappNumeroExibicao ?? '',
-      };
-
-      if (result.user.deveTrocarSenha) {
-        // Primeiro acesso com senha provisória: não carrega o resto do app ainda —
-        // só o suficiente pra mostrar a tela de troca de senha.
-        set({ isLoggedIn: true, currentUser, mustChangePassword: true });
-        return true;
-      }
-
-      set({ isLoggedIn: true, currentUser, mustChangePassword: false });
+      set({
+        isLoggedIn: true,
+        currentUser: {
+          nome: result.user.nome,
+          email: result.user.email,
+          cargo: mapCargoFromApi(result.user.cargo),
+          cor: result.user.cor,
+        },
+      });
       await get().initFromToken();
       return true;
     } catch (err) {
@@ -352,19 +219,12 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   logout: () => {
-    // Melhor esforço: revoga a sessão no servidor (tokenVersion++). Se a chamada falhar (rede
-    // fora do ar etc.), o logout local acontece do mesmo jeito — a expiração de 24h do token
-    // ainda cobre esse caso, só não é imediata.
-    authApi.logout().catch(() => undefined);
     clearToken();
     set({
       isLoggedIn: false,
       currentUser: null,
-      mustChangePassword: false,
       selectedCorretorId: null,
       view: 'pipeline',
-      navLoading: false,
-      navLoadSeq: 0,
       corretores: [],
       users: [],
       canaisOrigem: [],
@@ -374,17 +234,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       companyProfile: null,
       emailTemplates: [],
       emailCampaigns: [],
-      emailMarketingLoaded: false,
       chatMessages: [],
-      phaczIaLoaded: false,
       savedSearches: [],
-      rodadas: [],
-      rodadasLoaded: false,
-      notificacoes: [],
-      notificacoesNaoLidas: 0,
-      rodadaFocoData: null,
-      empreendimentos: [],
-      empreendimentosLoaded: false,
     });
   },
 
@@ -393,160 +244,38 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (!token) return;
 
     set({ isBootstrapping: true });
-
-    // Fase 1 — valida o token. Falhar aqui É um problema de autenticação de verdade (token
-    // expirado/revogado): desloga e volta pro login.
-    let me;
     try {
-      me = await authApi.me();
+      const me = await authApi.me();
+      set({
+        isLoggedIn: true,
+        currentUser: { nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor },
+      });
+
+      const [corretores, users, canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, emailTemplates, emailCampaigns, chatMessages, savedSearches] = await Promise.all([
+        corretoresApi.list(),
+        usersApi.list(),
+        canaisOrigemApi.list(),
+        tiposInteresseApi.list(),
+        imobiliariasApi.list(),
+        condicoesPagamentoApi.list(),
+        companyProfileApi.get(),
+        emailApi.templates.list(),
+        emailApi.campaigns.list(),
+        iaApi.history(),
+        savedSearchesApi.list(),
+      ]);
+
+      set({ corretores, users, canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, emailTemplates, emailCampaigns, chatMessages, savedSearches });
+      get().refreshPushStatus().catch(() => undefined);
     } catch {
       clearToken();
-      set({ isLoggedIn: false, currentUser: null, mustChangePassword: false, isBootstrapping: false });
-      return;
-    }
-
-    const currentUser = { id: me.id, nome: me.nome, email: me.email, cargo: mapCargoFromApi(me.cargo), cor: me.cor, whatsappNumeroExibicao: me.whatsappNumeroExibicao ?? '' };
-
-    if (me.deveTrocarSenha) {
-      set({ isLoggedIn: true, currentUser, mustChangePassword: true, isBootstrapping: false });
-      return;
-    }
-
-    set({
-      isLoggedIn: true,
-      currentUser,
-      mustChangePassword: false,
-      view: getDefaultView(currentUser),
-    });
-
-    // Fase 2 — carrega os dados essenciais (corretores + usuários; o resto do boot, abaixo,
-    // roda em paralelo sem travar o spinner). Falhar aqui NÃO é um problema de autenticação —
-    // o token já foi validado na fase 1 — então não desloga: isso só jogaria a pessoa de volta
-    // pro login, que faria login de novo, bateria na mesma falha de novo, sem saída até o
-    // problema real (backend/banco) ser corrigido. Em vez disso, mantém a sessão e avisa.
-    try {
-      const [corretores, users] = await Promise.all([corretoresApi.list(), usersApi.list()]);
-      set({ corretores, users });
-    } catch (err) {
-      get().showToast(
-        err instanceof ApiError ? err.message : 'Não foi possível carregar corretores e usuários. Tente recarregar a página.',
-        'error'
-      );
+      set({ isLoggedIn: false, currentUser: null });
     } finally {
       set({ isBootstrapping: false });
     }
-
-    // Pequeno e usado assim que o Pipeline (view padrão) monta — filtros avançados, modal de
-    // novo corretor, sino de notificação. Falha aqui não derruba o login. `allSettled` (não
-    // `all`) é de propósito: nenhum destes é restrito por cargo hoje, mas se um deles um dia
-    // passar a ser (ou falhar por qualquer outro motivo), só ELE fica vazio — os outros seis
-    // continuam populando normalmente, em vez de tudo cair junto por causa de um só.
-    Promise.allSettled([
-      canaisOrigemApi.list(),
-      tiposInteresseApi.list(),
-      imobiliariasApi.list(),
-      condicoesPagamentoApi.list(),
-      companyProfileApi.get(),
-      savedSearchesApi.list(),
-      notificacoesApi.list(),
-    ]).then(([canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, savedSearches, notificacoesResult]) => {
-      set({
-        ...(canaisOrigem.status === 'fulfilled' && { canaisOrigem: canaisOrigem.value }),
-        ...(tiposInteresseOptions.status === 'fulfilled' && { tiposInteresseOptions: tiposInteresseOptions.value }),
-        ...(imobiliariasOptions.status === 'fulfilled' && { imobiliariasOptions: imobiliariasOptions.value }),
-        ...(condicoesPagamentoOptions.status === 'fulfilled' && { condicoesPagamentoOptions: condicoesPagamentoOptions.value }),
-        ...(companyProfile.status === 'fulfilled' && { companyProfile: companyProfile.value }),
-        ...(savedSearches.status === 'fulfilled' && { savedSearches: savedSearches.value }),
-        ...(notificacoesResult.status === 'fulfilled' && {
-          notificacoes: notificacoesResult.value.notificacoes,
-          notificacoesNaoLidas: notificacoesResult.value.naoLidas,
-        }),
-      });
-    });
-
-    get().refreshPushStatus().catch(() => undefined);
   },
 
-  ensureEmailMarketingLoaded: async () => {
-    if (get().emailMarketingLoaded) return;
-    const [emailTemplates, emailCampaigns] = await Promise.all([emailApi.templates.list(), emailApi.campaigns.list()]);
-    set({ emailTemplates, emailCampaigns, emailMarketingLoaded: true });
-  },
-
-  ensurePhaczIaLoaded: async () => {
-    if (get().phaczIaLoaded) return;
-    const chatMessages = await iaApi.history();
-    set({ chatMessages, phaczIaLoaded: true });
-  },
-
-  ensureRodadasLoaded: async () => {
-    if (get().rodadasLoaded) return;
-    const rodadas = await rodadasApi.list();
-    set({ rodadas, rodadasLoaded: true });
-  },
-
-  ensureEmpreendimentosLoaded: async () => {
-    if (get().empreendimentosLoaded) return;
-    const empreendimentos = await empreendimentosApi.list();
-    set({ empreendimentos, empreendimentosLoaded: true });
-  },
-
-  reloadCorretores: async () => {
-    const corretores = await corretoresApi.list();
-    set({ corretores });
-  },
-
-  hydrateCorretorDetail: async (id) => {
-    const full = await corretoresApi.get(id);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? full : l)) }));
-  },
-
-  changePasswordFirstAccess: async (senhaAtual, novaSenha) => {
-    // Trocar a senha revoga o token atual no servidor — sem gravar o token novo devolvido
-    // aqui, o initFromToken() logo abaixo (que já dispara várias chamadas autenticadas em
-    // paralelo) falharia tudo com 401 usando o token antigo.
-    const { token } = await authApi.changePassword(senhaAtual, novaSenha);
-    setToken(token);
-    set({ mustChangePassword: false });
-    await get().initFromToken();
-  },
-
-  setShowPrivacyPolicy: (v) => set({ showPrivacyPolicy: v }),
-
-  showToast: (message, type = 'success') => {
-    const id = crypto.randomUUID();
-    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
-    setTimeout(() => get().dismissToast(id), 4500);
-  },
-
-  dismissToast: (id) => {
-    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
-  },
-
-  setView: (v) => {
-    // Clicar no menu já ativo não dispara toast/navegação — só fecha o painel de detalhe se
-    // estiver aberto (comportamento antigo do setView).
-    if (get().view === v) {
-      if (get().selectedCorretorId) set({ selectedCorretorId: null });
-      return;
-    }
-    // Só as telas que buscam dados ao montar mostram o toast — as demais renderizam na hora
-    // a partir do estado já carregado no bootstrap, não há o que esperar.
-    const mostraToast = NAV_ASYNC_VIEWS.has(v);
-    const navLoadSeq = get().navLoadSeq + 1;
-    set({ view: v, selectedCorretorId: null, navLoadSeq, navLoading: mostraToast });
-    if (mostraToast) {
-      // Rede de segurança: se a tela nunca sinalizar "pronto" (erro de rede, tela sem gate),
-      // o toast some sozinho em 15s em vez de ficar preso.
-      setTimeout(() => get().finishNavLoading(navLoadSeq), 15_000);
-    }
-  },
-
-  finishNavLoading: (seq) => {
-    // Ignora sinais de navegações antigas — a pessoa pode ter trocado de menu de novo antes
-    // desta terminar de carregar.
-    if (get().navLoadSeq === seq) set({ navLoading: false });
-  },
+  setView: (v) => set({ view: v, selectedCorretorId: null }),
   setSelectedCorretor: (id) => set({ selectedCorretorId: id }),
   setFilterTemperatura: (t) => set({ filterTemperatura: t }),
   setFilterEtapa: (e) => set({ filterEtapa: e }),
@@ -612,17 +341,6 @@ export const useStore = create<StoreState>()((set, get) => ({
     await corretoresApi.addCliente(corretorId, cfData);
     const refreshed = await corretoresApi.get(corretorId);
     set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
-  },
-
-  updateClienteFinal: async (corretorId, cfId, cfData, novoCorretorId) => {
-    await corretoresApi.updateCliente(corretorId, cfId, cfData, novoCorretorId);
-    // Se o cliente mudou de corretor, os dois lados do vínculo mudaram (o antigo perdeu o
-    // cliente, o novo ganhou) — atualiza ambos. Se não mudou, só o próprio corretor.
-    const idsParaAtualizar = novoCorretorId && novoCorretorId !== corretorId ? [corretorId, novoCorretorId] : [corretorId];
-    const atualizados = await Promise.all(idsParaAtualizar.map((id) => corretoresApi.get(id)));
-    set((state) => ({
-      corretores: state.corretores.map((l) => atualizados.find((a) => a.id === l.id) ?? l),
-    }));
   },
 
   removeClienteFinal: async (corretorId, cfId) => {
@@ -733,11 +451,6 @@ export const useStore = create<StoreState>()((set, get) => ({
   deactivateUser: async (id) => {
     await usersApi.remove(id);
     set((state) => ({ users: state.users.map((u) => (u.id === id ? { ...u, ativo: false } : u)) }));
-  },
-
-  sendUserPasswordReset: async (id) => {
-    const { message } = await usersApi.sendPasswordReset(id);
-    return message;
   },
 
   createCanalOrigem: async (nome) => {
@@ -866,90 +579,32 @@ export const useStore = create<StoreState>()((set, get) => ({
       filterCanalOrigem: filtros.filterCanalOrigem ?? 'all',
     });
   },
-
-  createRodada: async (data) => {
-    const rodada = await rodadasApi.create(data);
-    set((state) => ({ rodadas: [...state.rodadas, rodada] }));
-    get().loadNotificacoes().catch(() => undefined);
-    return rodada;
-  },
-
-  updateRodada: async (id, data) => {
-    const updated = await rodadasApi.update(id, data);
-    set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
-    return updated;
-  },
-
-  removeRodada: async (id) => {
-    await rodadasApi.remove(id);
-    set((state) => ({ rodadas: state.rodadas.filter((r) => r.id !== id) }));
-  },
-
-  loadNotificacoes: async () => {
-    const { notificacoes, naoLidas } = await notificacoesApi.list();
-    set({ notificacoes, notificacoesNaoLidas: naoLidas });
-  },
-
-  markNotificacaoLida: async (id) => {
-    set((state) => ({
-      notificacoes: state.notificacoes.map((n) => (n.id === id ? { ...n, lida: true } : n)),
-      notificacoesNaoLidas: Math.max(0, state.notificacoesNaoLidas - (state.notificacoes.find((n) => n.id === id)?.lida ? 0 : 1)),
-    }));
-    await notificacoesApi.markRead(id).catch(() => undefined);
-  },
-
-  markAllNotificacoesLidas: async () => {
-    set((state) => ({
-      notificacoes: state.notificacoes.map((n) => ({ ...n, lida: true })),
-      notificacoesNaoLidas: 0,
-    }));
-    await notificacoesApi.markAllRead().catch(() => undefined);
-  },
-
-  abrirNotificacaoRodada: (n) => {
-    if (n.tipo === 'aniversario_hoje' || n.tipo === 'aniversario_enviado') {
-      set({ view: 'agenda', selectedCorretorId: null });
-    } else {
-      set({ view: 'rodadas', selectedCorretorId: null, rodadaFocoData: n.rodadaDataInicio ?? null });
-    }
-    if (!n.lida) get().markNotificacaoLida(n.id);
-  },
-
-  clearRodadaFoco: () => set({ rodadaFocoData: null }),
-
-  createEmpreendimento: async (data) => {
-    const empreendimento = await empreendimentosApi.create(data);
-    set((state) => ({ empreendimentos: [empreendimento, ...state.empreendimentos] }));
-    return empreendimento;
-  },
-
-  updateEmpreendimento: async (id, data) => {
-    const updated = await empreendimentosApi.update(id, data);
-    set((state) => ({ empreendimentos: state.empreendimentos.map((e) => (e.id === id ? updated : e)) }));
-    return updated;
-  },
-
-  removeEmpreendimento: async (id) => {
-    await empreendimentosApi.remove(id);
-    set((state) => ({ empreendimentos: state.empreendimentos.filter((e) => e.id !== id) }));
-  },
-
-  refreshEmpreendimentoSummary: async (id) => {
-    const detail = await empreendimentosApi.get(id);
-    const totalUnidades = detail.unidades.length;
-    const unidadesDisponiveis = detail.unidades.filter((u) => u.status === 'disponivel').length;
-    set((state) => ({
-      empreendimentos: state.empreendimentos.map((e) =>
-        e.id === id ? { ...e, totalUnidades, unidadesDisponiveis, updatedAt: detail.updatedAt } : e
-      ),
-    }));
-  },
 }));
 
 export const useSelectedCorretor = () => {
   const corretores = useStore((s) => s.corretores);
   const selectedCorretorId = useStore((s) => s.selectedCorretorId);
   return corretores.find((l) => l.id === selectedCorretorId) ?? null;
+};
+
+export interface ClienteFinalComContexto extends ClienteFinal {
+  corretorId: string;
+  nomeCorretor: string;
+  imobiliaria: string;
+  etapaCorretor: number;
+}
+
+export const useAllClientesFinais = (): ClienteFinalComContexto[] => {
+  const corretores = useStore((s) => s.corretores);
+  return corretores.flatMap((l) =>
+    l.clientesFinais.map((cf) => ({
+      ...cf,
+      corretorId: l.id,
+      nomeCorretor: l.nomeCorretor,
+      imobiliaria: l.imobiliaria,
+      etapaCorretor: l.etapa,
+    }))
+  );
 };
 
 export const useFilteredCorretores = () => {

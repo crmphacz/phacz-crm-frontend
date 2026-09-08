@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Sparkles, Send, Trash2, Users, Filter, Building2, FileText } from 'lucide-react';
 import { useStore } from '../store';
-import { useViewReady } from '../navLoading';
-import { ViewLoader } from './ViewLoader';
 import { formatRelativeTime, getInitials } from '../utils';
 import { ApiError } from '../api/client';
 
@@ -18,18 +16,10 @@ export function PhaczIAView() {
   const sendChatMessage = useStore((s) => s.sendChatMessage);
   const clearChat = useStore((s) => s.clearChat);
   const currentUser = useStore((s) => s.currentUser);
-  const ensurePhaczIaLoaded = useStore((s) => s.ensurePhaczIaLoaded);
 
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const [ready, setReady] = useState(false);
-  useViewReady(ready);
-  useEffect(() => {
-    ensurePhaczIaLoaded().catch(() => undefined).finally(() => setReady(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -54,8 +44,6 @@ export function PhaczIAView() {
     e.preventDefault();
     sendMessage(input);
   }
-
-  if (!ready) return <ViewLoader label="Carregando conversa…" />;
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: '#f0f2f5' }}>

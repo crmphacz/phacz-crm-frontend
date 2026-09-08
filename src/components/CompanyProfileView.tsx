@@ -25,14 +25,11 @@ export function CompanyProfileView() {
   const updateCondicaoPagamento = useStore((s) => s.updateCondicaoPagamento);
   const removeCondicaoPagamento = useStore((s) => s.removeCondicaoPagamento);
   const currentUser = useStore((s) => s.currentUser);
-  const setShowPrivacyPolicy = useStore((s) => s.setShowPrivacyPolicy);
   const isReadOnly = currentUser?.cargo === 'Marketing';
 
   const [companyName, setCompanyName] = useState('');
   const [companyCnpj, setCompanyCnpj] = useState('');
   const [companyCity, setCompanyCity] = useState('');
-  const [dpoNome, setDpoNome] = useState('');
-  const [dpoEmail, setDpoEmail] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -42,17 +39,13 @@ export function CompanyProfileView() {
       setCompanyName(companyProfile.nome);
       setCompanyCnpj(companyProfile.cnpj);
       setCompanyCity(companyProfile.cidade);
-      setDpoNome(companyProfile.dpoNome);
-      setDpoEmail(companyProfile.dpoEmail);
     }
   }, [companyProfile]);
 
   const isDirty = !!companyProfile && (
     companyName !== companyProfile.nome ||
     companyCnpj !== companyProfile.cnpj ||
-    companyCity !== companyProfile.cidade ||
-    dpoNome !== companyProfile.dpoNome ||
-    dpoEmail !== companyProfile.dpoEmail
+    companyCity !== companyProfile.cidade
   );
 
   async function handleSave() {
@@ -60,7 +53,7 @@ export function CompanyProfileView() {
     setProfileError(null);
     setSaving(true);
     try {
-      await updateCompanyProfile({ nome: companyName, cnpj: companyCnpj, cidade: companyCity, dpoNome, dpoEmail });
+      await updateCompanyProfile({ nome: companyName, cnpj: companyCnpj, cidade: companyCity });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -78,14 +71,14 @@ export function CompanyProfileView() {
             Perfil da Empresa
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Informações gerais da empresa exibidas no sistema.
+            Informações gerais da construtora exibidas no sistema.
           </p>
         </div>
 
         <SettingsCard
           icon={<Building2 size={18} style={{ color: '#d55006' }} />}
           title="Perfil da Empresa"
-          subtitle="Informações gerais da empresa"
+          subtitle="Informações gerais da construtora"
         >
           <fieldset disabled={isReadOnly} className="border-0 m-0 min-w-0 p-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -121,47 +114,6 @@ export function CompanyProfileView() {
                 value={companyCity}
                 onChange={(e) => setCompanyCity(e.target.value)}
               />
-            </div>
-          </div>
-
-          <div className="mt-5 pt-5 border-t" style={{ borderColor: '#e5e7eb' }}>
-            <div className="flex items-center justify-between gap-2 mb-0.5">
-              <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Encarregado de Dados (DPO)</p>
-              <button
-                type="button"
-                onClick={() => setShowPrivacyPolicy(true)}
-                className="text-xs font-semibold underline flex-shrink-0"
-                style={{ color: '#d55006' }}
-              >
-                Ver política de privacidade
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 mb-3">Exibido na política de privacidade como canal de contato para exercício de direitos do titular (LGPD, art. 41).</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-500 block mb-1.5">Nome do Encarregado</label>
-                <input
-                  className="w-full text-sm px-3 py-2.5 rounded-xl border focus:outline-none transition-colors"
-                  style={{ borderColor: '#e5e7eb' }}
-                  onFocus={(e) => (e.target.style.borderColor = '#d55006')}
-                  onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
-                  value={dpoNome}
-                  onChange={(e) => setDpoNome(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 block mb-1.5">E-mail de contato</label>
-                <input
-                  type="email"
-                  className="w-full text-sm px-3 py-2.5 rounded-xl border focus:outline-none transition-colors"
-                  style={{ borderColor: '#e5e7eb' }}
-                  onFocus={(e) => (e.target.style.borderColor = '#d55006')}
-                  onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
-                  placeholder="privacidade@phacz.com.br"
-                  value={dpoEmail}
-                  onChange={(e) => setDpoEmail(e.target.value)}
-                />
-              </div>
             </div>
           </div>
           {profileError && (

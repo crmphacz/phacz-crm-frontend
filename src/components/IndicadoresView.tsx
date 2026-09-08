@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { differenceInDays, differenceInHours } from 'date-fns';
 import {
   Phone, Users, ArrowRightLeft, Clock, TrendingUp,
@@ -9,7 +9,7 @@ import { useStore } from '../store';
 import type { Corretor } from '../types';
 import { STAGES } from '../data';
 import { formatCurrency } from '../utils';
-import { exportsApi, dashboardApi } from '../api/endpoints';
+import { exportsApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 
 type FunnelTab = 'completo' | 'sdr' | 'gr' | 'gv';
@@ -41,6 +41,22 @@ function calcAvgDays(corretores: Corretor[], fromStage: number, toStage: number)
   return values.length === 0 ? 0 : Math.round(values.reduce((a, b) => a + b, 0) / values.length);
 }
 
+function calcAvgHoursDistToFirstGRGV(corretores: Corretor[]): number {
+  const values: number[] = [];
+  for (const l of corretores) {
+    if (!l.dataDistribuicao) continue;
+    const grNames = ['Lucimara Ferreira'];
+    const gvNames = ['Rafael Costa', 'Marcos Andrade'];
+    const firstContact = l.interacoes
+      .filter((i) => grNames.includes(i.responsavel) || gvNames.includes(i.responsavel))
+      .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())[0];
+    if (!firstContact) continue;
+    const hrs = differenceInHours(new Date(firstContact.data), new Date(l.dataDistribuicao));
+    if (hrs >= 0) values.push(hrs);
+  }
+  return values.length === 0 ? 0 : Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+}
+
 function calcAvgDaysToScheduleTraining(corretores: Corretor[]): number {
   const values: number[] = [];
   for (const l of corretores) {
@@ -58,13 +74,6 @@ export function IndicadoresView() {
   const [periodoPdf, setPeriodoPdf] = useState(() => new Date().toISOString().slice(0, 7));
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [pdfError, setPdfError] = useState('');
-
-  // A listagem de corretores não traz mais interacoes completas (ver corretorListInclude no
-  // backend) — esse KPI (company-wide, não escopado a um usuário) vem de um endpoint agregado.
-  const [avgAtendimentoAposRepasseHrs, setAvgAtendimentoAposRepasseHrs] = useState(0);
-  useEffect(() => {
-    dashboardApi.tempoPrimeiroContatoGrGv().then((r) => setAvgAtendimentoAposRepasseHrs(r.avgHoras)).catch(() => undefined);
-  }, []);
 
   async function handleDownloadKpisPdf() {
     setPdfError('');
@@ -99,6 +108,7 @@ export function IndicadoresView() {
 
   // New time KPIs
   const avgRepasseHrs = calcAvgHours(corretores, 3, 5);
+  const avgAtendimentoAposRepasseHrs = calcAvgHoursDistToFirstGRGV(corretores);
   const avgDaysToScheduleTraining = calcAvgDaysToScheduleTraining(corretores);
   const treinamentosAgendados = corretores.filter((l) => l.treinamento && l.dataAgendamentoTreinamento).length;
   const treinamentosRealizados = corretores.filter((l) => l.treinamento && l.dataRealizacaoTreinamento).length;

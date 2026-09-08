@@ -1,20 +1,16 @@
 import { useState } from 'react';
-import { LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Building2, LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useStore } from '../store';
-import { ForgotPasswordModal } from './ForgotPasswordModal';
-import logo from '../images/logo-dark@2x.png';
 
 export function LoginScreen() {
   const login = useStore((s) => s.login);
   const authError = useStore((s) => s.authError);
-  const setShowPrivacyPolicy = useStore((s) => s.setShowPrivacyPolicy);
 
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [showSenha, setShowSenha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState('');
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -49,7 +45,26 @@ export function LoginScreen() {
 
       {/* Branding */}
       <div className="relative z-10 flex flex-col items-center text-center mb-8">
-        <img src={logo} alt="PHACZ Empreendimentos" className="h-16 sm:h-24 w-auto mb-4" />
+        <div className="flex items-center gap-3 sm:gap-4 mb-4">
+          <div
+            className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0"
+            style={{ backgroundColor: '#d55006' }}
+          >
+            <Building2 size={28} color="#fff" className="sm:hidden" />
+            <Building2 size={34} color="#fff" className="hidden sm:block" />
+          </div>
+          <div className="text-left">
+            <h1
+              className="text-3xl sm:text-5xl text-white tracking-widest leading-none"
+              style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+            >
+              PHACZ
+            </h1>
+            <p className="text-xs sm:text-sm tracking-widest uppercase mt-0.5" style={{ color: '#6b7280' }}>
+              Construtora
+            </p>
+          </div>
+        </div>
         <h2
           className="text-lg sm:text-2xl text-white"
           style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
@@ -125,16 +140,6 @@ export function LoginScreen() {
                   {showSenha ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <div className="flex justify-end mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPassword(true)}
-                  className="text-xs font-semibold hover:underline transition-colors"
-                  style={{ color: '#d55006' }}
-                >
-                  Esqueci minha senha
-                </button>
-              </div>
             </div>
 
             {error && (
@@ -164,20 +169,10 @@ export function LoginScreen() {
           </form>
 
           <p className="text-center text-xs text-gray-300 mt-6">
-            PHACZ CRM © {new Date().getFullYear()} — Empreendimentos
-            {' · '}
-            <button
-              type="button"
-              onClick={() => setShowPrivacyPolicy(true)}
-              className="underline hover:text-gray-400 transition-colors"
-            >
-              Política de Privacidade
-            </button>
+            PHACZ CRM © {new Date().getFullYear()} — Gestão Comercial
           </p>
         </div>
       </div>
-
-      {showForgotPassword && <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} />}
     </div>
   );
 }

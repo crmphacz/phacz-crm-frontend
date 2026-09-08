@@ -2,20 +2,13 @@ import { apiFetch, downloadFile } from './client.js';
 import {
   mapUserFromApi, mapCorretorFromApi, mapCreateCorretorToApi, mapCorretorUpdateToApi,
   mapEmailTemplateFromApi, mapEmailCampaignFromApi, mapChatMessageFromApi, mapCargoToApi,
-  mapDestinatarioTipoToApi, mapRodadaFromApi, mapRodadaListItemFromApi, mapCreateRodadaToApi, mapNotificacaoFromApi,
-  mapEmpreendimentoFromApi, mapEmpreendimentoDetailFromApi, mapUnidadeFromApi, mapStatusUnidadeToApi,
-  mapLogAcaoFromApi, mapTipoInteracaoFromApi, mapClienteFinalComContextoFromApi,
+  mapDestinatarioTipoToApi,
   type ApiUser, type ApiCorretor, type ApiEmailTemplate, type ApiEmailCampaign, type ApiChatMessage,
-  type ApiRodada, type ApiRodadaResumo, type ApiNotificacao, type ApiEmpreendimento, type ApiEmpreendimentoDetail, type ApiUnidade,
-  type ApiLogAcao, type ApiClienteFinalComContexto,
   type CreateCorretorPayload, type AppUser,
 } from './mappers.js';
 import type {
-  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, EmailTemplate, EmailCampaign,
-  ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
-  Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
-  LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario,
-  TabelaEmpreendimentoResumo, TabelaEmpreendimentoDetalhe, CelulaAlterada,
+  Corretor, ClienteFinal, Interacao, Proposta, EmailTemplate, EmailCampaign,
+  ChatMessage, DestinatarioTipo, UserCargo,
 } from '../types';
 
 export type { CreateCorretorPayload, AppUser } from './mappers.js';
@@ -24,33 +17,15 @@ export type { CreateCorretorPayload, AppUser } from './mappers.js';
 
 export interface LoginResult {
   token: string;
-  user: { id: string; nome: string; email: string; cargo: string; cor: string; deveTrocarSenha: boolean; whatsappNumeroExibicao?: string | null };
-}
-
-export interface MeResult {
-  id: string;
-  nome: string;
-  email: string;
-  cargo: string;
-  cor: string;
-  deveTrocarSenha: boolean;
-  whatsappNumeroExibicao?: string | null;
+  user: { id: string; nome: string; email: string; cargo: string; cor: string };
 }
 
 export const authApi = {
   login: (email: string, senha: string) =>
     apiFetch<LoginResult>('/api/auth/login', { method: 'POST', body: { email, senha } }),
-  me: () => apiFetch<MeResult>('/api/auth/me'),
+  me: () => apiFetch<ApiUser>('/api/auth/me'),
   forgotPassword: (email: string) =>
     apiFetch<{ message: string }>('/api/auth/forgot-password', { method: 'POST', body: { email } }),
-  resetPassword: (token: string, novaSenha: string) =>
-    apiFetch<{ message: string }>('/api/auth/reset-password', { method: 'POST', body: { token, novaSenha } }),
-  // Troca de senha revoga a sessão atual no servidor (tokenVersion), então a API já devolve
-  // um token novo — sem isso, a próxima chamada autenticada falharia com o token antigo.
-  changePassword: (senhaAtual: string, novaSenha: string) =>
-    apiFetch<{ message: string; token: string }>('/api/auth/change-password', { method: 'POST', body: { senhaAtual, novaSenha } }),
-  // Revoga a sessão no servidor (tokenVersion) — "sair" deixa de ser só limpar o localStorage.
-  logout: () => apiFetch<{ message: string }>('/api/auth/logout', { method: 'POST' }),
 };
 
 // ── Users ──────────────────────────────────────────────────────────
@@ -60,18 +35,14 @@ export const usersApi = {
     const users = await apiFetch<ApiUser[]>('/api/users');
     return users.map(mapUserFromApi);
   },
-  // Sem campo de senha: o backend gera uma senha provisória e manda por e-mail (ver POST /api/users).
-  create: (data: { nome: string; email: string; cargo: UserCargo; cor?: string; whatsappPhoneNumberId?: string; whatsappNumeroExibicao?: string }) =>
+  create: (data: { nome: string; email: string; senha: string; cargo: UserCargo; cor?: string }) =>
     apiFetch<ApiUser>('/api/users', { method: 'POST', body: { ...data, cargo: mapCargoToApi(data.cargo) } }).then(mapUserFromApi),
-  update: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean; whatsappPhoneNumberId: string; whatsappNumeroExibicao: string }>) => {
+  update: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => {
     const payload: Record<string, unknown> = { ...data };
     if (data.cargo) payload.cargo = mapCargoToApi(data.cargo);
     return apiFetch<ApiUser>(`/api/users/${id}`, { method: 'PATCH', body: payload }).then(mapUserFromApi);
   },
   remove: (id: string) => apiFetch<void>(`/api/users/${id}`, { method: 'DELETE' }),
-  // Dispara o e-mail com o link de redefinição de senha para o próprio usuário (só Diretora).
-  sendPasswordReset: (id: string) =>
-    apiFetch<{ message: string }>(`/api/users/${id}/send-password-reset`, { method: 'POST' }),
 };
 
 // ── Corretores ──────────────────────────────────────────────────────
@@ -85,67 +56,10 @@ export interface ImobiliariaMatch {
   responsavelGR: { nome: string } | null;
 }
 
-export interface CorretoresPagedParams {
-  page?: number;
-  pageSize?: number;
-  /** Minúsculo, como no app (`ativo`, `nutricao`...) — convertido pra o enum do backend aqui dentro. */
-  status?: string;
-  search?: string;
-  sort?: 'nomeCorretor' | 'etapa' | 'temperatura' | 'dataUltimaInteracao' | 'dataEntrada';
-  dir?: 'asc' | 'desc';
-}
-
-export interface CorretoresPagedResult {
-  corretores: Corretor[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-export interface ClientesPagedParams {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  sort?: 'nome' | 'dataAdicionado' | 'orcamento';
-  dir?: 'asc' | 'desc';
-}
-
-export interface ClientesPagedResult {
-  clientes: (ClienteFinalComContexto & { comprou: boolean })[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
 export const corretoresApi = {
   list: async (): Promise<Corretor[]> => {
-    // 2000: teto seguro pra sempre trazer a base inteira — usado só pelo Pipeline (kanban),
-    // que ainda filtra/ordena no client (é um quadro, não dá pra paginar de verdade sem
-    // redesenhar a tela). Corretores e Clientes NÃO usam mais isto: cada uma pagina de
-    // verdade (listPaged / listClientesPaged logo abaixo), com o total real do banco.
-    const res = await apiFetch<{ corretores: ApiCorretor[]; total: number }>('/api/corretores', { query: { pageSize: 2000 } });
+    const res = await apiFetch<{ corretores: ApiCorretor[]; total: number }>('/api/corretores', { query: { pageSize: 200 } });
     return res.corretores.map(mapCorretorFromApi);
-  },
-  // Paginação real (usada pela tela de Corretores): `total` é sempre a contagem do banco pro
-  // filtro aplicado, nunca o tamanho da página carregada — é o que corrige o número "travado"
-  // que antes vinha de `filtered.length` sobre um recorte client-side.
-  listPaged: async (params: CorretoresPagedParams): Promise<CorretoresPagedResult> => {
-    const { status, ...rest } = params;
-    const res = await apiFetch<{ corretores: ApiCorretor[]; total: number; page: number; pageSize: number }>(
-      '/api/corretores',
-      { query: { ...rest, status: status && status !== 'all' ? status.toUpperCase() : undefined } }
-    );
-    return { ...res, corretores: res.corretores.map(mapCorretorFromApi) };
-  },
-  // Idem, mas pra tela de Clientes — GET /api/corretores/clientes (ver corretoresRouter no
-  // backend). Cada linha já vem achatada com o contexto do corretor responsável e `comprou`
-  // calculado no servidor.
-  listClientesPaged: async (params: ClientesPagedParams): Promise<ClientesPagedResult> => {
-    const res = await apiFetch<{ clientes: ApiClienteFinalComContexto[]; total: number; page: number; pageSize: number }>(
-      '/api/corretores/clientes',
-      { query: { ...params } }
-    );
-    return { ...res, clientes: res.clientes.map(mapClienteFinalComContextoFromApi) };
   },
   get: (id: string): Promise<Corretor> => apiFetch<ApiCorretor>(`/api/corretores/${id}`).then(mapCorretorFromApi),
   create: (payload: CreateCorretorPayload): Promise<Corretor> =>
@@ -173,18 +87,6 @@ export const corretoresApi = {
 
   addCliente: (id: string, data: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>) =>
     apiFetch(`/api/corretores/${id}/clientes`, { method: 'POST', body: data }),
-
-  // `novoCorretorId` reatribui o cliente a outro corretor; omitido mantém o atual.
-  updateCliente: (
-    id: string,
-    cfId: string,
-    data: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>,
-    novoCorretorId?: string
-  ) =>
-    apiFetch(`/api/corretores/${id}/clientes/${cfId}`, {
-      method: 'PATCH',
-      body: { ...data, ...(novoCorretorId ? { corretorId: novoCorretorId } : {}) },
-    }),
 
   checkImobiliaria: (nome: string) =>
     apiFetch<{ existentes: ImobiliariaMatch[] }>('/api/corretores/imobiliaria-existente', { query: { nome } }),
@@ -219,40 +121,12 @@ export const corretoresApi = {
 
 // ── Dashboard ──────────────────────────────────────────────────────
 
-export interface AtividadeRecente {
-  id: string;
-  tipo: TipoInteracao;
-  data: string;
-  resumo: string;
-  corretorId: string;
-  corretorNome: string;
-  corretorEtapa: number;
-}
-
 export const dashboardApi = {
   overview: () => apiFetch('/api/dashboard/overview'),
   metas: (periodo: string) => apiFetch<unknown[]>('/api/dashboard/metas', { query: { periodo } }),
   upsertMeta: (data: { userId: string; periodo: string; tipo: 'VOLUME' | 'VALOR' | 'CONVERSAO'; valorMeta: number }) =>
     apiFetch('/api/dashboard/metas', { method: 'POST', body: data }),
   ranking: (periodo: string) => apiFetch<unknown[]>('/api/dashboard/ranking', { query: { periodo } }),
-
-  // Movidos pro backend porque dependiam de `corretor.interacoes`/`.propostas` completos, que
-  // a listagem leve de corretores não traz mais — ver DashGR/DashGV em Dashboard.tsx.
-  atividadesGr: async (): Promise<{ visitasRealizadas: number; whatsappEnviados: number; recentActivities: AtividadeRecente[] }> => {
-    const res = await apiFetch<{
-      visitasRealizadas: number;
-      whatsappEnviados: number;
-      recentActivities: (Omit<AtividadeRecente, 'tipo'> & { tipo: string })[];
-    }>('/api/dashboard/atividades-gr');
-    return { ...res, recentActivities: res.recentActivities.map((a) => ({ ...a, tipo: mapTipoInteracaoFromApi(a.tipo) })) };
-  },
-  atividadesGv: () =>
-    apiFetch<{
-      propostasPendentes: number;
-      propostasAceitas: number;
-      primeiraPropostaPorCorretor: Record<string, { valor: number }>;
-    }>('/api/dashboard/atividades-gv'),
-  tempoPrimeiroContatoGrGv: () => apiFetch<{ avgHoras: number }>('/api/dashboard/tempo-primeiro-contato-gr-gv'),
 };
 
 // ── PHACZ IA ─────────────────────────────────────────────────────────
@@ -272,11 +146,6 @@ export const iaApi = {
 // ── Email Marketing ──────────────────────────────────────────────────
 
 export const emailApi = {
-  uploadAsset: (file: File): Promise<{ url: string }> => {
-    const form = new FormData();
-    form.append('file', file);
-    return apiFetch<{ url: string }>('/api/email/assets', { method: 'POST', body: form });
-  },
   templates: {
     list: async (): Promise<EmailTemplate[]> => {
       const res = await apiFetch<ApiEmailTemplate[]>('/api/email/templates');
@@ -300,8 +169,8 @@ export const emailApi = {
       templateId: string;
       destinatarioTipo: DestinatarioTipo;
       etapaAlvo?: number;
-      tipoInteresseAlvo?: string;
-      corretorIds?: string[];
+      empreendimentoAlvo?: string;
+      clienteIds?: string[];
     }): Promise<{ campaign: EmailCampaign; resultadoEnvio: { simulated: boolean; enviados: number; falhas: number } }> => {
       const res = await apiFetch<{ campaign: ApiEmailCampaign; resultadoEnvio: { simulated: boolean; enviados: number; falhas: number } }>(
         '/api/email/campaigns/send',
@@ -312,55 +181,11 @@ export const emailApi = {
   },
 };
 
-// ── Tabela de Empreendimentos ─────────────────────────────────────
-
-export const tabelasEmpreendimentosApi = {
-  list: () => apiFetch<TabelaEmpreendimentoResumo[]>('/api/tabelas-empreendimentos'),
-  get: (id: string) => apiFetch<TabelaEmpreendimentoDetalhe>(`/api/tabelas-empreendimentos/${id}`),
-  create: (nome: string) =>
-    apiFetch<{ id: string; nome: string }>('/api/tabelas-empreendimentos', { method: 'POST', body: { nome } }),
-  save: (
-    id: string,
-    payload: { nome?: string; dados: unknown; celulas: CelulaAlterada[] }
-  ) =>
-    apiFetch<{ ok: boolean; celulasAlteradas: number; atualizadoEm: string; atualizadoPorNome: string | null }>(
-      `/api/tabelas-empreendimentos/${id}`,
-      { method: 'PUT', body: payload }
-    ),
-  remove: (id: string) => apiFetch<void>(`/api/tabelas-empreendimentos/${id}`, { method: 'DELETE' }),
-};
-
-// ── Agenda / Aniversários ──────────────────────────────────────────
-
-export const agendaApi = {
-  aniversarios: (ano: number, mes: number) =>
-    apiFetch<AniversarioAgenda[]>('/api/agenda/aniversarios', { query: { ano, mes } }),
-  sugestao: (corretorId: string) =>
-    apiFetch<{ mensagem: string; gerado: boolean }>(`/api/agenda/aniversarios/${corretorId}/sugestao`, { method: 'POST' }),
-  registrar: (corretorId: string, ano: number, mensagem: string) =>
-    apiFetch<{ saudacao: SaudacaoAniversario }>(`/api/agenda/aniversarios/${corretorId}/registrar`, {
-      method: 'POST',
-      body: { ano, mensagem },
-    }),
-};
-
 // ── WhatsApp ───────────────────────────────────────────────────────
 
 export const whatsappApi = {
-  /**
-   * Passe `corretorId` OU `clienteFinalId` (apenas um). Hoje é sempre `logOnly: true`: só
-   * valida a permissão e registra a interação no card — o envio de fato é feito pela pessoa
-   * no WhatsApp Web/app dela (link "click to chat"). Sem `logOnly`, tentaria enviar pela Meta.
-   */
-  send: (
-    alvo: { corretorId: string } | { clienteFinalId: string },
-    message: string,
-    opts?: { logOnly?: boolean }
-  ) =>
-    apiFetch<{ simulated: boolean; logOnly?: boolean }>('/api/whatsapp/send', {
-      method: 'POST',
-      body: { ...alvo, message, ...(opts?.logOnly ? { logOnly: true } : {}) },
-    }),
+  send: (corretorId: string, message: string) =>
+    apiFetch<{ simulated: boolean }>('/api/whatsapp/send', { method: 'POST', body: { corretorId, message } }),
 };
 
 // ── Push ───────────────────────────────────────────────────────────
@@ -467,120 +292,11 @@ export interface CompanyProfile {
   nome: string;
   cnpj: string;
   cidade: string;
-  /** Encarregado de Proteção de Dados (LGPD, art. 41) — exibido na política de privacidade. */
-  dpoNome: string;
-  dpoEmail: string;
   updatedAt: string;
 }
 
 export const companyProfileApi = {
   get: () => apiFetch<CompanyProfile>('/api/company-profile'),
-  update: (data: Partial<{ nome: string; cnpj: string; cidade: string; dpoNome: string; dpoEmail: string }>) =>
+  update: (data: Partial<{ nome: string; cnpj: string; cidade: string }>) =>
     apiFetch<CompanyProfile>('/api/company-profile', { method: 'PATCH', body: data }),
-};
-
-// ── Calendário de Rodadas ────────────────────────────────────────────
-
-export const rodadasApi = {
-  // Perfis sem acesso ao formulário completo (todos exceto Diretoria) recebem cada item já
-  // resumido pela própria API — ver `RODADA_SUMMARY_SELECT` no backend.
-  list: async (): Promise<(Rodada | RodadaResumo)[]> => {
-    const res = await apiFetch<(ApiRodada | ApiRodadaResumo)[]>('/api/rodadas');
-    return res.map(mapRodadaListItemFromApi);
-  },
-  create: (data: CreateRodadaPayload): Promise<Rodada> =>
-    apiFetch<ApiRodada>('/api/rodadas', { method: 'POST', body: mapCreateRodadaToApi(data) }).then(mapRodadaFromApi),
-  update: (id: string, data: CreateRodadaPayload): Promise<Rodada> =>
-    apiFetch<ApiRodada>(`/api/rodadas/${id}`, { method: 'PATCH', body: mapCreateRodadaToApi(data) }).then(mapRodadaFromApi),
-  remove: (id: string): Promise<void> => apiFetch<void>(`/api/rodadas/${id}`, { method: 'DELETE' }),
-  uploadAsset: (file: File): Promise<{ url: string }> => {
-    const form = new FormData();
-    form.append('file', file);
-    return apiFetch<{ url: string }>('/api/rodadas/assets', { method: 'POST', body: form });
-  },
-};
-
-// ── Notificações ──────────────────────────────────────────────────────
-
-export const notificacoesApi = {
-  list: async (): Promise<{ notificacoes: Notificacao[]; naoLidas: number }> => {
-    const res = await apiFetch<{ notificacoes: ApiNotificacao[]; naoLidas: number }>('/api/notificacoes');
-    return { notificacoes: res.notificacoes.map(mapNotificacaoFromApi), naoLidas: res.naoLidas };
-  },
-  markRead: (id: string): Promise<void> =>
-    apiFetch<void>(`/api/notificacoes/${id}`, { method: 'PATCH', body: { lida: true } }),
-  markAllRead: (): Promise<void> => apiFetch<void>('/api/notificacoes/marcar-todas-lidas', { method: 'POST' }),
-};
-
-// ── Empreendimentos & Unidades ────────────────────────────────────────
-
-function unidadePayloadToApi(data: CreateUnidadePayload) {
-  return { ...data, status: mapStatusUnidadeToApi(data.status) };
-}
-
-export const empreendimentosApi = {
-  list: async (): Promise<Empreendimento[]> => {
-    const res = await apiFetch<ApiEmpreendimento[]>('/api/empreendimentos');
-    return res.map(mapEmpreendimentoFromApi);
-  },
-  get: async (id: string): Promise<EmpreendimentoDetail> => {
-    const res = await apiFetch<ApiEmpreendimentoDetail>(`/api/empreendimentos/${id}`);
-    return mapEmpreendimentoDetailFromApi(res);
-  },
-  create: (data: CreateEmpreendimentoPayload): Promise<Empreendimento> =>
-    apiFetch<ApiEmpreendimento>('/api/empreendimentos', { method: 'POST', body: data }).then(mapEmpreendimentoFromApi),
-  update: (id: string, data: CreateEmpreendimentoPayload): Promise<Empreendimento> =>
-    apiFetch<ApiEmpreendimento>(`/api/empreendimentos/${id}`, { method: 'PATCH', body: data }).then(mapEmpreendimentoFromApi),
-  remove: (id: string): Promise<void> => apiFetch<void>(`/api/empreendimentos/${id}`, { method: 'DELETE' }),
-  uploadAsset: (file: File): Promise<{ url: string }> => {
-    const form = new FormData();
-    form.append('file', file);
-    return apiFetch<{ url: string }>('/api/empreendimentos/assets', { method: 'POST', body: form });
-  },
-  unidades: {
-    create: (empreendimentoId: string, data: CreateUnidadePayload): Promise<Unidade> =>
-      apiFetch<ApiUnidade>(`/api/empreendimentos/${empreendimentoId}/unidades`, {
-        method: 'POST',
-        body: unidadePayloadToApi(data),
-      }).then(mapUnidadeFromApi),
-  },
-};
-
-export const unidadesApi = {
-  update: (id: string, data: CreateUnidadePayload): Promise<Unidade> =>
-    apiFetch<ApiUnidade>(`/api/unidades/${id}`, { method: 'PATCH', body: unidadePayloadToApi(data) }).then(mapUnidadeFromApi),
-  remove: (id: string): Promise<void> => apiFetch<void>(`/api/unidades/${id}`, { method: 'DELETE' }),
-};
-
-// ── Histórico de Ações ──────────────────────────────────────────────
-// Só existe list() — não há create/update/delete pra esse recurso, nem no backend.
-
-export interface LogAcaoListParams {
-  q?: string;
-  entidade?: string;
-  de?: string;
-  ate?: string;
-  page?: number;
-  pageSize?: number;
-}
-
-export interface LogAcaoListResult {
-  logs: LogAcao[];
-  total: number;
-  page: number;
-  pageSize: number;
-  entidadesDisponiveis: string[];
-}
-
-export const logAcaoApi = {
-  list: async (params?: LogAcaoListParams): Promise<LogAcaoListResult> => {
-    const res = await apiFetch<{
-      logs: ApiLogAcao[];
-      total: number;
-      page: number;
-      pageSize: number;
-      entidadesDisponiveis: string[];
-    }>('/api/logs-acao', { query: { ...params } });
-    return { ...res, logs: res.logs.map(mapLogAcaoFromApi) };
-  },
 };

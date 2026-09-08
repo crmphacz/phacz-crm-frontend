@@ -64,7 +64,7 @@ export function EmailPreviewModal({ assunto, preheader, blocks, onClose, footer 
             style={{ width: device === 'desktop' ? 560 : 340, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}
           >
             <div className="px-5 py-4 border-b" style={{ borderColor: '#e6e3de' }}>
-              <p className="text-xs text-gray-400">De: PHACZ Empreendimentos &lt;marketing@phacz.com.br&gt;</p>
+              <p className="text-xs text-gray-400">De: PHACZ Gestão Comercial &lt;marketing@phacz.com.br&gt;</p>
               <p className="text-sm font-bold text-gray-900 mt-1">{assunto || '(sem assunto)'}</p>
               {preheader && <p className="text-xs text-gray-400 mt-0.5 truncate">{preheader}</p>}
             </div>

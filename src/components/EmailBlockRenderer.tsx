@@ -1,4 +1,4 @@
-import { Image as ImageIcon, PlayCircle } from 'lucide-react';
+import { Image as ImageIcon } from 'lucide-react';
 import type { EmailBlock } from '../types';
 
 export function EmailBlockRenderer({ block }: { block: EmailBlock }) {
@@ -60,48 +60,6 @@ export function EmailBlockRenderer({ block }: { block: EmailBlock }) {
             >
               <ImageIcon size={22} />
               <span className="text-xs">Nenhuma imagem selecionada</span>
-            </div>
-          )}
-        </div>
-      );
-
-    case 'video':
-      return (
-        <div style={{ textAlign: block.alinhamento }}>
-          {block.url ? (
-            <a href={block.url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', width: `${block.largura}%`, maxWidth: '100%', textDecoration: 'none' }}>
-              {block.posterUrl ? (
-                <>
-                  <img
-                    src={block.posterUrl}
-                    alt={block.legenda}
-                    style={{ width: '100%', display: 'block', borderRadius: 10 }}
-                  />
-                  <div style={{ marginTop: 8, fontSize: 14, fontWeight: 700, color: '#d55006' }}>▶ {block.legenda || 'Assistir vídeo'}</div>
-                </>
-              ) : (
-                <div
-                  className="flex flex-col items-center justify-center gap-2"
-                  style={{ aspectRatio: '16 / 9', backgroundColor: '#1f2937', color: '#fff', borderRadius: 10 }}
-                >
-                  <PlayCircle size={36} />
-                  <span className="text-sm font-semibold">{block.legenda || 'Assistir vídeo'}</span>
-                </div>
-              )}
-            </a>
-          ) : (
-            <div
-              className="inline-flex flex-col items-center justify-center gap-2 text-gray-400"
-              style={{
-                width: `${block.largura}%`,
-                aspectRatio: '16 / 9',
-                backgroundColor: '#f1f5f9',
-                borderRadius: 10,
-                border: '1px dashed #d1d5db',
-              }}
-            >
-              <PlayCircle size={22} />
-              <span className="text-xs">Nenhum vídeo selecionado</span>
             </div>
           )}
         </div>

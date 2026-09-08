@@ -12,26 +12,15 @@ import {
   Bot,
   Bell,
   BellOff,
-  CalendarDays,
-  Cake,
-  History,
-  Table2,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
-import { getInitials, getFirstName } from '../utils';
-import { NotificationBell } from './NotificationBell';
-import { MyProfileModal } from './MyProfileModal';
-import { canAccessView } from '../permissions';
-import logo from '../images/logo-dark@2x.png';
+import { getInitials } from '../utils';
 
 const NAV_MAIN: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'pipeline', icon: KanbanSquare, label: 'Pipeline' },
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { id: 'corretores', icon: Users, label: 'Corretores' },
-  { id: 'clientes', icon: UserCheck, label: 'Clientes Finais' },
-  { id: 'empreendimentos', icon: Building2, label: 'Empreendimentos' },
-  { id: 'rodadas', icon: CalendarDays, label: 'Calendário de Rodadas' },
-  { id: 'agenda', icon: Cake, label: 'Agenda' },
+  { id: 'clientes', icon: UserCheck, label: 'Clientes' },
 ];
 
 const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] = [
@@ -40,8 +29,6 @@ const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] 
 
 const NAV_SECONDARY: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'indicadores', icon: BarChart2, label: 'Indicadores' },
-  { id: 'tabelas-empreendimentos', icon: Table2, label: 'Tabelas de Custos' },
-  { id: 'historico-acoes', icon: History, label: 'Histórico de Ações' },
 ];
 
 const NAV_CONFIG: { id: ViewMode; icon: React.ElementType; label: string; diretoraOnly?: boolean }[] = [
@@ -66,15 +53,11 @@ export function Sidebar() {
   const disablePush = useStore((s) => s.disablePush);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushError, setPushError] = useState('');
-  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const activeCorretores = corretores.filter((l) => l.status === 'ativo' || l.status === 'nutricao').length;
   const wonCorretores = corretores.filter((l) => l.status === 'ganho').length;
 
   const visibleConfigItems = NAV_CONFIG.filter((item) => !item.diretoraOnly || currentUser?.cargo === 'Diretora');
-  const visibleMainItems = NAV_MAIN.filter((item) => canAccessView(currentUser, item.id));
-  const visibleSecondaryItems = NAV_SECONDARY.filter((item) => canAccessView(currentUser, item.id));
-  const visibleMarketingItems = NAV_MARKETING.filter((item) => canAccessView(currentUser, item.id));
 
   async function togglePush() {
     setPushError('');
@@ -96,9 +79,24 @@ export function Sidebar() {
     <aside className="w-64 flex-shrink-0 flex flex-col h-full" style={{ backgroundColor: '#1e1e1e' }}>
       {/* Logo */}
       <div className="px-5 py-5 border-b" style={{ borderColor: '#292929' }}>
-        <div className="flex items-center justify-between gap-3">
-          <img src={logo} alt="PHACZ Empreendimentos" className="h-12 w-auto flex-shrink-0" />
-          <NotificationBell />
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: '#d55006' }}
+          >
+            <Building2 size={18} color="#fff" />
+          </div>
+          <div>
+            <div
+              className="text-white text-lg leading-none tracking-widest"
+              style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+            >
+              PHACZ
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: '#6b7280' }}>
+              Gestão Comercial
+            </div>
+          </div>
         </div>
       </div>
 
@@ -139,21 +137,21 @@ export function Sidebar() {
           Principal
         </p>
         <ul className="space-y-0.5 mb-6">
-          {visibleMainItems.map(({ id, icon: Icon, label }) => {
+          {NAV_MAIN.map(({ id, icon: Icon, label }) => {
             const isActive = view === id;
             return (
               <li key={id}>
                 <button
                   onClick={() => setView(id)}
-                  className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
-                      : {}
+                      : { color: '#9ca3af' }
                   }
                 >
-                  <Icon size={17} className="flex-shrink-0" />
-                  <span className="truncate">{label}</span>
+                  <Icon size={17} />
+                  {label}
                   {id === 'pipeline' && activeCorretores > 0 && !isActive && (
                     <span
                       className="ml-auto text-xs px-1.5 py-0.5 rounded-full font-bold"
@@ -168,37 +166,33 @@ export function Sidebar() {
           })}
         </ul>
 
-        {visibleMarketingItems.length > 0 && (
-          <>
-            <p
-              className="text-xs font-semibold uppercase tracking-widest mb-2 px-3"
-              style={{ color: '#4b5563' }}
-            >
-              Marketing
-            </p>
-            <ul className="space-y-0.5 mb-6">
-              {visibleMarketingItems.map(({ id, icon: Icon, label }) => {
-                const isActive = view === id;
-                return (
-                  <li key={id}>
-                    <button
-                      onClick={() => setView(id)}
-                      className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
-                      style={
-                        isActive
-                          ? { backgroundColor: '#d55006', color: '#fff' }
-                          : { color: '#9ca3af' }
-                      }
-                    >
-                      <Icon size={17} className="flex-shrink-0" />
-                      <span className="truncate">{label}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
+        <p
+          className="text-xs font-semibold uppercase tracking-widest mb-2 px-3"
+          style={{ color: '#4b5563' }}
+        >
+          Marketing
+        </p>
+        <ul className="space-y-0.5 mb-6">
+          {NAV_MARKETING.map(({ id, icon: Icon, label }) => {
+            const isActive = view === id;
+            return (
+              <li key={id}>
+                <button
+                  onClick={() => setView(id)}
+                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  style={
+                    isActive
+                      ? { backgroundColor: '#d55006', color: '#fff' }
+                      : { color: '#9ca3af' }
+                  }
+                >
+                  <Icon size={17} />
+                  {label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
 
         <p
           className="text-xs font-semibold uppercase tracking-widest mb-2 px-3"
@@ -207,21 +201,21 @@ export function Sidebar() {
           Análise
         </p>
         <ul className="space-y-0.5 mb-6">
-          {visibleSecondaryItems.map(({ id, icon: Icon, label }) => {
+          {NAV_SECONDARY.map(({ id, icon: Icon, label }) => {
             const isActive = view === id;
             return (
               <li key={id}>
                 <button
                   onClick={() => setView(id)}
-                  className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
-                      : {}
+                      : { color: '#9ca3af' }
                   }
                 >
-                  <Icon size={17} className="flex-shrink-0" />
-                  <span className="truncate">{label}</span>
+                  <Icon size={17} />
+                  {label}
                 </button>
               </li>
             );
@@ -241,15 +235,15 @@ export function Sidebar() {
               <li key={id}>
                 <button
                   onClick={() => setView(id)}
-                  className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
-                      : {}
+                      : { color: '#9ca3af' }
                   }
                 >
-                  <Icon size={17} className="flex-shrink-0" />
-                  <span className="truncate">{label}</span>
+                  <Icon size={17} />
+                  {label}
                 </button>
               </li>
             );
@@ -269,15 +263,15 @@ export function Sidebar() {
               <li key={id}>
                 <button
                   onClick={() => setView(id)}
-                  className="sidebar-item w-full min-w-0 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
                   style={
                     isActive
                       ? { backgroundColor: '#d55006', color: '#fff' }
-                      : {}
+                      : { color: '#9ca3af' }
                   }
                 >
-                  <Icon size={17} className="flex-shrink-0" />
-                  <span className="truncate">{label}</span>
+                  <Icon size={17} />
+                  {label}
                   {!isActive && (
                     <span
                       className="ml-auto text-xs px-1.5 py-0.5 rounded-full font-bold"
@@ -295,29 +289,19 @@ export function Sidebar() {
 
       {/* User / Logout */}
       <div className="px-4 py-4 border-t" style={{ borderColor: '#292929' }}>
-        <div className="flex items-center gap-1.5 mb-3">
-          <button
-            type="button"
-            onClick={() => setShowProfileModal(true)}
-            title="Ver meu perfil"
-            aria-label="Abrir meu perfil"
-            className="group flex items-center gap-3 flex-1 min-w-0 rounded-xl px-2 py-1.5 -ml-1 cursor-pointer transition-colors hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+        <div className="flex items-center gap-3 mb-3">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-bold"
+            style={{ backgroundColor: currentUser?.cor ?? '#d55006', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
           >
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-bold"
-              style={{ backgroundColor: currentUser?.cor ?? '#d55006', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-            >
-              {currentUser ? getInitials(currentUser.nome) : '?'}
+            {currentUser ? getInitials(currentUser.nome) : '?'}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-white truncate">{currentUser?.nome ?? '—'}</div>
+            <div className="text-xs truncate" style={{ color: '#6b7280' }}>
+              {currentUser?.cargo ?? ''}
             </div>
-            <div className="min-w-0 flex-1 text-left">
-              <div className="text-sm font-semibold text-white truncate group-hover:underline underline-offset-2 decoration-white/40">
-                {currentUser ? getFirstName(currentUser.nome) : '—'}
-              </div>
-              <div className="text-xs truncate" style={{ color: '#6b7280' }}>
-                {currentUser?.cargo ?? ''}
-              </div>
-            </div>
-          </button>
+          </div>
           {pushSupported && (
             <button
               onClick={togglePush}
@@ -345,8 +329,6 @@ export function Sidebar() {
           <p className="text-xs mb-1" style={{ color: '#f87171' }}>{pushError}</p>
         )}
       </div>
-
-      {showProfileModal && <MyProfileModal onClose={() => setShowProfileModal(false)} />}
     </aside>
   );
 }

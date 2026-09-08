@@ -1,16 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   TrendingUp, Users, Trophy, Clock, Target, BarChart3,
   Flame, Thermometer, Phone, MessageSquare, CalendarCheck,
   Handshake, FileText, CheckCircle2,
 } from 'lucide-react';
 import { useStore } from '../store';
-import { useViewReady } from '../navLoading';
-import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { formatCurrency, formatRelativeTime } from '../utils';
-import { ApiError } from '../api/client';
-import { dashboardApi, type AtividadeRecente } from '../api/endpoints';
 import type { Corretor } from '../types';
 
 type DashTab = 'geral' | 'sdr' | 'gr' | 'gv';
@@ -20,19 +16,6 @@ export function Dashboard() {
   const currentUser = useStore((s) => s.currentUser);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const setView = useStore((s) => s.setView);
-  const reloadCorretores = useStore((s) => s.reloadCorretores);
-  const showToast = useStore((s) => s.showToast);
-
-  // Busca os corretores de novo toda vez que o Dashboard é aberto — mesma lógica do Pipeline:
-  // a automação de tráfego inclui leads o tempo todo, os números não podem ficar defasados.
-  const [ready, setReady] = useState(false);
-  useViewReady(ready);
-  useEffect(() => {
-    reloadCorretores()
-      .catch((err) => showToast(err instanceof ApiError ? err.message : 'Não foi possível atualizar o dashboard agora.', 'error'))
-      .finally(() => setReady(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const cargo = currentUser?.cargo ?? 'Diretora';
   const defaultTab: DashTab =
@@ -54,8 +37,6 @@ export function Dashboard() {
     setView('pipeline');
     setSelectedCorretor(corretor.id);
   }
-
-  if (!ready) return <ViewLoader label="Carregando dashboard…" />;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -407,15 +388,13 @@ function DashGR({ corretores, currentUser, onNavigate }: { corretores: Corretor[
   const treinAgendado = meusCorretores.filter((l) => l.treinamento && l.dataAgendamentoTreinamento).length;
   const treinRealizado = meusCorretores.filter((l) => l.treinamento && l.dataRealizacaoTreinamento).length;
 
-  // A listagem de corretores não traz mais interacoes completas (ver corretorListInclude no
-  // backend) — essas contagens/feed vêm de um endpoint agregado, escopado ao usuário logado.
-  const [atividades, setAtividades] = useState<{ visitasRealizadas: number; whatsappEnviados: number; recentActivities: AtividadeRecente[] } | null>(null);
-  useEffect(() => {
-    dashboardApi.atividadesGr().then(setAtividades).catch(() => undefined);
-  }, []);
-  const visitasRealizadas = atividades?.visitasRealizadas ?? 0;
-  const whatsappEnviados = atividades?.whatsappEnviados ?? 0;
-  const recentActivities = atividades?.recentActivities ?? [];
+  const visitasRealizadas = meusCorretores.reduce((acc, l) => acc + l.interacoes.filter((i) => i.tipo === 'visita' || i.tipo === 'reuniao').length, 0);
+  const whatsappEnviados = meusCorretores.reduce((acc, l) => acc + l.interacoes.filter((i) => i.tipo === 'whatsapp').length, 0);
+
+  const recentActivities = meusCorretores
+    .flatMap((l) => l.interacoes.map((i) => ({ ...i, corretorNome: l.nomeCorretor, corretorId: l.id, corretorEtapa: l.etapa })))
+    .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+    .slice(0, 8);
 
   const hotCorretores = stage6
     .filter((l) => l.temperatura === 'quente')
@@ -517,22 +496,17 @@ function DashGV({ corretores, currentUser, onNavigate }: { corretores: Corretor[
   const fechamento = pipeline.filter((l) => l.etapa === 9).length;
   const monitoramento = pipeline.filter((l) => l.etapa === 7).length;
 
-  // A listagem de corretores não traz mais propostas completas (ver corretorListInclude no
-  // backend) — essas contagens vêm de um endpoint agregado, escopado ao usuário logado.
-  // `primeiraPropostaPorCorretor` guarda a proposta mais ANTIGA de cada corretor (não a mais
-  // recente) — replica o comportamento original desta tela, que é assim mesmo hoje.
-  const [atividades, setAtividades] = useState<{ propostasPendentes: number; propostasAceitas: number; primeiraPropostaPorCorretor: Record<string, { valor: number }> } | null>(null);
-  useEffect(() => {
-    dashboardApi.atividadesGv().then(setAtividades).catch(() => undefined);
-  }, []);
-  const propostasPendentes = atividades?.propostasPendentes ?? 0;
-  const propostasAceitas = atividades?.propostasAceitas ?? 0;
-  const primeiraPropostaPorCorretor = atividades?.primeiraPropostaPorCorretor ?? {};
+  const propostas = meusCorretores.flatMap((l) => l.propostas);
+  const propostasPendentes = propostas.filter((p) => p.status === 'pendente').length;
+  const propostasAceitas = propostas.filter((p) => p.status === 'aceita').length;
 
   const won = meusCorretores.filter((l) => l.status === 'ganho');
   const totalWonValue = won.reduce((acc, l) => acc + (l.valorFechamento ?? 0), 0);
 
-  const pipelineValue = pipeline.reduce((acc, l) => acc + (primeiraPropostaPorCorretor[l.id]?.valor ?? 0), 0);
+  const pipelineValue = pipeline.reduce((acc, l) => {
+    const lastProposta = l.propostas[l.propostas.length - 1];
+    return acc + (lastProposta?.valor ?? 0);
+  }, 0);
 
   const closingCorretores = pipeline
     .filter((l) => l.etapa >= 8)
@@ -593,7 +567,7 @@ function DashGV({ corretores, currentUser, onNavigate }: { corretores: Corretor[
             {closingCorretores.length === 0 ? (
               <p className="text-xs text-gray-400">Nenhum corretor em negociação</p>
             ) : closingCorretores.map((l) => {
-              const primeiraProposta = primeiraPropostaPorCorretor[l.id];
+              const lastProposta = l.propostas[l.propostas.length - 1];
               const stage = STAGES.find((s) => s.id === l.etapa);
               return (
                 <button key={l.id} onClick={() => onNavigate(l)} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 text-left transition-colors border" style={{ borderColor: '#f1f5f9' }}>
@@ -604,9 +578,9 @@ function DashGV({ corretores, currentUser, onNavigate }: { corretores: Corretor[
                     <p className="text-xs font-bold text-gray-800 truncate">{l.clienteFinalNome ?? l.nomeCorretor}</p>
                     <p className="text-xs text-gray-500 truncate">{l.imobiliaria}</p>
                   </div>
-                  {primeiraProposta && (
+                  {lastProposta && (
                     <span className="text-xs font-bold flex-shrink-0" style={{ color: '#d55006' }}>
-                      {formatCurrency(primeiraProposta.valor)}
+                      {formatCurrency(lastProposta.valor)}
                     </span>
                   )}
                 </button>

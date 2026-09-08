@@ -24,7 +24,7 @@ export function Combobox({ value, onChange, onSelect, options, placeholder, disa
   const filtered = useMemo(() => {
     if (!value) return options;
     const q = value.toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(q) || o.sublabel?.toLowerCase().includes(q));
+    return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [options, value]);
 
   useEffect(() => {

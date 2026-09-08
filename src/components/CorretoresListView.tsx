@@ -1,118 +1,56 @@
-import { useEffect, useRef, useState } from 'react';
-import { Plus, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Building2, Users } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Search, ChevronUp, ChevronDown, Building2, Users } from 'lucide-react';
 import { useStore } from '../store';
-import { useViewReady } from '../navLoading';
-import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { TEMPERATURA_CONFIG, formatRelativeTime, formatCurrency } from '../utils';
-import { canCreateCorretor } from '../permissions';
-import { corretoresApi } from '../api/endpoints';
-import { ApiError } from '../api/client';
 import type { Corretor } from '../types';
 
 type SortField = 'nomeCorretor' | 'etapa' | 'temperatura' | 'dataUltimaInteracao';
 
-const PAGE_SIZE = 300;
-
-/**
- * Paginação real (300/página), diferente das outras telas que carregam `store.corretores`
- * inteiro. Com a base crescendo bem além do teto de 2000 do carregamento em massa (ver
- * corretoresApi.list), essa tela teria um recorte truncado e silencioso do banco — o "336
- * registros" travado que não batia com o card "corretores ativos" da sidebar (esse soma
- * ativo+nutrição sobre o recorte de 2000; aqui contamos só "ativo", com `total` vindo direto
- * do banco pro filtro aplicado). Por isso busca a própria página no backend em vez de reusar o
- * estado global.
- */
 export function CorretoresListView() {
+  const corretores = useStore((s) => s.corretores);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
-  const selectedCorretorId = useStore((s) => s.selectedCorretorId);
   const setShowNewCorretorModal = useStore((s) => s.setShowNewCorretorModal);
-  const showNewCorretorModal = useStore((s) => s.showNewCorretorModal);
   const currentUser = useStore((s) => s.currentUser);
-  const isReadOnly = !canCreateCorretor(currentUser);
-
-  const [rows, setRows] = useState<Corretor[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const isReadOnly = currentUser?.cargo === 'Marketing';
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ativo');
   const [sortField, setSortField] = useState<SortField>('dataUltimaInteracao');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [reloadTick, setReloadTick] = useState(0);
 
-  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
-  useViewReady(primeiraCargaFeita);
-
-  // Debounce da busca livre — evita disparar uma requisição a cada tecla digitada.
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setSearch(searchInput);
-      setPage(1);
-    }, 350);
-    return () => clearTimeout(t);
-  }, [searchInput]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError('');
-    corretoresApi
-      .listPaged({ page, pageSize: PAGE_SIZE, status: statusFilter, search: search || undefined, sort: sortField, dir: sortDir })
-      .then((res) => {
-        if (cancelled) return;
-        setRows(res.corretores);
-        setTotal(res.total);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os corretores.');
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-          setPrimeiraCargaFeita(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [statusFilter, search, sortField, sortDir, page, reloadTick]);
-
-  // Editar/criar/excluir acontece via o painel de detalhe e o modal de novo corretor, que
-  // escrevem em `store.corretores` — não nesta página carregada à parte. Ao fechar qualquer um
-  // dos dois, busca a página de novo pra refletir a mudança em vez de ficar com dado velho.
-  const prevSelectedRef = useRef(selectedCorretorId);
-  const prevModalRef = useRef(showNewCorretorModal);
-  useEffect(() => {
-    const fechouDetalhe = prevSelectedRef.current !== null && selectedCorretorId === null;
-    const fechouModalNovo = prevModalRef.current && !showNewCorretorModal;
-    prevSelectedRef.current = selectedCorretorId;
-    prevModalRef.current = showNewCorretorModal;
-    if (fechouDetalhe || fechouModalNovo) setReloadTick((t) => t + 1);
-  }, [selectedCorretorId, showNewCorretorModal]);
+  const filtered = corretores
+    .filter((l) => {
+      if (statusFilter !== 'all' && l.status !== statusFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return (
+          l.nomeCorretor.toLowerCase().includes(q) ||
+          l.imobiliaria.toLowerCase().includes(q) ||
+          (l.clienteFinalNome?.toLowerCase().includes(q) ?? false)
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      let av: string | number = '', bv: string | number = '';
+      if (sortField === 'nomeCorretor') { av = a.nomeCorretor; bv = b.nomeCorretor; }
+      if (sortField === 'etapa') { av = a.etapa; bv = b.etapa; }
+      if (sortField === 'temperatura') { av = a.temperatura; bv = b.temperatura; }
+      if (sortField === 'dataUltimaInteracao') { av = a.dataUltimaInteracao; bv = b.dataUltimaInteracao; }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   function toggleSort(field: SortField) {
-    setPage(1);
     if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortField(field); setSortDir('asc'); }
   }
-
-  function changeStatusFilter(v: string) {
-    setStatusFilter(v);
-    setPage(1);
-  }
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return <ChevronUp size={12} className="opacity-20" />;
     return sortDir === 'asc' ? <ChevronUp size={12} style={{ color: '#d55006' }} /> : <ChevronDown size={12} style={{ color: '#d55006' }} />;
   };
-
-  if (!primeiraCargaFeita) return <ViewLoader label="Carregando corretores…" />;
 
   return (
     <div className="flex flex-col h-full">
@@ -121,10 +59,7 @@ export function CorretoresListView() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
           <div>
             <h1 className="font-questrial text-xl text-gray-800">Corretores</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {total} registro{total !== 1 ? 's' : ''}
-              {totalPages > 1 && <span className="text-gray-400"> — página {page} de {totalPages}</span>}
-            </p>
+            <p className="text-sm text-gray-500 mt-0.5">{filtered.length} registros</p>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="relative flex-1 sm:flex-none">
@@ -132,8 +67,8 @@ export function CorretoresListView() {
               <input
                 type="text"
                 placeholder="Buscar..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 pr-4 py-2 text-sm border rounded-lg w-full sm:w-56"
                 style={{ borderColor: '#e5e7eb' }}
               />
@@ -144,7 +79,7 @@ export function CorretoresListView() {
                 className="px-3 py-2 text-sm border rounded-lg flex-1 sm:flex-none"
                 style={{ borderColor: '#e5e7eb' }}
                 value={statusFilter}
-                onChange={(e) => changeStatusFilter(e.target.value)}
+                onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="all">Todos os status</option>
                 <option value="ativo">Ativos</option>
@@ -169,17 +104,8 @@ export function CorretoresListView() {
         </div>
       </div>
 
-      {error && (
-        <p className="text-xs text-red-600 bg-red-50 border-b px-4 md:px-6 py-2" style={{ borderColor: '#fecaca' }}>{error}</p>
-      )}
-
       {/* Table */}
-      <div className="flex-1 overflow-auto bg-white relative">
-        {loading && (
-          <div className="absolute inset-0 z-10 flex items-start justify-center pt-16 bg-white/60">
-            <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: '#fed7aa', borderTopColor: '#d55006' }} />
-          </div>
-        )}
+      <div className="flex-1 overflow-auto bg-white">
         <table className="w-full text-sm min-w-[880px]">
           <thead className="sticky top-0 bg-white border-b" style={{ borderColor: '#e5e7eb' }}>
             <tr>
@@ -202,10 +128,10 @@ export function CorretoresListView() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((corretor) => (
+            {filtered.map((corretor) => (
               <CorretorRow key={corretor.id} corretor={corretor} onClick={() => setSelectedCorretor(corretor.id)} />
             ))}
-            {rows.length === 0 && (
+            {filtered.length === 0 && (
               <tr>
                 <td colSpan={8} className="py-16 text-center text-gray-400 text-sm">
                   Nenhum corretor encontrado
@@ -215,34 +141,6 @@ export function CorretoresListView() {
           </tbody>
         </table>
       </div>
-
-      {/* Pager */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 md:px-6 py-3 border-t bg-white flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
-          <p className="text-xs text-gray-400">
-            Mostrando {rows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + rows.length} de {total}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="w-8 h-8 rounded-lg border flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition-colors"
-              style={{ borderColor: '#e5e7eb' }}
-            >
-              <ChevronLeft size={15} />
-            </button>
-            <span className="text-xs font-semibold text-gray-600 px-1">{page} / {totalPages}</span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="w-8 h-8 rounded-lg border flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition-colors"
-              style={{ borderColor: '#e5e7eb' }}
-            >
-              <ChevronRight size={15} />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -322,7 +220,7 @@ function CorretorRow({ corretor, onClick }: { corretor: Corretor; onClick: () =>
         )}
       </td>
       <td className="px-4 py-3 text-xs text-gray-400">
-        {corretor.ultimaAtividadeEm ? formatRelativeTime(corretor.ultimaAtividadeEm) : <span className="text-gray-300">Sem atividade</span>}
+        {formatRelativeTime(corretor.dataUltimaInteracao)}
       </td>
       <td className="px-4 py-3">
         <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>
