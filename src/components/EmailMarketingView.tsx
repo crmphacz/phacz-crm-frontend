@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { Plus, Mail, Send, Copy, Trash2, Eye, Users, Filter, Building2, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Plus, Mail, Send, Copy, Trash2, Eye, Users, Filter, Tag, Sparkles } from 'lucide-react';
 import { useStore } from '../store';
+import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { formatRelativeTime } from '../utils';
+import { canWriteEmailMarketing } from '../permissions';
 import type { EmailTemplate, EmailCampaign } from '../types';
 import { EmailBuilder } from './EmailBuilder';
 import { EmailSendModal } from './EmailSendModal';
@@ -11,11 +14,21 @@ import { EmailPreviewModal } from './EmailPreviewModal';
 type Tab = 'campanhas' | 'modelos';
 
 export function EmailMarketingView() {
+  const currentUser = useStore((s) => s.currentUser);
+  const canWrite = canWriteEmailMarketing(currentUser);
   const templates = useStore((s) => s.emailTemplates);
   const campaigns = useStore((s) => s.emailCampaigns);
   const deleteEmailTemplate = useStore((s) => s.deleteEmailTemplate);
   const duplicateEmailTemplate = useStore((s) => s.duplicateEmailTemplate);
   const deleteEmailCampaign = useStore((s) => s.deleteEmailCampaign);
+  const ensureEmailMarketingLoaded = useStore((s) => s.ensureEmailMarketingLoaded);
+
+  const [ready, setReady] = useState(false);
+  useViewReady(ready);
+  useEffect(() => {
+    ensureEmailMarketingLoaded().catch(() => undefined).finally(() => setReady(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [tab, setTab] = useState<Tab>('campanhas');
   const [builderTemplate, setBuilderTemplate] = useState<EmailTemplate | null | undefined>(undefined);
@@ -30,6 +43,8 @@ export function EmailMarketingView() {
     setBuilderTemplate(null);
   }
 
+  if (!ready) return <ViewLoader />;
+
   return (
     <div className="h-full overflow-y-auto" style={{ backgroundColor: '#e6e3de' }}>
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
@@ -43,13 +58,15 @@ export function EmailMarketingView() {
               Monte e-mails com um editor visual de arrastar e soltar e envie para corretores e clientes.
             </p>
           </div>
-          <button
-            onClick={openNewEmail}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors flex-shrink-0"
-            style={{ backgroundColor: '#d55006' }}
-          >
-            <Plus size={16} /> Novo Email
-          </button>
+          {canWrite && (
+            <button
+              onClick={openNewEmail}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors flex-shrink-0"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              <Plus size={16} /> Novo Email
+            </button>
+          )}
         </div>
 
         {/* Stat chips */}
@@ -74,7 +91,7 @@ export function EmailMarketingView() {
                   title="Nenhuma campanha enviada ainda"
                   subtitle="Crie um modelo de e-mail e envie para seus contatos."
                   ctaLabel="Criar meu primeiro e-mail"
-                  onCta={openNewEmail}
+                  onCta={canWrite ? openNewEmail : undefined}
                 />
               ) : (
                 <div className="overflow-x-auto">
@@ -92,6 +109,7 @@ export function EmailMarketingView() {
                         <CampaignRow
                           key={c.id}
                           campaign={c}
+                          readOnly={!canWrite}
                           onPreview={() => setPreviewTarget(c)}
                           onDelete={() => deleteEmailCampaign(c.id)}
                         />
@@ -108,7 +126,7 @@ export function EmailMarketingView() {
                   title="Nenhum modelo ainda"
                   subtitle="Monte seu primeiro e-mail com o editor visual de arrastar e soltar."
                   ctaLabel="Criar meu primeiro e-mail"
-                  onCta={openNewEmail}
+                  onCta={canWrite ? openNewEmail : undefined}
                 />
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -116,6 +134,7 @@ export function EmailMarketingView() {
                     <TemplateCard
                       key={t.id}
                       template={t}
+                      readOnly={!canWrite}
                       onEdit={() => setBuilderTemplate(t)}
                       onPreview={() => setPreviewTarget(t)}
                       onSend={() => setSendTarget(t)}
@@ -204,7 +223,7 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 }
 
 function EmptyState({ icon, title, subtitle, ctaLabel, onCta }: {
-  icon: React.ReactNode; title: string; subtitle: string; ctaLabel: string; onCta: () => void;
+  icon: React.ReactNode; title: string; subtitle: string; ctaLabel: string; onCta?: () => void;
 }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-14 gap-3">
@@ -213,13 +232,15 @@ function EmptyState({ icon, title, subtitle, ctaLabel, onCta }: {
       </div>
       <p className="text-sm font-semibold text-gray-700">{title}</p>
       <p className="text-xs text-gray-400 max-w-xs">{subtitle}</p>
-      <button
-        onClick={onCta}
-        className="mt-2 flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors"
-        style={{ backgroundColor: '#d55006' }}
-      >
-        <Sparkles size={14} /> {ctaLabel}
-      </button>
+      {onCta && (
+        <button
+          onClick={onCta}
+          className="mt-2 flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors"
+          style={{ backgroundColor: '#d55006' }}
+        >
+          <Sparkles size={14} /> {ctaLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -240,13 +261,13 @@ function IconBtn({ icon, title, onClick, danger }: { icon: React.ReactNode; titl
 
 function DestinatarioBadge({ campaign }: { campaign: EmailCampaign }) {
   if (campaign.destinatarioTipo === 'individual') {
-    return <BadgePill icon={<Users size={11} />} label="Clientes específicos" />;
+    return <BadgePill icon={<Users size={11} />} label="Corretores específicos" />;
   }
   if (campaign.destinatarioTipo === 'funil') {
     const stage = STAGES.find((s) => s.id === campaign.etapaAlvo);
     return <BadgePill icon={<Filter size={11} />} label={stage ? `Funil: ${stage.nomeAbrev}` : 'Funil'} />;
   }
-  return <BadgePill icon={<Building2 size={11} />} label={campaign.empreendimentoAlvo ?? 'Empreendimento'} />;
+  return <BadgePill icon={<Tag size={11} />} label={campaign.empreendimentoAlvo ? `Qualificação: ${campaign.empreendimentoAlvo}` : 'Qualificação'} />;
 }
 
 function BadgePill({ icon, label }: { icon: React.ReactNode; label: string }) {
@@ -258,7 +279,9 @@ function BadgePill({ icon, label }: { icon: React.ReactNode; label: string }) {
   );
 }
 
-function CampaignRow({ campaign, onPreview, onDelete }: { campaign: EmailCampaign; onPreview: () => void; onDelete: () => void }) {
+function CampaignRow({ campaign, readOnly, onPreview, onDelete }: {
+  campaign: EmailCampaign; readOnly?: boolean; onPreview: () => void; onDelete: () => void;
+}) {
   return (
     <tr>
       <td className="py-3 pr-4">
@@ -277,15 +300,16 @@ function CampaignRow({ campaign, onPreview, onDelete }: { campaign: EmailCampaig
       <td className="py-3 text-right">
         <div className="flex items-center justify-end gap-1">
           <IconBtn icon={<Eye size={14} />} title="Ver e-mail" onClick={onPreview} />
-          <IconBtn icon={<Trash2 size={14} />} title="Remover do histórico" onClick={onDelete} danger />
+          {!readOnly && <IconBtn icon={<Trash2 size={14} />} title="Remover do histórico" onClick={onDelete} danger />}
         </div>
       </td>
     </tr>
   );
 }
 
-function TemplateCard({ template, onEdit, onPreview, onSend, onDuplicate, onDelete }: {
+function TemplateCard({ template, readOnly, onEdit, onPreview, onSend, onDuplicate, onDelete }: {
   template: EmailTemplate;
+  readOnly?: boolean;
   onEdit: () => void;
   onPreview: () => void;
   onSend: () => void;
@@ -294,7 +318,7 @@ function TemplateCard({ template, onEdit, onPreview, onSend, onDuplicate, onDele
 }) {
   return (
     <div className="rounded-xl border overflow-hidden flex flex-col" style={{ borderColor: '#e5e7eb' }}>
-      <button onClick={onEdit} className="text-left p-4 hover:bg-gray-50 transition-colors flex-1">
+      <button onClick={readOnly ? onPreview : onEdit} className="text-left p-4 hover:bg-gray-50 transition-colors flex-1">
         <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: '#fff7ed' }}>
           <Mail size={16} style={{ color: '#d55006' }} />
         </div>
@@ -305,16 +329,18 @@ function TemplateCard({ template, onEdit, onPreview, onSend, onDuplicate, onDele
       <div className="flex items-center justify-between px-3 py-2 border-t" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
         <div className="flex items-center gap-0.5">
           <IconBtn icon={<Eye size={13} />} title="Pré-visualizar" onClick={onPreview} />
-          <IconBtn icon={<Copy size={13} />} title="Duplicar" onClick={onDuplicate} />
-          <IconBtn icon={<Trash2 size={13} />} title="Excluir" onClick={onDelete} danger />
+          {!readOnly && <IconBtn icon={<Copy size={13} />} title="Duplicar" onClick={onDuplicate} />}
+          {!readOnly && <IconBtn icon={<Trash2 size={13} />} title="Excluir" onClick={onDelete} danger />}
         </div>
-        <button
-          onClick={onSend}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-colors"
-          style={{ backgroundColor: '#d55006' }}
-        >
-          <Send size={12} /> Enviar
-        </button>
+        {!readOnly && (
+          <button
+            onClick={onSend}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 transition-colors"
+            style={{ backgroundColor: '#d55006' }}
+          >
+            <Send size={12} /> Enviar
+          </button>
+        )}
       </div>
     </div>
   );

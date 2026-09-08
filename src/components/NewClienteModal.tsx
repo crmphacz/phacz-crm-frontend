@@ -1,17 +1,32 @@
 import { useMemo, useState } from 'react';
 import { X, User, Search, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
+import type { ClienteFinalComContexto } from '../store';
 import { ApiError } from '../api/client';
-import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL, getInitials } from '../utils';
+import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
+import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
+import { Combobox } from './Combobox';
 
 interface NewClienteModalProps {
   onClose: () => void;
   onCreated?: (corretorId: string) => void;
+  /** Presente = modo edição (dados + corretor responsável de um cliente já existente). */
+  cliente?: ClienteFinalComContexto;
+  /**
+   * Em modo criação, já deixa esse corretor selecionado — usado ao abrir o modal pelo card
+   * do Pipeline / painel do corretor, onde o responsável já está definido pelo contexto.
+   */
+  corretorId?: string;
 }
 
-export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
+export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initialCorretorId }: NewClienteModalProps) {
+  const isEdit = Boolean(cliente);
+  // Ao editar um cliente já existente, o modal abre TRAVADO (só leitura) — clicar em "Editar"
+  // libera os campos. Ao criar um novo, já abre liberado.
+  const [editing, setEditing] = useState(!isEdit);
   const corretores = useStore((s) => s.corretores);
   const addClienteFinal = useStore((s) => s.addClienteFinal);
+  const updateClienteFinal = useStore((s) => s.updateClienteFinal);
 
   const corretorOptions = useMemo(
     () =>
@@ -22,14 +37,17 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
   );
 
   const [corretorSearch, setCorretorSearch] = useState('');
-  const [corretorId, setCorretorId] = useState('');
+  const [corretorId, setCorretorId] = useState(cliente?.corretorId ?? initialCorretorId ?? '');
 
-  const [nome, setNome] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [email, setEmail] = useState('');
-  const [interesse, setInteresse] = useState('');
-  const [orcamento, setOrcamento] = useState('');
-  const [observacoes, setObservacoes] = useState('');
+  const [nome, setNome] = useState(cliente?.nome ?? '');
+  const [telefone, setTelefone] = useState(cliente ? maskPhone(cliente.telefone) : '');
+  const [email, setEmail] = useState(cliente?.email ?? '');
+  const [uf, setUf] = useState(cliente?.uf ?? '');
+  const [cidade, setCidade] = useState(cliente?.cidade ?? '');
+  const cidadesOptions = useCidadesPorUf(uf);
+  const [interesse, setInteresse] = useState(cliente?.interesse ?? '');
+  const [orcamento, setOrcamento] = useState(cliente?.orcamento ? formatCurrencyBRL(cliente.orcamento) : '');
+  const [observacoes, setObservacoes] = useState(cliente?.observacoes ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -42,7 +60,9 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
     );
   }, [corretorOptions, corretorSearch]);
 
-  const selectedCorretor = corretorOptions.find((c) => c.id === corretorId);
+  // Busca na lista completa (não só nas opções filtradas) pra um corretor pré-selecionado
+  // pelo contexto — ex.: card arquivado/perdido — ainda aparecer como selecionado.
+  const selectedCorretor = corretores.find((c) => c.id === corretorId);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -61,19 +81,28 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
 
     setSubmitting(true);
     setSubmitError('');
+    const data = {
+      nome: nome.trim(),
+      telefone: telefone.trim(),
+      email: email.trim() || undefined,
+      cidade: cidade.trim() || undefined,
+      uf: uf || undefined,
+      interesse: interesse.trim(),
+      orcamento: orcamento ? parseCurrencyBRL(orcamento) : undefined,
+      observacoes: observacoes.trim() || undefined,
+    };
     try {
-      await addClienteFinal(corretorId, {
-        nome: nome.trim(),
-        telefone: telefone.trim(),
-        email: email.trim() || undefined,
-        interesse: interesse.trim(),
-        orcamento: orcamento ? parseCurrencyBRL(orcamento) : undefined,
-        observacoes: observacoes.trim() || undefined,
-      });
+      if (cliente) {
+        await updateClienteFinal(cliente.corretorId, cliente.id, data, corretorId);
+      } else {
+        await addClienteFinal(corretorId, data);
+      }
       onCreated?.(corretorId);
       onClose();
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : 'Não foi possível cadastrar o cliente. Tente novamente.');
+      setSubmitError(
+        err instanceof ApiError ? err.message : `Não foi possível ${isEdit ? 'salvar' : 'cadastrar'} o cliente. Tente novamente.`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -93,8 +122,16 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
               <User size={18} style={{ color: '#d55006' }} />
             </div>
             <div>
-              <h2 className="font-questrial font-bold text-lg text-gray-900">Novo Cliente</h2>
-              <p className="text-xs text-gray-400">Cadastre o cliente e vincule a um corretor</p>
+              <h2 className="font-questrial font-bold text-lg text-gray-900">
+                {!isEdit ? 'Novo Cliente' : editing ? 'Editar Cliente' : 'Cliente'}
+              </h2>
+              <p className="text-xs text-gray-400">
+                {!isEdit
+                  ? 'Cadastre o cliente e vincule a um corretor'
+                  : editing
+                    ? 'Atualize os dados e o corretor responsável'
+                    : 'Clique em "Editar" para alterar os dados'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
@@ -102,8 +139,10 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-5">
+        {/* Body — o scroll fica no div; o fieldset é só um bloco pra travar os campos (fieldset
+            como flex-item com overflow tem bug de render e "vaza" pra fora do modal). */}
+        <div className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">
+        <fieldset disabled={!editing} className="border-0 m-0 p-0 min-w-0 space-y-5">
           {/* Corretor */}
           <FormSection title="Corretor responsável">
             {selectedCorretor ? (
@@ -130,9 +169,10 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
             ) : (
               <div>
                 <div className="relative mb-2">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                   <input
-                    className={`form-input pl-8 ${errors.corretor ? 'border-red-400' : ''}`}
+                    className={`form-input ${errors.corretor ? 'border-red-400' : ''}`}
+                    style={{ paddingLeft: '2.25rem' }}
                     placeholder="Buscar corretor ou imobiliária..."
                     value={corretorSearch}
                     onChange={(e) => { setCorretorSearch(e.target.value); setErrors((er) => ({ ...er, corretor: '' })); }}
@@ -201,6 +241,27 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
                 />
               </div>
               <div>
+                <FormLabel>Estado</FormLabel>
+                <select
+                  className="form-input"
+                  value={uf}
+                  onChange={(e) => { setUf(e.target.value); setCidade(''); }}
+                >
+                  <option value="">Selecionar...</option>
+                  {UF_OPTIONS.map((u) => <option key={u.sigla} value={u.sigla}>{u.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <FormLabel>Cidade</FormLabel>
+                <Combobox
+                  value={cidade}
+                  onChange={setCidade}
+                  options={cidadesOptions.map((c) => ({ id: c, label: c }))}
+                  placeholder={uf ? 'Buscar cidade...' : 'Selecione o estado primeiro'}
+                  disabled={!uf}
+                />
+              </div>
+              <div>
                 <FormLabel>Orçamento</FormLabel>
                 <input
                   className="form-input"
@@ -233,6 +294,7 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
           </FormSection>
 
           {submitError && <p className="text-xs text-red-500">{submitError}</p>}
+        </fieldset>
         </div>
 
         {/* Footer */}
@@ -241,17 +303,28 @@ export function NewClienteModal({ onClose, onCreated }: NewClienteModalProps) {
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
           >
-            Cancelar
+            {editing ? 'Cancelar' : 'Fechar'}
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
-            style={{ backgroundColor: '#d55006' }}
-          >
-            {submitting ? 'Salvando...' : 'Cadastrar Cliente'}
-            {!submitting && <ChevronRight size={16} />}
-          </button>
+          {editing ? (
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              {submitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+              {!submitting && <ChevronRight size={16} />}
+            </button>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              Editar
+              <ChevronRight size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>

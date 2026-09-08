@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Building2, Menu } from 'lucide-react';
 import { useStore } from './store';
 import { Sidebar } from './components/Sidebar';
@@ -13,8 +13,22 @@ import { CompanyProfileView } from './components/CompanyProfileView';
 import { PipelineRulesView } from './components/PipelineRulesView';
 import { IndicadoresView } from './components/IndicadoresView';
 import { LoginScreen } from './components/LoginScreen';
+import { ChangePasswordScreen } from './components/ChangePasswordScreen';
+import { ResetPasswordScreen } from './components/ResetPasswordScreen';
+import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { EmailMarketingView } from './components/EmailMarketingView';
 import { PhaczIAView } from './components/PhaczIAView';
+import { RodadasCalendarView } from './components/RodadasCalendarView';
+import { AgendaView } from './components/AgendaView';
+import { EmpreendimentosListView } from './components/EmpreendimentosListView';
+import { HistoricoAcoesView } from './components/HistoricoAcoesView';
+import { ToastContainer } from './components/ToastContainer';
+import { ViewLoader } from './components/ViewLoader';
+
+// Carrega sob demanda: puxa a biblioteca de planilha (fortune-sheet), pesada.
+const TabelasEmpreendimentosView = lazy(() =>
+  import('./components/TabelasEmpreendimentosView').then((m) => ({ default: m.TabelasEmpreendimentosView }))
+);
 
 export default function App() {
   const view = useStore((s) => s.view);
@@ -22,6 +36,9 @@ export default function App() {
   const showNewCorretorModal = useStore((s) => s.showNewCorretorModal);
   const isLoggedIn = useStore((s) => s.isLoggedIn);
   const isBootstrapping = useStore((s) => s.isBootstrapping);
+  const mustChangePassword = useStore((s) => s.mustChangePassword);
+  const showPrivacyPolicy = useStore((s) => s.showPrivacyPolicy);
+  const setShowPrivacyPolicy = useStore((s) => s.setShowPrivacyPolicy);
   const initFromToken = useStore((s) => s.initFromToken);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -33,6 +50,20 @@ export default function App() {
     initFromToken();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A política de privacidade precisa renderizar por cima de QUALQUER tela (inclusive antes
+  // do login), então fica fora do if/else abaixo em vez de duplicada em cada branch.
+  const privacyModal = showPrivacyPolicy && <PrivacyPolicyModal onClose={() => setShowPrivacyPolicy(false)} />;
+
+  // Link do e-mail de "esqueci minha senha" (ver resetLink em auth/routes.ts). App não usa
+  // roteador nenhum — isso é a única "rota" própria do front, tratada manualmente aqui, fora
+  // de todo o fluxo normal de login/app porque quem chega por esse link não está logado.
+  const resetPasswordToken = window.location.pathname === '/redefinir-senha'
+    ? new URLSearchParams(window.location.search).get('token')
+    : null;
+  if (resetPasswordToken) {
+    return <ResetPasswordScreen token={resetPasswordToken} />;
+  }
 
   if (isBootstrapping) {
     return (
@@ -49,7 +80,17 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    return <LoginScreen />;
+    return <>
+      <LoginScreen />
+      {privacyModal}
+    </>;
+  }
+
+  if (mustChangePassword) {
+    return <>
+      <ChangePasswordScreen />
+      {privacyModal}
+    </>;
   }
 
   return (
@@ -103,11 +144,22 @@ export default function App() {
           {view === 'indicadores' && <IndicadoresView />}
           {view === 'email-marketing' && <EmailMarketingView />}
           {view === 'phacz-ia' && <PhaczIAView />}
+          {view === 'rodadas' && <RodadasCalendarView />}
+          {view === 'agenda' && <AgendaView />}
+          {view === 'tabelas-empreendimentos' && (
+            <Suspense fallback={<ViewLoader label="Carregando editor…" />}>
+              <TabelasEmpreendimentosView />
+            </Suspense>
+          )}
+          {view === 'empreendimentos' && <EmpreendimentosListView />}
+          {view === 'historico-acoes' && <HistoricoAcoesView />}
         </main>
       </div>
 
       {selectedCorretorId && <CorretorDetailPanel />}
       {showNewCorretorModal && <NewCorretorModal />}
+      {privacyModal}
+      <ToastContainer />
     </div>
   );
 }

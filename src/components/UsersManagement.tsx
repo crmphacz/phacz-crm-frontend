@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { UserPlus, Pencil, Ban, RotateCcw, X, ShieldCheck } from 'lucide-react';
+import { UserPlus, Pencil, Ban, RotateCcw, X, ShieldCheck, KeyRound } from 'lucide-react';
 import { useStore } from '../store';
 import { getInitials } from '../utils';
 import { ApiError } from '../api/client';
 import type { AppUser } from '../api/endpoints';
 import type { UserCargo } from '../types';
 
-const CARGO_OPTIONS: UserCargo[] = ['Diretora', 'GR', 'GV', 'SDR', 'Marketing'];
+const CARGO_OPTIONS: UserCargo[] = ['Diretora', 'GR', 'GV', 'SDR', 'Marketing', 'Administrativo', 'Recepcao'];
 
 const CARGO_COLORS: Record<UserCargo, string> = {
   Diretora: '#d55006',
@@ -14,14 +14,18 @@ const CARGO_COLORS: Record<UserCargo, string> = {
   GV: '#3b82f6',
   SDR: '#8b5cf6',
   Marketing: '#db2777',
+  Administrativo: '#64748b',
+  Recepcao: '#059669',
 };
 
 const CARGO_LABELS: Record<UserCargo, string> = {
   Diretora: 'Diretora — acesso total',
   GR: 'GR — Gerente de Relacionamento',
-  GV: 'GV — Gerente de Vendas',
+  GV: 'GRV — Gerente de Vendas',
   SDR: 'SDR — Qualificação',
   Marketing: 'Marketing — visualização geral + Email Marketing',
+  Administrativo: 'Administrativo — visualização (somente leitura)',
+  Recepcao: 'Recepção — visualização (somente leitura)',
 };
 
 export function UsersManagement() {
@@ -30,10 +34,13 @@ export function UsersManagement() {
   const createUser = useStore((s) => s.createUser);
   const updateUser = useStore((s) => s.updateUser);
   const deactivateUser = useStore((s) => s.deactivateUser);
+  const sendUserPasswordReset = useStore((s) => s.sendUserPasswordReset);
+  const showToast = useStore((s) => s.showToast);
 
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [error, setError] = useState('');
+  const [resettingId, setResettingId] = useState<string | null>(null);
 
   if (currentUser?.cargo !== 'Diretora') return null;
 
@@ -49,6 +56,19 @@ export function UsersManagement() {
     setEditingUser(user);
     setError('');
     setShowForm(true);
+  }
+
+  async function handleSendPasswordReset(user: AppUser) {
+    if (!window.confirm(`Enviar um link de redefinição de senha para ${user.nome} (${user.email})? O link expira em 1 hora.`)) return;
+    setResettingId(user.id);
+    try {
+      const message = await sendUserPasswordReset(user.id);
+      showToast(message);
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Não foi possível enviar o link de redefinição.', 'error');
+    } finally {
+      setResettingId(null);
+    }
   }
 
   async function handleToggleAtivo(user: AppUser) {
@@ -122,6 +142,16 @@ export function UsersManagement() {
               >
                 <Pencil size={14} />
               </button>
+              {user.ativo && (
+                <button
+                  onClick={() => handleSendPasswordReset(user)}
+                  disabled={resettingId === user.id}
+                  title="Enviar link de redefinição de senha"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition-colors disabled:opacity-50"
+                >
+                  <KeyRound size={14} className={resettingId === user.id ? 'animate-pulse' : ''} />
+                </button>
+              )}
               {currentUser.email !== user.email && (
                 <button
                   onClick={() => handleToggleAtivo(user)}
@@ -149,24 +179,27 @@ export function UsersManagement() {
           onClose={() => setShowForm(false)}
           onCreate={createUser}
           onUpdate={updateUser}
+          onCreated={(email) => showToast(`E-mail com os dados de acesso enviado para ${email}.`)}
         />
       )}
     </div>
   );
 }
 
-function UserFormModal({ user, onClose, onCreate, onUpdate }: {
+function UserFormModal({ user, onClose, onCreate, onUpdate, onCreated }: {
   user: AppUser | null;
   onClose: () => void;
-  onCreate: (data: { nome: string; email: string; senha: string; cargo: UserCargo; cor?: string }) => Promise<AppUser>;
-  onUpdate: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean }>) => Promise<AppUser>;
+  onCreate: (data: { nome: string; email: string; cargo: UserCargo; cor?: string; whatsappPhoneNumberId?: string; whatsappNumeroExibicao?: string }) => Promise<AppUser>;
+  onUpdate: (id: string, data: Partial<{ nome: string; cargo: UserCargo; cor: string; ativo: boolean; whatsappPhoneNumberId: string; whatsappNumeroExibicao: string }>) => Promise<AppUser>;
+  onCreated: (email: string) => void;
 }) {
   const isEditing = Boolean(user);
   const [nome, setNome] = useState(user?.nome ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
-  const [senha, setSenha] = useState('');
   const [cargo, setCargo] = useState<UserCargo>(user?.cargo ?? 'SDR');
   const [cor, setCor] = useState(user?.cor ?? CARGO_COLORS.SDR);
+  const [waNumero, setWaNumero] = useState(user?.whatsappNumeroExibicao ?? '');
+  const [waPhoneId, setWaPhoneId] = useState(user?.whatsappPhoneNumberId ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -174,14 +207,27 @@ function UserFormModal({ user, onClose, onCreate, onUpdate }: {
     setError('');
     if (!nome.trim()) return setError('Informe o nome completo.');
     if (!isEditing && !email.trim()) return setError('Informe o e-mail.');
-    if (!isEditing && senha.trim().length < 6) return setError('A senha deve ter ao menos 6 caracteres.');
 
     setSubmitting(true);
     try {
       if (isEditing && user) {
-        await onUpdate(user.id, { nome: nome.trim(), cargo, cor });
+        await onUpdate(user.id, {
+          nome: nome.trim(),
+          cargo,
+          cor,
+          whatsappNumeroExibicao: waNumero.trim(),
+          whatsappPhoneNumberId: waPhoneId.trim(),
+        });
       } else {
-        await onCreate({ nome: nome.trim(), email: email.trim(), senha, cargo, cor });
+        await onCreate({
+          nome: nome.trim(),
+          email: email.trim(),
+          cargo,
+          cor,
+          whatsappNumeroExibicao: waNumero.trim() || undefined,
+          whatsappPhoneNumberId: waPhoneId.trim() || undefined,
+        });
+        onCreated(email.trim());
       }
       onClose();
     } catch (err) {
@@ -222,29 +268,19 @@ function UserFormModal({ user, onClose, onCreate, onUpdate }: {
           </div>
 
           {!isEditing && (
-            <>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">E-mail de acesso</label>
-                <input
-                  className="form-input"
-                  type="email"
-                  placeholder="nome@phacz.com.br"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 mb-1 block">Senha provisória</label>
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="Mínimo 6 caracteres"
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                />
-                <p className="text-xs text-gray-400 mt-1">A pessoa poderá trocar a senha depois de acessar o sistema.</p>
-              </div>
-            </>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">E-mail de acesso</label>
+              <input
+                className="form-input"
+                type="email"
+                placeholder="nome@phacz.com.br"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Uma senha provisória será gerada e enviada para este e-mail. A pessoa será solicitada a trocá-la no primeiro acesso.
+              </p>
+            </div>
           )}
 
           <div>
@@ -275,6 +311,37 @@ function UserFormModal({ user, onClose, onCreate, onUpdate }: {
             <div className="flex items-center gap-2">
               <input type="color" value={cor} onChange={(e) => setCor(e.target.value)} className="w-9 h-9 rounded-lg border cursor-pointer flex-shrink-0" style={{ borderColor: '#e5e7eb', padding: 2 }} />
               <input className="form-input" value={cor} onChange={(e) => setCor(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="pt-1 border-t" style={{ borderColor: '#f3f4f6' }}>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mt-3 mb-2">WhatsApp (Meta) — para uso futuro</p>
+            <p className="text-xs text-gray-400 mb-2">
+              Hoje o disparo abre o WhatsApp Web/app da pessoa para envio manual — estes campos não são usados ainda.
+              Ficam prontos para quando a integração com a API da Meta for ativada.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Número de envio (exibição)</label>
+                <input
+                  className="form-input"
+                  placeholder="+55 47 99973-1108"
+                  value={waNumero}
+                  onChange={(e) => setWaNumero(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Phone Number ID</label>
+                <input
+                  className="form-input"
+                  placeholder="Ex: 123456789012345"
+                  value={waPhoneId}
+                  onChange={(e) => setWaPhoneId(e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  O ID do número no WhatsApp Cloud API (Meta → WhatsApp → API Setup). Deixe vazio para usar o número padrão do sistema.
+                </p>
+              </div>
             </div>
           </div>
 
