@@ -1,6 +1,6 @@
 export type Temperatura = 'quente' | 'morno' | 'frio';
 export type StatusCorretor = 'ativo' | 'nutricao' | 'arquivado' | 'ganho' | 'perdido';
-export type TipoInteracao = 'ligacao' | 'whatsapp' | 'email' | 'visita' | 'reuniao' | 'nota' | 'proposta';
+export type TipoInteracao = 'ligacao' | 'whatsapp' | 'email' | 'visita' | 'reuniao' | 'nota' | 'proposta' | 'especulacao';
 export type TipoInteresse = string;
 export type CanalOrigem = string;
 export type UserCargo = 'Diretora' | 'GR' | 'GV' | 'SDR' | 'Marketing' | 'Administrativo' | 'Recepcao';
@@ -46,6 +46,8 @@ export interface Interacao {
   resumo: string;
   responsavel: string;
   etapa: number;
+  /** Preenchido quando `tipo === 'proposta'` e a atividade foi vinculada a uma proposta específica. */
+  propostaId?: string;
 }
 
 export interface Proposta {
@@ -259,6 +261,7 @@ export interface EmailCampaign {
 export type TipoAcaoRodada = 'rodada' | 'cafe_na_obra' | 'evento_externo' | 'trafego_pago' | 'almoco_jantar' | 'outro';
 /** O que o campo `imobiliaria` da rodada representa: nome de uma imobiliária ou de um corretor cadastrado. */
 export type VinculoRodadaTipo = 'imobiliaria' | 'corretor';
+export type StatusAprovacaoRodada = 'pendente' | 'aprovada' | 'recusada';
 export type PerfilImobiliaria = 'alto_padrao' | 'misto' | 'investidor' | 'baixo_ticket';
 export type HistoricoParceria = 'ja_parceira' | 'nao_parceira';
 export type IntencaoPrincipal = 'abrir_relacionamento' | 'reativar_base' | 'engajar_corretores' | 'gerar_visitas_propostas' | 'conversao_vendas';
@@ -415,11 +418,21 @@ export interface Rodada {
   comentarioFinalSolicitante: string;
   recomendacao?: Recomendacao;
 
+  // Aprovação da Diretoria — só aparece no calendário pra quem não seja Diretoria (ou quem
+  // não a criou) depois de aprovada.
+  statusAprovacao: StatusAprovacaoRodada;
+  motivoRecusa: string;
+  aprovadoPorNome?: string;
+  aprovadoEm?: string;
+
   criadoPorNome: string;
   criadoEm: string;
 }
 
-export type CreateRodadaPayload = Omit<Rodada, 'id' | 'criadoPorNome' | 'criadoEm' | 'custoRodada' | 'empreendimentos'> & {
+export type CreateRodadaPayload = Omit<
+  Rodada,
+  'id' | 'criadoPorNome' | 'criadoEm' | 'custoRodada' | 'empreendimentos' | 'statusAprovacao' | 'motivoRecusa' | 'aprovadoPorNome' | 'aprovadoEm'
+> & {
   empreendimentoIds: string[];
 };
 
@@ -447,7 +460,13 @@ export function isRodadaCompleta(r: Rodada | RodadaResumo): r is Rodada {
 
 // ── Notificações ────────────────────────────────────────────────────
 
-export type TipoNotificacao = 'rodada_criada' | 'aniversario_hoje' | 'aniversario_enviado';
+export type TipoNotificacao =
+  | 'rodada_criada'
+  | 'rodada_pendente_aprovacao'
+  | 'rodada_aprovada'
+  | 'rodada_recusada'
+  | 'aniversario_hoje'
+  | 'aniversario_enviado';
 
 export interface Notificacao {
   id: string;
@@ -505,6 +524,17 @@ export interface AniversarioAgenda {
   saudacao: SaudacaoAniversario | null;
 }
 
+/** Uma interação (ver `Interacao`) do usuário logado, exibida na Agenda como compromisso/ligação. */
+export interface AtividadeAgenda {
+  id: string;
+  data: string; // ISO
+  tipo: TipoInteracao;
+  resumo: string;
+  etapa: number;
+  corretorId: string;
+  corretorNome: string;
+}
+
 // ── Empreendimentos & Unidades ──────────────────────────────────────
 
 export type StatusUnidade = 'vendido' | 'em_contrato' | 'disponivel' | 'em_negociacao' | 'alugado';
@@ -516,6 +546,9 @@ export interface Unidade {
   metragemPrivativa: number;
   valor: number;
   status: StatusUnidade;
+  suites: number;
+  vagas: number;
+  observacoes: string;
 }
 
 export type CreateUnidadePayload = Omit<Unidade, 'id'>;
@@ -541,6 +574,8 @@ export interface Empreendimento {
   suitesMax: number;
   vagasGaragem: number;
   caracteristicas: string[];
+  tipos: string[];
+  condicoesPagamento: string[];
   hotsiteUrl: string;
   catalogoUrl: string;
   telefoneContato: string;

@@ -74,6 +74,10 @@ export function NewCorretorModal() {
     if (!nome.trim()) e.nome = 'Nome é obrigatório';
     if (!telefone.trim()) e.telefone = 'Telefone é obrigatório';
     if (!canal) e.canal = 'Canal de origem é obrigatório';
+    if (!imobiliaria.trim()) e.imobiliaria = 'Imobiliária é obrigatória';
+    if (!cpf.trim()) e.cpf = 'CPF é obrigatório';
+    if (!creci.trim()) e.creci = 'CRECI é obrigatório';
+    if (!dataNascimento) e.dataNascimento = 'Data de nascimento é obrigatória';
     return e;
   }
 
@@ -188,15 +192,16 @@ export function NewCorretorModal() {
                 />
               </div>
               <div>
-                <FormLabel>Imobiliária</FormLabel>
+                <FormLabel required>Imobiliária</FormLabel>
                 <select
-                  className="form-input"
+                  className={`form-input ${errors.imobiliaria ? 'border-red-400' : ''}`}
                   value={imobiliaria}
-                  onChange={(e) => handleImobiliariaChange(e.target.value)}
+                  onChange={(e) => { handleImobiliariaChange(e.target.value); setErrors((er) => ({ ...er, imobiliaria: '' })); }}
                 >
                   <option value="">Selecionar...</option>
                   {imobiliariasOptions.map((i) => <option key={i.id} value={i.nome}>{i.nome}</option>)}
                 </select>
+                {errors.imobiliaria && <p className="text-xs text-red-500 mt-1">{errors.imobiliaria}</p>}
               </div>
               {imobiliariaMatches.length > 0 && (
                 <div
@@ -227,33 +232,36 @@ export function NewCorretorModal() {
                 />
               </div>
               <div>
-                <FormLabel>CPF</FormLabel>
+                <FormLabel required>CPF</FormLabel>
                 <input
-                  className="form-input"
+                  className={`form-input ${errors.cpf ? 'border-red-400' : ''}`}
                   placeholder="000.000.000-00"
                   inputMode="numeric"
                   maxLength={14}
                   value={cpf}
-                  onChange={(e) => setCpf(maskCPF(e.target.value))}
+                  onChange={(e) => { setCpf(maskCPF(e.target.value)); setErrors((er) => ({ ...er, cpf: '' })); }}
                 />
+                {errors.cpf && <p className="text-xs text-red-500 mt-1">{errors.cpf}</p>}
               </div>
               <div>
-                <FormLabel>CRECI</FormLabel>
+                <FormLabel required>CRECI</FormLabel>
                 <input
-                  className="form-input"
+                  className={`form-input ${errors.creci ? 'border-red-400' : ''}`}
                   placeholder="Ex: 123456-F"
                   value={creci}
-                  onChange={(e) => setCreci(e.target.value)}
+                  onChange={(e) => { setCreci(e.target.value); setErrors((er) => ({ ...er, creci: '' })); }}
                 />
+                {errors.creci && <p className="text-xs text-red-500 mt-1">{errors.creci}</p>}
               </div>
               <div>
-                <FormLabel>Data de nascimento</FormLabel>
+                <FormLabel required>Data de nascimento</FormLabel>
                 <input
                   type="date"
-                  className="form-input"
+                  className={`form-input ${errors.dataNascimento ? 'border-red-400' : ''}`}
                   value={dataNascimento}
-                  onChange={(e) => setDataNascimento(e.target.value)}
+                  onChange={(e) => { setDataNascimento(e.target.value); setErrors((er) => ({ ...er, dataNascimento: '' })); }}
                 />
+                {errors.dataNascimento && <p className="text-xs text-red-500 mt-1">{errors.dataNascimento}</p>}
               </div>
               <div>
                 <FormLabel>Estado</FormLabel>

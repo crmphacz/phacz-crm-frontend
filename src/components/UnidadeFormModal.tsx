@@ -2,22 +2,26 @@ import { useState } from 'react';
 import { X, Home, ChevronRight } from 'lucide-react';
 import { ApiError } from '../api/client';
 import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, STATUS_UNIDADE_CONFIG } from '../utils';
-import type { StatusUnidade, Unidade, CreateUnidadePayload } from '../types';
+import type { StatusUnidade, Unidade, CreateUnidadePayload, EmpreendimentoDetail } from '../types';
 
 interface UnidadeFormModalProps {
   unidade?: Unidade | null;
+  empreendimento: EmpreendimentoDetail;
   onClose: () => void;
   onSave: (data: CreateUnidadePayload) => Promise<unknown>;
 }
 
 const STATUS_OPTIONS: StatusUnidade[] = ['disponivel', 'em_negociacao', 'em_contrato', 'vendido', 'alugado'];
 
-export function UnidadeFormModal({ unidade, onClose, onSave }: UnidadeFormModalProps) {
+export function UnidadeFormModal({ unidade, empreendimento, onClose, onSave }: UnidadeFormModalProps) {
   const [tipo, setTipo] = useState(unidade?.tipo ?? '');
   const [numero, setNumero] = useState(unidade?.numero ?? '');
   const [metragem, setMetragem] = useState(unidade ? String(unidade.metragemPrivativa).replace('.', ',') : '');
   const [valor, setValor] = useState(unidade ? formatCurrencyBRL(unidade.valor) : '');
   const [status, setStatus] = useState<StatusUnidade>(unidade?.status ?? 'disponivel');
+  const [suites, setSuites] = useState(unidade?.suites ?? empreendimento.suitesMin);
+  const [vagas, setVagas] = useState(unidade?.vagas ?? 0);
+  const [observacoes, setObservacoes] = useState(unidade?.observacoes ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -27,6 +31,12 @@ export function UnidadeFormModal({ unidade, onClose, onSave }: UnidadeFormModalP
     if (!tipo.trim()) e.tipo = 'Informe o tipo';
     if (!numero.trim()) e.numero = 'Informe o número da unidade';
     if (!status) e.status = 'Selecione o status';
+    if (suites < empreendimento.suitesMin || suites > empreendimento.suitesMax) {
+      e.suites = `Suítes deve estar entre ${empreendimento.suitesMin} e ${empreendimento.suitesMax}`;
+    }
+    if (vagas < 0 || vagas > empreendimento.vagasGaragem) {
+      e.vagas = `Vagas deve estar entre 0 e ${empreendimento.vagasGaragem}`;
+    }
     return e;
   }
 
@@ -46,6 +56,9 @@ export function UnidadeFormModal({ unidade, onClose, onSave }: UnidadeFormModalP
         metragemPrivativa: Number(metragem.replace(',', '.')) || 0,
         valor: parseCurrencyBRL(valor) ?? 0,
         status,
+        suites,
+        vagas,
+        observacoes: observacoes.trim(),
       });
       onClose();
     } catch (err) {
@@ -78,13 +91,19 @@ export function UnidadeFormModal({ unidade, onClose, onSave }: UnidadeFormModalP
           <div className="grid grid-cols-2 gap-4">
             <div>
               <FormLabel required>Tipo</FormLabel>
-              <input
+              <select
                 className={`form-input ${errors.tipo ? 'border-red-400' : ''}`}
-                placeholder="Ex: Tipo 5"
                 value={tipo}
                 onChange={(e) => { setTipo(e.target.value); setErrors((er) => ({ ...er, tipo: '' })); }}
-              />
+              >
+                <option value="">Selecionar...</option>
+                {tipo && !empreendimento.tipos.includes(tipo) && <option value={tipo}>{tipo}</option>}
+                {empreendimento.tipos.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
               {errors.tipo && <p className="text-xs text-red-500 mt-1">{errors.tipo}</p>}
+              {empreendimento.tipos.length === 0 && (
+                <p className="text-xs text-gray-400 mt-1">Nenhum tipo cadastrado — edite o empreendimento para adicionar tipos.</p>
+              )}
             </div>
             <div>
               <FormLabel required>Número</FormLabel>
@@ -119,6 +138,48 @@ export function UnidadeFormModal({ unidade, onClose, onSave }: UnidadeFormModalP
                 onChange={(e) => setValor(maskCurrencyBRLInput(e.target.value))}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <FormLabel>Suítes</FormLabel>
+              <input
+                type="number"
+                min={empreendimento.suitesMin}
+                max={empreendimento.suitesMax}
+                className={`form-input ${errors.suites ? 'border-red-400' : ''}`}
+                value={suites}
+                onChange={(e) => { setSuites(Number(e.target.value) || 0); setErrors((er) => ({ ...er, suites: '' })); }}
+              />
+              {errors.suites
+                ? <p className="text-xs text-red-500 mt-1">{errors.suites}</p>
+                : <p className="text-xs text-gray-400 mt-1">Entre {empreendimento.suitesMin} e {empreendimento.suitesMax}</p>}
+            </div>
+            <div>
+              <FormLabel>Vagas</FormLabel>
+              <input
+                type="number"
+                min={0}
+                max={empreendimento.vagasGaragem}
+                className={`form-input ${errors.vagas ? 'border-red-400' : ''}`}
+                value={vagas}
+                onChange={(e) => { setVagas(Number(e.target.value) || 0); setErrors((er) => ({ ...er, vagas: '' })); }}
+              />
+              {errors.vagas
+                ? <p className="text-xs text-red-500 mt-1">{errors.vagas}</p>
+                : <p className="text-xs text-gray-400 mt-1">Entre 0 e {empreendimento.vagasGaragem}</p>}
+            </div>
+          </div>
+
+          <div>
+            <FormLabel>Observações / Peculiaridades</FormLabel>
+            <textarea
+              className="form-input resize-none"
+              style={{ minHeight: 64 }}
+              placeholder="Ex: vista para o mar, unidade de esquina..."
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+            />
           </div>
 
           <div>

@@ -7,20 +7,27 @@ import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Cake, Check } from 'lucide-react';
 import { agendaApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { AniversarioModal } from './AniversarioModal';
-import type { AniversarioAgenda, SaudacaoAniversario } from '../types';
+import { TIPO_INTERACAO_CONFIG } from '../utils';
+import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda } from '../types';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+/** Quantas atividades mostrar por dia antes de recolher em "+N" — evita células gigantes em dias cheios. */
+const MAX_ATIVIDADES_POR_DIA = 3;
 
 function primeiroNome(nome: string): string {
   return nome.trim().split(/\s+/)[0] || nome;
 }
 
 export function AgendaView() {
+  const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [aniversarios, setAniversarios] = useState<AniversarioAgenda[]>([]);
+  const [atividades, setAtividades] = useState<AtividadeAgenda[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<AniversarioAgenda | null>(null);
@@ -36,9 +43,8 @@ export function AgendaView() {
     let vivo = true;
     setLoading(true);
     setError('');
-    agendaApi
-      .aniversarios(ano, mes)
-      .then((r) => { if (vivo) setAniversarios(r); })
+    Promise.all([agendaApi.aniversarios(ano, mes), agendaApi.atividades(ano, mes)])
+      .then(([niver, ativ]) => { if (vivo) { setAniversarios(niver); setAtividades(ativ); } })
       .catch((err) => { if (vivo) setError(err instanceof ApiError ? err.message : 'Não foi possível carregar a agenda.'); })
       .finally(() => { if (vivo) { setLoading(false); setPrimeiraCargaFeita(true); } });
     return () => { vivo = false; };
@@ -56,6 +62,21 @@ export function AgendaView() {
     }
     return map;
   }, [aniversarios, diasNoMes]);
+
+  // A API traz uma folga de ±1 dia (por fuso); aqui descartamos o que sobrar de mês adjacente
+  // e agrupamos pelo dia exato, lido em horário local do navegador (mesmo horário que o usuário digitou).
+  const porDiaAtividades = useMemo(() => {
+    const map = new Map<number, AtividadeAgenda[]>();
+    for (const a of atividades) {
+      const quando = new Date(a.data);
+      if (!isSameMonth(quando, currentMonth)) continue;
+      const dia = quando.getDate();
+      const list = map.get(dia) ?? [];
+      list.push(a);
+      map.set(dia, list);
+    }
+    return map;
+  }, [atividades, currentMonth]);
 
   const days = useMemo(() => {
     const gridStart = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
@@ -78,9 +99,11 @@ export function AgendaView() {
       <div className="bg-white border-b px-4 md:px-6 py-4 flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h1 className="font-questrial text-xl text-gray-800">Agenda de Aniversários</h1>
+            <h1 className="font-questrial text-xl text-gray-800">Agenda</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {loading ? 'Carregando…' : `${aniversarios.length} aniversário(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
+              {loading
+                ? 'Carregando…'
+                : `${aniversarios.length} aniversário(s) e ${atividades.length} compromisso(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
             </p>
           </div>
         </div>
@@ -117,6 +140,19 @@ export function AgendaView() {
 
         {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
 
+        {/* Legenda */}
+        <div className="flex flex-wrap items-center gap-3 mb-3 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5">
+            <Cake size={12} style={{ color: '#c2410c' }} /> Aniversário
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#dbeafe' }} /> Compromisso futuro
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#f3f4f6' }} /> Realizado
+          </span>
+        </div>
+
         {/* Grid */}
         <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: '#e5e7eb' }}>
           <div className="grid grid-cols-7 border-b" style={{ borderColor: '#e5e7eb' }}>
@@ -131,6 +167,9 @@ export function AgendaView() {
               const key = format(day, 'yyyy-MM-dd');
               const inMonth = isSameMonth(day, currentMonth);
               const doDia = inMonth ? porDia.get(day.getDate()) ?? [] : [];
+              const ativDia = inMonth ? porDiaAtividades.get(day.getDate()) ?? [] : [];
+              const ativVisiveis = ativDia.slice(0, MAX_ATIVIDADES_POR_DIA);
+              const ativOcultas = ativDia.length - ativVisiveis.length;
               return (
                 <div
                   key={key}
@@ -162,6 +201,25 @@ export function AgendaView() {
                         <span className="truncate">{primeiroNome(a.nomeCorretor)}</span>
                       </button>
                     ))}
+                    {ativVisiveis.map((at) => {
+                      const config = TIPO_INTERACAO_CONFIG[at.tipo];
+                      const futuro = new Date(at.data).getTime() > Date.now();
+                      return (
+                        <button
+                          key={at.id}
+                          onClick={() => setSelectedCorretor(at.corretorId)}
+                          title={`${format(new Date(at.data), 'HH:mm')} · ${config.label} · ${at.corretorNome} — ${at.resumo}`}
+                          className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate transition-colors hover:brightness-95"
+                          style={futuro ? { backgroundColor: '#dbeafe', color: '#1d4ed8' } : { backgroundColor: '#f3f4f6', color: '#4b5563' }}
+                        >
+                          <span className="flex-shrink-0">{config.icon}</span>
+                          <span className="truncate">{primeiroNome(at.corretorNome)}</span>
+                        </button>
+                      );
+                    })}
+                    {ativOcultas > 0 && (
+                      <span className="text-[11px] font-semibold text-gray-400 px-1.5">+{ativOcultas} mais</span>
+                    )}
                   </div>
                 </div>
               );
@@ -169,9 +227,9 @@ export function AgendaView() {
           </div>
         </div>
 
-        {!loading && aniversarios.length === 0 && !error && (
+        {!loading && aniversarios.length === 0 && atividades.length === 0 && !error && (
           <p className="text-sm text-gray-400 text-center mt-6">
-            Nenhum corretor faz aniversário em {format(currentMonth, 'MMMM', { locale: ptBR })}.
+            Nenhum aniversário ou compromisso em {format(currentMonth, 'MMMM', { locale: ptBR })}.
           </p>
         )}
       </div>

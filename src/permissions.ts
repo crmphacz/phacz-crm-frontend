@@ -75,6 +75,11 @@ export function canViewFullRodada(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora' || user?.cargo === 'GR';
 }
 
+/** Só a Diretoria aprova/recusa rodadas pendentes de aprovação. */
+export function canApproveRodada(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora';
+}
+
 /** E-mail marketing: só Diretoria e Marketing usam a ferramenta (Administrativo/Recepção só leem). */
 export function canWriteEmailMarketing(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora' || user?.cargo === 'Marketing';

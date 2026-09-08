@@ -13,7 +13,7 @@ import {
   Bell,
   BellOff,
   CalendarDays,
-  Cake,
+  CalendarClock,
   History,
   Table2,
 } from 'lucide-react';
@@ -31,7 +31,7 @@ const NAV_MAIN: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'clientes', icon: UserCheck, label: 'Clientes Finais' },
   { id: 'empreendimentos', icon: Building2, label: 'Empreendimentos' },
   { id: 'rodadas', icon: CalendarDays, label: 'Calendário de Rodadas' },
-  { id: 'agenda', icon: Cake, label: 'Agenda' },
+  { id: 'agenda', icon: CalendarClock, label: 'Agenda' },
 ];
 
 const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] = [

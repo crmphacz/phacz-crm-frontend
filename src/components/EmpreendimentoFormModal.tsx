@@ -41,6 +41,10 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
   const [vagasGaragem, setVagasGaragem] = useState(empreendimento?.vagasGaragem ?? 0);
   const [caracteristicas, setCaracteristicas] = useState<string[]>(empreendimento?.caracteristicas ?? []);
   const [novaCaracteristica, setNovaCaracteristica] = useState('');
+  const [tipos, setTipos] = useState<string[]>(empreendimento?.tipos ?? []);
+  const [novoTipo, setNovoTipo] = useState('');
+  const [condicoesPagamento, setCondicoesPagamento] = useState<string[]>(empreendimento?.condicoesPagamento ?? []);
+  const [novaCondicaoPagamento, setNovaCondicaoPagamento] = useState('');
   const [hotsiteUrl, setHotsiteUrl] = useState(empreendimento?.hotsiteUrl ?? '');
   const [catalogoUrl, setCatalogoUrl] = useState(empreendimento?.catalogoUrl ?? '');
   const [telefoneContato, setTelefoneContato] = useState(empreendimento?.telefoneContato ?? '');
@@ -71,6 +75,28 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
 
   function removeCaracteristica(index: number) {
     setCaracteristicas((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function addTipo() {
+    const value = novoTipo.trim();
+    if (!value || tipos.includes(value)) return;
+    setTipos((prev) => [...prev, value]);
+    setNovoTipo('');
+  }
+
+  function removeTipo(index: number) {
+    setTipos((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function addCondicaoPagamento() {
+    const value = novaCondicaoPagamento.trim();
+    if (!value || condicoesPagamento.includes(value)) return;
+    setCondicoesPagamento((prev) => [...prev, value]);
+    setNovaCondicaoPagamento('');
+  }
+
+  function removeCondicaoPagamento(index: number) {
+    setCondicoesPagamento((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleUpload(file: File, setUrl: (url: string) => void, setUploading: (v: boolean) => void) {
@@ -121,6 +147,8 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
         suitesMax,
         vagasGaragem,
         caracteristicas,
+        tipos,
+        condicoesPagamento,
         hotsiteUrl: hotsiteUrl.trim(),
         catalogoUrl: catalogoUrl.trim(),
         telefoneContato: telefoneContato.trim(),
@@ -317,6 +345,76 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
                 <input type="number" min={0} className="form-input" value={vagasGaragem} onChange={(e) => setVagasGaragem(Number(e.target.value) || 0)} />
               </div>
             </div>
+          </FormSection>
+
+          <FormSection title="Tipos de unidade">
+            <p className="text-xs text-gray-400 -mt-1 mb-1">
+              Cadastre aqui os tipos deste empreendimento (ex: Tipo 1, Studio) — eles aparecem no dropdown ao criar uma unidade.
+            </p>
+            <div className="flex gap-2">
+              <input
+                className="form-input"
+                placeholder="Ex: Tipo 5"
+                value={novoTipo}
+                onChange={(e) => setNovoTipo(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTipo(); } }}
+              />
+              <button
+                type="button"
+                onClick={addTipo}
+                className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-white hover:opacity-90 transition-colors"
+                style={{ backgroundColor: '#d55006' }}
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            {tipos.length > 0 && (
+              <ul className="space-y-1.5 mt-3">
+                {tipos.map((item, index) => (
+                  <li key={`${item}-${index}`} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border" style={{ borderColor: '#e5e7eb' }}>
+                    <span className="text-sm text-gray-700">{item}</span>
+                    <button type="button" onClick={() => removeTipo(index)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                      <Trash2 size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </FormSection>
+
+          <FormSection title="Condições de Pagamento">
+            <p className="text-xs text-gray-400 -mt-1 mb-1">
+              Cadastre aqui as condições de pagamento aceitas neste empreendimento — elas aparecem no formulário de proposta ao selecionar este empreendimento.
+            </p>
+            <div className="flex gap-2">
+              <input
+                className="form-input"
+                placeholder="Ex: 30% entrada + financiamento"
+                value={novaCondicaoPagamento}
+                onChange={(e) => setNovaCondicaoPagamento(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCondicaoPagamento(); } }}
+              />
+              <button
+                type="button"
+                onClick={addCondicaoPagamento}
+                className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-white hover:opacity-90 transition-colors"
+                style={{ backgroundColor: '#d55006' }}
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            {condicoesPagamento.length > 0 && (
+              <ul className="space-y-1.5 mt-3">
+                {condicoesPagamento.map((item, index) => (
+                  <li key={`${item}-${index}`} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border" style={{ borderColor: '#e5e7eb' }}>
+                    <span className="text-sm text-gray-700">{item}</span>
+                    <button type="button" onClick={() => removeCondicaoPagamento(index)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                      <Trash2 size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </FormSection>
 
           <FormSection title="Características (lista)">

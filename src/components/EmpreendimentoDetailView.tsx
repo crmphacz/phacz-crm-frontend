@@ -328,9 +328,10 @@ export function EmpreendimentoDetailView({ id, onClose }: { id: string; onClose:
         />
       )}
 
-      {unidadeModal && (
+      {unidadeModal && detail && (
         <UnidadeFormModal
           unidade={unidadeModal.unidade}
+          empreendimento={detail}
           onClose={() => setUnidadeModal(null)}
           onSave={(data) => handleSaveUnidade(data, unidadeModal.unidade?.id)}
         />

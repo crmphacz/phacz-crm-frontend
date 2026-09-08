@@ -6,6 +6,20 @@ export function formatRelativeTime(iso: string): string {
   return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: ptBR });
 }
 
+/** Agora, no formato aceito por `<input type="datetime-local">` ("YYYY-MM-DDTHH:mm"), em horário local. */
+export function nowForDatetimeLocal(): string {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  const localMs = d.getTime() - d.getTimezoneOffset() * 60000;
+  return new Date(localMs).toISOString().slice(0, 16);
+}
+
+/** Converte o valor de um `<input type="datetime-local">` (horário local, sem fuso) para ISO. */
+export function datetimeLocalToISO(value: string): string {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
 }
@@ -69,6 +83,7 @@ export const TIPO_INTERACAO_CONFIG = {
   reuniao: { label: 'Reunião', icon: '🤝' },
   nota: { label: 'Nota', icon: '📝' },
   proposta: { label: 'Proposta', icon: '📄' },
+  especulacao: { label: 'Especulação', icon: '💭' },
 } as const;
 
 /** Cor de badge própria e consistente para cada um dos 5 status de unidade em toda a tela. */
@@ -172,6 +187,17 @@ export function maskCPF(value: string): string {
   if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
   if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+/** Formata um CNPJ progressivamente enquanto o usuário digita: 12.345.678/0001-90. */
+export function maskCNPJ(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
 }
 
 /** Formata um número como moeda brasileira completa: 245000 -> "R$ 245.000,00". */

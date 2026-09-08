@@ -6,9 +6,10 @@ import type {
 } from './types';
 import {
   authApi, usersApi, corretoresApi, emailApi, iaApi, canaisOrigemApi, companyProfileApi, tiposInteresseApi, imobiliariasApi,
-  condicoesPagamentoApi, pushApi, savedSearchesApi, rodadasApi, notificacoesApi, empreendimentosApi,
+  pushApi, savedSearchesApi, rodadasApi, notificacoesApi, empreendimentosApi,
   type CreateCorretorPayload, type AppUser, type CanalOrigemItem, type CompanyProfile, type TipoInteresseItem, type ImobiliariaItem,
-  type CondicaoPagamentoItem, type SavedSearchItem,
+  type CreateImobiliariaPayload,
+  type SavedSearchItem,
 } from './api/endpoints.js';
 import { mapCargoFromApi } from './api/mappers.js';
 import { getToken, setToken, clearToken, ApiError } from './api/client.js';
@@ -76,7 +77,6 @@ interface StoreState {
   canaisOrigem: CanalOrigemItem[];
   tiposInteresseOptions: TipoInteresseItem[];
   imobiliariasOptions: ImobiliariaItem[];
-  condicoesPagamentoOptions: CondicaoPagamentoItem[];
   companyProfile: CompanyProfile | null;
   selectedCorretorId: string | null;
   view: ViewMode;
@@ -115,6 +115,8 @@ interface StoreState {
   notificacoes: Notificacao[];
   notificacoesNaoLidas: number;
   rodadaFocoData: string | null;
+  /** Qual aba abrir ao focar uma rodada vinda de notificação — "lista" pra pendente (não aparece no calendário). */
+  rodadaFocoTab: 'calendario' | 'lista' | null;
 
   empreendimentos: Empreendimento[];
   empreendimentosLoaded: boolean;
@@ -227,14 +229,9 @@ interface StoreState {
   removeTipoInteresse: (id: string) => Promise<void>;
 
   // Imobiliárias
-  createImobiliaria: (nome: string) => Promise<ImobiliariaItem>;
-  updateImobiliaria: (id: string, data: Partial<{ nome: string; ativo: boolean }>) => Promise<ImobiliariaItem>;
+  createImobiliaria: (data: CreateImobiliariaPayload) => Promise<ImobiliariaItem>;
+  updateImobiliaria: (id: string, data: Partial<CreateImobiliariaPayload & { ativo: boolean }>) => Promise<ImobiliariaItem>;
   removeImobiliaria: (id: string) => Promise<void>;
-
-  // Condições de Pagamento
-  createCondicaoPagamento: (nome: string) => Promise<CondicaoPagamentoItem>;
-  updateCondicaoPagamento: (id: string, data: Partial<{ nome: string; ativo: boolean }>) => Promise<CondicaoPagamentoItem>;
-  removeCondicaoPagamento: (id: string) => Promise<void>;
 
   // Perfil da Empresa
   updateCompanyProfile: (data: Partial<{ nome: string; cnpj: string; cidade: string; dpoNome: string; dpoEmail: string }>) => Promise<CompanyProfile>;
@@ -253,6 +250,8 @@ interface StoreState {
   createRodada: (data: CreateRodadaPayload) => Promise<Rodada>;
   updateRodada: (id: string, data: CreateRodadaPayload) => Promise<Rodada>;
   removeRodada: (id: string) => Promise<void>;
+  approveRodada: (id: string) => Promise<Rodada>;
+  rejectRodada: (id: string, motivo: string) => Promise<Rodada>;
 
   // Notificações in-app
   loadNotificacoes: () => Promise<void>;
@@ -278,7 +277,6 @@ export const useStore = create<StoreState>()((set, get) => ({
   canaisOrigem: [],
   tiposInteresseOptions: [],
   imobiliariasOptions: [],
-  condicoesPagamentoOptions: [],
   companyProfile: null,
   selectedCorretorId: null,
   view: 'pipeline',
@@ -312,6 +310,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   notificacoes: [],
   notificacoesNaoLidas: 0,
   rodadaFocoData: null,
+  rodadaFocoTab: null,
 
   empreendimentos: [],
   empreendimentosLoaded: false,
@@ -370,7 +369,6 @@ export const useStore = create<StoreState>()((set, get) => ({
       canaisOrigem: [],
       tiposInteresseOptions: [],
       imobiliariasOptions: [],
-      condicoesPagamentoOptions: [],
       companyProfile: null,
       emailTemplates: [],
       emailCampaigns: [],
@@ -383,6 +381,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       notificacoes: [],
       notificacoesNaoLidas: 0,
       rodadaFocoData: null,
+      rodadaFocoTab: null,
       empreendimentos: [],
       empreendimentosLoaded: false,
     });
@@ -451,16 +450,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       canaisOrigemApi.list(),
       tiposInteresseApi.list(),
       imobiliariasApi.list(),
-      condicoesPagamentoApi.list(),
       companyProfileApi.get(),
       savedSearchesApi.list(),
       notificacoesApi.list(),
-    ]).then(([canaisOrigem, tiposInteresseOptions, imobiliariasOptions, condicoesPagamentoOptions, companyProfile, savedSearches, notificacoesResult]) => {
+    ]).then(([canaisOrigem, tiposInteresseOptions, imobiliariasOptions, companyProfile, savedSearches, notificacoesResult]) => {
       set({
         ...(canaisOrigem.status === 'fulfilled' && { canaisOrigem: canaisOrigem.value }),
         ...(tiposInteresseOptions.status === 'fulfilled' && { tiposInteresseOptions: tiposInteresseOptions.value }),
         ...(imobiliariasOptions.status === 'fulfilled' && { imobiliariasOptions: imobiliariasOptions.value }),
-        ...(condicoesPagamentoOptions.status === 'fulfilled' && { condicoesPagamentoOptions: condicoesPagamentoOptions.value }),
         ...(companyProfile.status === 'fulfilled' && { companyProfile: companyProfile.value }),
         ...(savedSearches.status === 'fulfilled' && { savedSearches: savedSearches.value }),
         ...(notificacoesResult.status === 'fulfilled' && {
@@ -780,8 +777,8 @@ export const useStore = create<StoreState>()((set, get) => ({
     set((state) => ({ tiposInteresseOptions: state.tiposInteresseOptions.filter((t) => t.id !== id) }));
   },
 
-  createImobiliaria: async (nome) => {
-    const imobiliaria = await imobiliariasApi.create(nome);
+  createImobiliaria: async (data) => {
+    const imobiliaria = await imobiliariasApi.create(data);
     set((state) => ({ imobiliariasOptions: [...state.imobiliariasOptions, imobiliaria] }));
     return imobiliaria;
   },
@@ -795,23 +792,6 @@ export const useStore = create<StoreState>()((set, get) => ({
   removeImobiliaria: async (id) => {
     await imobiliariasApi.remove(id);
     set((state) => ({ imobiliariasOptions: state.imobiliariasOptions.filter((i) => i.id !== id) }));
-  },
-
-  createCondicaoPagamento: async (nome) => {
-    const condicao = await condicoesPagamentoApi.create(nome);
-    set((state) => ({ condicoesPagamentoOptions: [...state.condicoesPagamentoOptions, condicao] }));
-    return condicao;
-  },
-
-  updateCondicaoPagamento: async (id, data) => {
-    const updated = await condicoesPagamentoApi.update(id, data);
-    set((state) => ({ condicoesPagamentoOptions: state.condicoesPagamentoOptions.map((c) => (c.id === id ? updated : c)) }));
-    return updated;
-  },
-
-  removeCondicaoPagamento: async (id) => {
-    await condicoesPagamentoApi.remove(id);
-    set((state) => ({ condicoesPagamentoOptions: state.condicoesPagamentoOptions.filter((c) => c.id !== id) }));
   },
 
   updateCompanyProfile: async (data) => {
@@ -891,6 +871,18 @@ export const useStore = create<StoreState>()((set, get) => ({
     set((state) => ({ rodadas: state.rodadas.filter((r) => r.id !== id) }));
   },
 
+  approveRodada: async (id) => {
+    const updated = await rodadasApi.aprovar(id);
+    set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
+    return updated;
+  },
+
+  rejectRodada: async (id, motivo) => {
+    const updated = await rodadasApi.recusar(id, motivo);
+    set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
+    return updated;
+  },
+
   loadNotificacoes: async () => {
     const { notificacoes, naoLidas } = await notificacoesApi.list();
     set({ notificacoes, notificacoesNaoLidas: naoLidas });
@@ -916,12 +908,15 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (n.tipo === 'aniversario_hoje' || n.tipo === 'aniversario_enviado') {
       set({ view: 'agenda', selectedCorretorId: null });
     } else {
-      set({ view: 'rodadas', selectedCorretorId: null, rodadaFocoData: n.rodadaDataInicio ?? null });
+      // Rodada pendente de aprovação não aparece no calendário — abre direto na Lista,
+      // onde toda rodada visível pro usuário (qualquer status) é mostrada.
+      const rodadaFocoTab = n.tipo === 'rodada_pendente_aprovacao' ? 'lista' : 'calendario';
+      set({ view: 'rodadas', selectedCorretorId: null, rodadaFocoData: n.rodadaDataInicio ?? null, rodadaFocoTab });
     }
     if (!n.lida) get().markNotificacaoLida(n.id);
   },
 
-  clearRodadaFoco: () => set({ rodadaFocoData: null }),
+  clearRodadaFoco: () => set({ rodadaFocoData: null, rodadaFocoTab: null }),
 
   createEmpreendimento: async (data) => {
     const empreendimento = await empreendimentosApi.create(data);

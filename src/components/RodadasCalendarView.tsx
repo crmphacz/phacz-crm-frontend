@@ -6,17 +6,29 @@ import {
 import { ptBR } from 'date-fns/locale';
 import {
   Plus, ChevronLeft, ChevronRight, MapPin, Wallet, User, Pencil, Trash2, X,
-  CalendarDays, LayoutGrid, List as ListIcon,
+  CalendarDays, LayoutGrid, List as ListIcon, Check, XCircle, Clock, AlertCircle,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { ApiError } from '../api/client';
 import { formatCurrency, parseDateKeyLocal, formatDateKeyBR } from '../utils';
-import { canViewRodadas, canWriteRodadas, canViewFullRodada } from '../permissions';
-import { isRodadaCompleta, type Rodada, type RodadaResumo, type TipoAcaoRodada } from '../types';
+import { canViewRodadas, canWriteRodadas, canViewFullRodada, canApproveRodada } from '../permissions';
+import { isRodadaCompleta, type Rodada, type RodadaResumo, type TipoAcaoRodada, type StatusAprovacaoRodada } from '../types';
 import { RodadaFormModal } from './RodadaFormModal';
 import { RodadaResumoModal } from './RodadaResumoModal';
+import { RodadaRecusaModal } from './RodadaRecusaModal';
+
+const STATUS_APROVACAO_CONFIG: Record<StatusAprovacaoRodada, { label: string; bg: string; text: string; icon: React.ElementType }> = {
+  pendente: { label: 'Pendente de aprovação', bg: '#fef9c3', text: '#854d0e', icon: Clock },
+  aprovada: { label: 'Aprovada', bg: '#dcfce7', text: '#166534', icon: Check },
+  recusada: { label: 'Recusada', bg: '#fee2e2', text: '#b91c1c', icon: XCircle },
+};
+
+/** `RodadaResumo` nunca chega pendente/recusada pro cliente — a API já filtra isso pra quem não vê o formulário completo. */
+function statusDe(r: Rodada | RodadaResumo): StatusAprovacaoRodada {
+  return isRodadaCompleta(r) ? r.statusAprovacao : 'aprovada';
+}
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -55,10 +67,15 @@ export function RodadasCalendarView() {
   // calendário recebem da API só o resumo (dia, corretor parceiro, imobiliária, cidade/UF) —
   // isto só decide qual modal abrir, a restrição de dados de verdade já veio da API.
   const canSeeFull = canViewFullRodada(currentUser);
+  // Só a Diretoria aprova/recusa — é quem enxerga rodadas pendentes/recusadas de todo mundo
+  // (os demais perfis, quando enxergam alguma pendente/recusada, só veem a própria).
+  const canApprove = canApproveRodada(currentUser);
 
   const rodadas = useStore((s) => s.rodadas);
   const removeRodada = useStore((s) => s.removeRodada);
+  const approveRodada = useStore((s) => s.approveRodada);
   const rodadaFocoData = useStore((s) => s.rodadaFocoData);
+  const rodadaFocoTab = useStore((s) => s.rodadaFocoTab);
   const clearRodadaFoco = useStore((s) => s.clearRodadaFoco);
   const ensureRodadasLoaded = useStore((s) => s.ensureRodadasLoaded);
 
@@ -78,20 +95,31 @@ export function RodadasCalendarView() {
   const [prefillDate, setPrefillDate] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
+  const [recusandoId, setRecusandoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (rodadaFocoData) {
       setCurrentMonth(parseDateKeyLocal(rodadaFocoData));
-      setTab('calendario');
-      setDayPanelKey(rodadaFocoData);
+      const targetTab = rodadaFocoTab ?? 'calendario';
+      setTab(targetTab);
+      // A Lista já mostra qualquer status visível pro usuário — o painel do dia é só pro
+      // calendário (que só mostra rodada aprovada).
+      if (targetTab === 'calendario') setDayPanelKey(rodadaFocoData);
       clearRodadaFoco();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rodadaFocoData]);
 
+  // O CALENDÁRIO (grade e painel do dia) só mostra rodada já aprovada pela Diretoria — mesmo
+  // pra quem aprova. Pendente/recusada só aparece na aba Lista (ver rodadasOrdenadas), onde dá
+  // pra revisar/aprovar/recusar.
+  const rodadasAprovadas = useMemo(() => rodadas.filter((r) => statusDe(r) === 'aprovada'), [rodadas]);
+
   const rodadasByDay = useMemo(() => {
     const map = new Map<string, (Rodada | RodadaResumo)[]>();
-    for (const rodada of rodadas) {
+    for (const rodada of rodadasAprovadas) {
       for (const key of eachDateKeyInRange(rodada.dataInicio, rodada.dataFim)) {
         const list = map.get(key) ?? [];
         list.push(rodada);
@@ -99,14 +127,16 @@ export function RodadasCalendarView() {
       }
     }
     return map;
-  }, [rodadas]);
+  }, [rodadasAprovadas]);
 
   const rodadasDoMes = useMemo(() => {
     // Overlap de intervalos: pega também rodadas que atravessam o mês (começam antes e/ou terminam depois dele).
     const inicioMes = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
     const fimMes = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
-    return rodadas.filter((r) => r.dataInicio <= fimMes && r.dataFim >= inicioMes);
-  }, [rodadas, currentMonth]);
+    return rodadasAprovadas.filter((r) => r.dataInicio <= fimMes && r.dataFim >= inicioMes);
+  }, [rodadasAprovadas, currentMonth]);
+
+  const rodadasPendentes = useMemo(() => rodadas.filter((r) => statusDe(r) === 'pendente'), [rodadas]);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -154,6 +184,18 @@ export function RodadasCalendarView() {
     }
   }
 
+  async function handleApprove(id: string) {
+    setApprovingId(id);
+    setActionError('');
+    try {
+      await approveRodada(id);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : 'Não foi possível aprovar a rodada.');
+    } finally {
+      setApprovingId(null);
+    }
+  }
+
   const dayPanelRodadas = dayPanelKey ? rodadasByDay.get(dayPanelKey) ?? [] : [];
 
   if (!canViewRodadas(currentUser)) {
@@ -173,9 +215,19 @@ export function RodadasCalendarView() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
           <div>
             <h1 className="font-questrial text-xl text-gray-800">Calendário de Rodadas</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{rodadasDoMes.length} rodada(s) neste mês</p>
+            <p className="text-sm text-gray-500 mt-0.5">{rodadasDoMes.length} rodada(s) aprovada(s) neste mês</p>
           </div>
           <div className="flex items-center gap-3">
+            {canApprove && rodadasPendentes.length > 0 && (
+              <button
+                onClick={() => setTab('lista')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                style={{ backgroundColor: '#fef9c3', color: '#854d0e' }}
+                title="Ver rodadas aguardando sua aprovação"
+              >
+                <AlertCircle size={13} /> {rodadasPendentes.length} pendente{rodadasPendentes.length !== 1 ? 's' : ''} de aprovação
+              </button>
+            )}
             <div className="flex items-center p-1 rounded-lg" style={{ backgroundColor: '#f1f5f9' }}>
               <button
                 onClick={() => setTab('calendario')}
@@ -279,6 +331,7 @@ export function RodadasCalendarView() {
         </div>
       ) : (
         <div className="flex-1 overflow-auto bg-white">
+          {actionError && <p className="text-xs text-red-500 px-4 pt-3">{actionError}</p>}
           <table className="w-full text-sm min-w-[880px]">
             <thead className="sticky top-0 bg-white border-b" style={{ borderColor: '#e5e7eb' }}>
               <tr>
@@ -288,11 +341,16 @@ export function RodadasCalendarView() {
                 <Th>Imobiliária</Th>
                 {canSeeFull && <Th>Custo</Th>}
                 {canSeeFull && <Th>Cadastrado por</Th>}
+                {canSeeFull && <Th>Status</Th>}
                 <Th>Ações</Th>
               </tr>
             </thead>
             <tbody>
-              {rodadasOrdenadas.map((r) => (
+              {rodadasOrdenadas.map((r) => {
+                const status = statusDe(r);
+                const statusConfig = STATUS_APROVACAO_CONFIG[status];
+                const StatusIcon = statusConfig.icon;
+                return (
                 <tr
                   key={r.id}
                   onClick={() => openRodada(r)}
@@ -315,8 +373,38 @@ export function RodadasCalendarView() {
                   {isRodadaCompleta(r) && (
                     <td className="px-4 py-3 text-xs text-gray-400">{r.criadoPorNome}</td>
                   )}
+                  {canSeeFull && (
+                    <td className="px-4 py-3">
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
+                        style={{ backgroundColor: statusConfig.bg, color: statusConfig.text }}
+                        title={status === 'recusada' && isRodadaCompleta(r) ? `Motivo: ${r.motivoRecusa}` : undefined}
+                      >
+                        <StatusIcon size={11} /> {statusConfig.label}
+                      </span>
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      {canApprove && status === 'pendente' && (
+                        <>
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); handleApprove(r.id); }}
+                            disabled={approvingId === r.id}
+                            className="w-7 h-7 rounded flex items-center justify-center text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                            title="Aprovar"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); setRecusandoId(r.id); }}
+                            className="w-7 h-7 rounded flex items-center justify-center text-red-500 hover:bg-red-50"
+                            title="Recusar"
+                          >
+                            <XCircle size={14} />
+                          </button>
+                        </>
+                      )}
                       <span className="w-7 h-7 rounded flex items-center justify-center text-gray-400" title={isReadOnly ? 'Visualizar' : 'Editar'}>
                         <Pencil size={13} />
                       </span>
@@ -333,10 +421,11 @@ export function RodadasCalendarView() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {rodadasOrdenadas.length === 0 && (
                 <tr>
-                  <td colSpan={canSeeFull ? 7 : 5} className="py-16 text-center text-gray-400 text-sm">
+                  <td colSpan={canSeeFull ? 8 : 5} className="py-16 text-center text-gray-400 text-sm">
                     Nenhuma rodada cadastrada
                   </td>
                 </tr>
@@ -442,6 +531,10 @@ export function RodadasCalendarView() {
 
       {viewingResumo && (
         <RodadaResumoModal rodada={viewingResumo} onClose={() => setViewingResumo(null)} />
+      )}
+
+      {recusandoId && (
+        <RodadaRecusaModal rodadaId={recusandoId} onClose={() => setRecusandoId(null)} />
       )}
     </div>
   );

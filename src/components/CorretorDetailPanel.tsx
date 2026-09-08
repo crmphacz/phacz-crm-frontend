@@ -11,7 +11,7 @@ import { useStore, useSelectedCorretor } from '../store';
 import { STAGES, CADENCIAS } from '../data';
 import {
   formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG,
-  TIPO_INTERACAO_CONFIG, getInitials,
+  TIPO_INTERACAO_CONFIG, getInitials, nowForDatetimeLocal, datetimeLocalToISO,
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF, maskPhone,
 } from '../utils';
 import { ApiError } from '../api/client';
@@ -52,7 +52,6 @@ export function CorretorDetailPanel() {
   const canaisOrigem = useStore((s) => s.canaisOrigem);
   const imobiliariasOptions = useStore((s) => s.imobiliariasOptions);
   const tiposInteresseOptions = useStore((s) => s.tiposInteresseOptions);
-  const condicoesPagamentoOptions = useStore((s) => s.condicoesPagamentoOptions);
   const updateCorretor = useStore((s) => s.updateCorretor);
   const moveCorretor = useStore((s) => s.moveCorretor);
   const addInteracao = useStore((s) => s.addInteracao);
@@ -125,9 +124,18 @@ export function CorretorDetailPanel() {
   const [actType, setActType] = useState<TipoInteracao>('nota');
   const [actResumo, setActResumo] = useState('');
   const [actResponsavel, setActResponsavel] = useState(currentUser?.nome ?? '');
+  const [actData, setActData] = useState(() => nowForDatetimeLocal());
+  const [actPropostaId, setActPropostaId] = useState('');
   useEffect(() => {
-    if (showActivityForm) setActResponsavel(currentUser?.nome ?? '');
+    if (showActivityForm) {
+      setActResponsavel(currentUser?.nome ?? '');
+      setActData(nowForDatetimeLocal());
+    }
   }, [showActivityForm, currentUser?.nome]);
+  // Ao trocar o tipo pra algo diferente de "Proposta", esquece a proposta que tinha sido selecionada.
+  useEffect(() => {
+    if (actType !== 'proposta') setActPropostaId('');
+  }, [actType]);
 
   // Cliente — usa o mesmo modal da tela de Clientes (NewClienteModal), já com este corretor
   // pré-selecionado como responsável.
@@ -144,10 +152,11 @@ export function CorretorDetailPanel() {
   const [pClienteId, setPClienteId] = useState('');
   const [pArquivo, setPArquivo] = useState<File | null>(null);
   const [pSubmitting, setPSubmitting] = useState(false);
-  // Empreendimento (id do selecionado) + unidades carregadas sob demanda desse empreendimento.
+  // Empreendimento (id do selecionado) + unidades/condições de pagamento carregadas sob demanda desse empreendimento.
   const [pEmpId, setPEmpId] = useState('');
   const [pUnidades, setPUnidades] = useState<Unidade[]>([]);
   const [pUnidadesLoading, setPUnidadesLoading] = useState(false);
+  const [pCondicoesOptions, setPCondicoesOptions] = useState<string[]>([]);
   const pUnidadesDisponiveis = pUnidades.filter((u) => u.status === 'disponivel');
 
   // Ao abrir o formulário de proposta, garante a lista de empreendimentos carregada.
@@ -155,18 +164,20 @@ export function CorretorDetailPanel() {
     if (showPropostaForm) ensureEmpreendimentosLoaded().catch(() => undefined);
   }, [showPropostaForm, ensureEmpreendimentosLoaded]);
 
-  // Ao escolher um empreendimento, busca as unidades dele (o dropdown de unidade só habilita depois disso).
+  // Ao escolher um empreendimento, busca as unidades e as condições de pagamento dele (os
+  // dropdowns de unidade e condição só habilitam depois disso).
   useEffect(() => {
     if (!pEmpId) {
       setPUnidades([]);
+      setPCondicoesOptions([]);
       return;
     }
     let cancelled = false;
     setPUnidadesLoading(true);
     empreendimentosApi
       .get(pEmpId)
-      .then((detail) => { if (!cancelled) setPUnidades(detail.unidades); })
-      .catch(() => { if (!cancelled) setPUnidades([]); })
+      .then((detail) => { if (!cancelled) { setPUnidades(detail.unidades); setPCondicoesOptions(detail.condicoesPagamento); } })
+      .catch(() => { if (!cancelled) { setPUnidades([]); setPCondicoesOptions([]); } })
       .finally(() => { if (!cancelled) setPUnidadesLoading(false); });
     return () => { cancelled = true; };
   }, [pEmpId]);
@@ -227,13 +238,14 @@ export function CorretorDetailPanel() {
     if (!actResumo.trim()) return;
     try {
       await addInteracao(corretor.id, {
-        data: new Date().toISOString(),
+        data: actData ? datetimeLocalToISO(actData) : new Date().toISOString(),
         tipo: actType,
         resumo: actResumo.trim(),
         responsavel: actResponsavel || 'Não informado',
         etapa: corretor.etapa,
+        propostaId: actType === 'proposta' && actPropostaId ? actPropostaId : undefined,
       });
-      setActResumo(''); setActType('nota'); setActResponsavel(currentUser?.nome ?? '');
+      setActResumo(''); setActType('nota'); setActResponsavel(currentUser?.nome ?? ''); setActData(nowForDatetimeLocal()); setActPropostaId('');
       setShowActivityForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a atividade.');
@@ -946,7 +958,7 @@ export function CorretorDetailPanel() {
 
               {showActivityForm && (
                 <div className="rounded-xl p-4 border space-y-3" style={{ borderColor: '#e5e7eb', backgroundColor: '#fafafa' }}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Tipo de interação</label>
                       <select
@@ -958,6 +970,15 @@ export function CorretorDetailPanel() {
                           <option key={k} value={k}>{v.icon} {v.label}</option>
                         ))}
                       </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1">Data e hora</label>
+                      <input
+                        type="datetime-local"
+                        className="form-input text-sm"
+                        value={actData}
+                        onChange={(e) => setActData(e.target.value)}
+                      />
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Quem realizou</label>
@@ -979,6 +1000,27 @@ export function CorretorDetailPanel() {
                       </select>
                     </div>
                   </div>
+                  {actType === 'proposta' && (
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1">Proposta vinculada</label>
+                      {corretor.propostas.length === 0 ? (
+                        <p className="text-xs text-gray-400">Nenhuma proposta registrada para este corretor ainda.</p>
+                      ) : (
+                        <select
+                          className="form-input text-sm"
+                          value={actPropostaId}
+                          onChange={(e) => setActPropostaId(e.target.value)}
+                        >
+                          <option value="">Nenhuma / não vincular</option>
+                          {corretor.propostas.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.empreendimento} — {p.unidade} — {formatCurrency(p.valor)} ({{ pendente: 'Aguardando retorno', aceita: 'Aceita', recusada: 'Recusada' }[p.status]})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <label className="text-xs font-semibold text-gray-500 block mb-1">Resumo *</label>
                     <textarea
@@ -1024,6 +1066,19 @@ export function CorretorDetailPanel() {
                           <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(inter.data)}</span>
                         </div>
                         <p className="text-sm text-gray-700 mt-0.5 leading-relaxed">{inter.resumo}</p>
+                        {inter.propostaId && (() => {
+                          const proposta = corretor.propostas.find((p) => p.id === inter.propostaId);
+                          return proposta ? (
+                            <button
+                              onClick={() => setTab('propostas')}
+                              className="flex items-center gap-1 mt-1 text-xs font-semibold hover:underline"
+                              style={{ color: '#d55006' }}
+                            >
+                              <Link size={11} />
+                              {proposta.empreendimento} — {proposta.unidade} — {formatCurrency(proposta.valor)}
+                            </button>
+                          ) : null;
+                        })()}
                         <p className="text-xs text-gray-400 mt-0.5">por {inter.responsavel}</p>
                       </div>
                     </div>
@@ -1086,6 +1141,7 @@ export function CorretorDetailPanel() {
                           setPEmpId(emp?.id ?? '');
                           setPEmp(emp?.nome ?? '');
                           setPUnidade('');
+                          setPCondicoes('');
                         }}
                       >
                         <option value="">
@@ -1128,10 +1184,10 @@ export function CorretorDetailPanel() {
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Condições de pagamento</label>
                       <Combobox
                         className="form-input text-sm"
-                        placeholder="Buscar ou digitar condição..."
+                        placeholder={pEmpId ? 'Buscar ou digitar condição...' : 'Selecione o empreendimento primeiro'}
                         value={pCondicoes}
                         onChange={setPCondicoes}
-                        options={condicoesPagamentoOptions.filter((c) => c.ativo).map((c) => ({ id: c.id, label: c.nome }))}
+                        options={pCondicoesOptions.map((c) => ({ id: c, label: c }))}
                       />
                     </div>
                     <div className="sm:col-span-2">

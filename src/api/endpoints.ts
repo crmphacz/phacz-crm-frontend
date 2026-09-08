@@ -4,10 +4,10 @@ import {
   mapEmailTemplateFromApi, mapEmailCampaignFromApi, mapChatMessageFromApi, mapCargoToApi,
   mapDestinatarioTipoToApi, mapRodadaFromApi, mapRodadaListItemFromApi, mapCreateRodadaToApi, mapNotificacaoFromApi,
   mapEmpreendimentoFromApi, mapEmpreendimentoDetailFromApi, mapUnidadeFromApi, mapStatusUnidadeToApi,
-  mapLogAcaoFromApi, mapTipoInteracaoFromApi, mapClienteFinalComContextoFromApi,
+  mapLogAcaoFromApi, mapTipoInteracaoFromApi, mapClienteFinalComContextoFromApi, mapAtividadeAgendaFromApi,
   type ApiUser, type ApiCorretor, type ApiEmailTemplate, type ApiEmailCampaign, type ApiChatMessage,
   type ApiRodada, type ApiRodadaResumo, type ApiNotificacao, type ApiEmpreendimento, type ApiEmpreendimentoDetail, type ApiUnidade,
-  type ApiLogAcao, type ApiClienteFinalComContexto,
+  type ApiLogAcao, type ApiClienteFinalComContexto, type ApiAtividadeAgenda,
   type CreateCorretorPayload, type AppUser,
 } from './mappers.js';
 import type {
@@ -194,7 +194,7 @@ export const corretoresApi = {
   addInteracao: (id: string, data: Omit<Interacao, 'id'>) =>
     apiFetch(`/api/corretores/${id}/interacoes`, {
       method: 'POST',
-      body: { tipo: data.tipo.toUpperCase(), resumo: data.resumo, etapa: data.etapa },
+      body: { tipo: data.tipo.toUpperCase(), resumo: data.resumo, etapa: data.etapa, data: data.data, propostaId: data.propostaId },
     }),
 
   addProposta: (id: string, data: Omit<Proposta, 'id'>, arquivo?: File) => {
@@ -342,6 +342,10 @@ export const agendaApi = {
       method: 'POST',
       body: { ano, mensagem },
     }),
+  /** Compromissos/atividades do usuário logado (ligações, visitas, reuniões etc.) no mês, passados e futuros. */
+  atividades: (ano: number, mes: number) =>
+    apiFetch<ApiAtividadeAgenda[]>('/api/agenda/atividades', { query: { ano, mes } })
+      .then((rows) => rows.map(mapAtividadeAgendaFromApi)),
 };
 
 // ── WhatsApp ───────────────────────────────────────────────────────
@@ -433,31 +437,23 @@ export const tiposInteresseApi = {
 export interface ImobiliariaItem {
   id: string;
   nome: string;
+  cnpj: string;
+  cidade: string;
   ativo: boolean;
+}
+
+export interface CreateImobiliariaPayload {
+  nome: string;
+  cnpj: string;
+  cidade: string;
 }
 
 export const imobiliariasApi = {
   list: () => apiFetch<ImobiliariaItem[]>('/api/imobiliarias'),
-  create: (nome: string) => apiFetch<ImobiliariaItem>('/api/imobiliarias', { method: 'POST', body: { nome } }),
-  update: (id: string, data: Partial<{ nome: string; ativo: boolean }>) =>
+  create: (data: CreateImobiliariaPayload) => apiFetch<ImobiliariaItem>('/api/imobiliarias', { method: 'POST', body: data }),
+  update: (id: string, data: Partial<CreateImobiliariaPayload & { ativo: boolean }>) =>
     apiFetch<ImobiliariaItem>(`/api/imobiliarias/${id}`, { method: 'PATCH', body: data }),
   remove: (id: string) => apiFetch<void>(`/api/imobiliarias/${id}`, { method: 'DELETE' }),
-};
-
-// ── Condições de Pagamento ──────────────────────────────────────────
-
-export interface CondicaoPagamentoItem {
-  id: string;
-  nome: string;
-  ativo: boolean;
-}
-
-export const condicoesPagamentoApi = {
-  list: () => apiFetch<CondicaoPagamentoItem[]>('/api/condicoes-pagamento'),
-  create: (nome: string) => apiFetch<CondicaoPagamentoItem>('/api/condicoes-pagamento', { method: 'POST', body: { nome } }),
-  update: (id: string, data: Partial<{ nome: string; ativo: boolean }>) =>
-    apiFetch<CondicaoPagamentoItem>(`/api/condicoes-pagamento/${id}`, { method: 'PATCH', body: data }),
-  remove: (id: string) => apiFetch<void>(`/api/condicoes-pagamento/${id}`, { method: 'DELETE' }),
 };
 
 // ── Perfil da Empresa ──────────────────────────────────────────────
@@ -493,6 +489,10 @@ export const rodadasApi = {
   update: (id: string, data: CreateRodadaPayload): Promise<Rodada> =>
     apiFetch<ApiRodada>(`/api/rodadas/${id}`, { method: 'PATCH', body: mapCreateRodadaToApi(data) }).then(mapRodadaFromApi),
   remove: (id: string): Promise<void> => apiFetch<void>(`/api/rodadas/${id}`, { method: 'DELETE' }),
+  aprovar: (id: string): Promise<Rodada> =>
+    apiFetch<ApiRodada>(`/api/rodadas/${id}/aprovar`, { method: 'PATCH' }).then(mapRodadaFromApi),
+  recusar: (id: string, motivo: string): Promise<Rodada> =>
+    apiFetch<ApiRodada>(`/api/rodadas/${id}/recusar`, { method: 'PATCH', body: { motivo } }).then(mapRodadaFromApi),
   uploadAsset: (file: File): Promise<{ url: string }> => {
     const form = new FormData();
     form.append('file', file);

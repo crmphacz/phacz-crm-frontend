@@ -2,8 +2,8 @@ import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, Temperatura, StatusCorretor, TipoInteracao,
   DestinatarioTipo, EmailTemplate, EmailCampaign,
   ChatMessage, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, TipoNotificacao,
-  Empreendimento, EmpreendimentoDetail, Unidade, StatusUnidade,
-  TipoAcaoRodada, VinculoRodadaTipo, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal, PublicoEsperado, CarteiraPublico,
+  Empreendimento, EmpreendimentoDetail, Unidade, StatusUnidade, AtividadeAgenda,
+  TipoAcaoRodada, VinculoRodadaTipo, StatusAprovacaoRodada, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal, PublicoEsperado, CarteiraPublico,
   MaterialComercial, EstruturaOperacao, CategoriaOrcamento, ResponsavelEntrega, StatusEntrega, ComoConvite,
   ProximoPasso, InvestimentoOuMoradia, PlanoB, PotencialRetorno, PrioridadeTrimestre, Recomendacao,
   LogAcao,
@@ -28,7 +28,7 @@ const statusCorretorMap = makeEnumMap<string, StatusCorretor>([
 
 const tipoInteracaoMap = makeEnumMap<string, TipoInteracao>([
   ['LIGACAO', 'ligacao'], ['WHATSAPP', 'whatsapp'], ['EMAIL', 'email'], ['VISITA', 'visita'],
-  ['REUNIAO', 'reuniao'], ['NOTA', 'nota'], ['PROPOSTA', 'proposta'],
+  ['REUNIAO', 'reuniao'], ['NOTA', 'nota'], ['PROPOSTA', 'proposta'], ['ESPECULACAO', 'especulacao'],
 ]);
 
 export function mapTipoInteracaoFromApi(tipo: string): TipoInteracao {
@@ -144,6 +144,7 @@ export interface ApiInteracao {
   responsavelId: string | null;
   responsavel: ApiResponsavel | null;
   etapa: number;
+  propostaId: string | null;
 }
 
 export interface ApiProposta {
@@ -260,6 +261,29 @@ function mapInteracaoFromApi(i: ApiInteracao): Interacao {
     resumo: i.resumo,
     responsavel: i.responsavel?.nome ?? 'Sistema',
     etapa: i.etapa,
+    propostaId: i.propostaId ?? undefined,
+  };
+}
+
+export interface ApiAtividadeAgenda {
+  id: string;
+  data: string;
+  tipo: string;
+  resumo: string;
+  etapa: number;
+  corretorId: string;
+  corretorNome: string;
+}
+
+export function mapAtividadeAgendaFromApi(a: ApiAtividadeAgenda): AtividadeAgenda {
+  return {
+    id: a.id,
+    data: a.data,
+    tipo: tipoInteracaoMap.toApp(a.tipo),
+    resumo: a.resumo,
+    etapa: a.etapa,
+    corretorId: a.corretorId,
+    corretorNome: a.corretorNome,
   };
 }
 
@@ -441,6 +465,9 @@ const tipoAcaoMap = makeEnumMap<string, TipoAcaoRodada>([
 const vinculoRodadaTipoMap = makeEnumMap<string, VinculoRodadaTipo>([
   ['IMOBILIARIA', 'imobiliaria'], ['CORRETOR', 'corretor'],
 ]);
+const statusAprovacaoRodadaMap = makeEnumMap<string, StatusAprovacaoRodada>([
+  ['PENDENTE', 'pendente'], ['APROVADA', 'aprovada'], ['RECUSADA', 'recusada'],
+]);
 const perfilImobiliariaMap = makeEnumMap<string, PerfilImobiliaria>([
   ['ALTO_PADRAO', 'alto_padrao'], ['MISTO', 'misto'], ['INVESTIDOR', 'investidor'], ['BAIXO_TICKET', 'baixo_ticket'],
 ]);
@@ -597,6 +624,11 @@ export interface ApiRodada {
   comentarioFinalSolicitante: string;
   recomendacao: string | null;
 
+  statusAprovacao: string;
+  motivoRecusa: string;
+  aprovadoPor: { id: string; nome: string } | null;
+  aprovadoEm: string | null;
+
   criadoPor: { id: string; nome: string };
   criadoEm: string;
 }
@@ -744,6 +776,11 @@ export function mapRodadaFromApi(r: ApiRodada): Rodada {
     comentarioFinalSolicitante: r.comentarioFinalSolicitante,
     recomendacao: r.recomendacao ? recomendacaoMap.toApp(r.recomendacao) : undefined,
 
+    statusAprovacao: statusAprovacaoRodadaMap.toApp(r.statusAprovacao),
+    motivoRecusa: r.motivoRecusa,
+    aprovadoPorNome: r.aprovadoPor?.nome,
+    aprovadoEm: r.aprovadoEm ?? undefined,
+
     criadoPorNome: r.criadoPor.nome,
     criadoEm: r.criadoEm,
   };
@@ -785,6 +822,9 @@ export function mapCreateRodadaToApi(payload: CreateRodadaPayload): Record<strin
 
 const tipoNotificacaoMap: Record<string, TipoNotificacao> = {
   RODADA_CRIADA: 'rodada_criada',
+  RODADA_PENDENTE_APROVACAO: 'rodada_pendente_aprovacao',
+  RODADA_APROVADA: 'rodada_aprovada',
+  RODADA_RECUSADA: 'rodada_recusada',
   ANIVERSARIO_HOJE: 'aniversario_hoje',
   ANIVERSARIO_ENVIADO: 'aniversario_enviado',
 };
@@ -822,6 +862,9 @@ export interface ApiUnidade {
   metragemPrivativa: number;
   valor: number;
   status: string;
+  suites: number;
+  vagas: number;
+  observacoes: string;
 }
 
 export function mapUnidadeFromApi(u: ApiUnidade): Unidade {
@@ -832,6 +875,9 @@ export function mapUnidadeFromApi(u: ApiUnidade): Unidade {
     metragemPrivativa: u.metragemPrivativa,
     valor: u.valor,
     status: statusUnidadeMap.toApp(u.status),
+    suites: u.suites,
+    vagas: u.vagas,
+    observacoes: u.observacoes,
   };
 }
 
@@ -856,6 +902,8 @@ interface ApiEmpreendimentoBase {
   suitesMax: number;
   vagasGaragem: number;
   caracteristicas: string[];
+  tipos: string[];
+  condicoesPagamento: string[];
   hotsiteUrl: string;
   catalogoUrl: string;
   telefoneContato: string;
@@ -895,6 +943,8 @@ function mapEmpreendimentoBaseFromApi(e: ApiEmpreendimentoBase) {
     suitesMax: e.suitesMax,
     vagasGaragem: e.vagasGaragem,
     caracteristicas: e.caracteristicas,
+    tipos: e.tipos,
+    condicoesPagamento: e.condicoesPagamento,
     hotsiteUrl: e.hotsiteUrl,
     catalogoUrl: e.catalogoUrl,
     telefoneContato: e.telefoneContato,
