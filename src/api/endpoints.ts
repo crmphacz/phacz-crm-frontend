@@ -439,6 +439,7 @@ export interface ImobiliariaItem {
   nome: string;
   cnpj: string;
   cidade: string;
+  uf: string;
   ativo: boolean;
 }
 
@@ -446,6 +447,7 @@ export interface CreateImobiliariaPayload {
   nome: string;
   cnpj: string;
   cidade: string;
+  uf: string;
 }
 
 export const imobiliariasApi = {

@@ -3,6 +3,8 @@ import { X, Landmark, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
 import { maskCNPJ } from '../utils';
+import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
+import { Combobox } from './Combobox';
 import type { ImobiliariaItem } from '../api/endpoints';
 
 interface ImobiliariaFormModalProps {
@@ -16,15 +18,18 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
 
   const [nome, setNome] = useState(imobiliaria?.nome ?? '');
   const [cnpj, setCnpj] = useState(imobiliaria?.cnpj ?? '');
+  const [uf, setUf] = useState(imobiliaria?.uf ?? '');
   const [cidade, setCidade] = useState(imobiliaria?.cidade ?? '');
+  const cidadesOptions = useCidadesPorUf(uf);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!nome.trim()) e.nome = 'Informe o nome da imobiliária';
+    if (!nome.trim()) e.nome = 'Informe a razão social da imobiliária';
     if (!cnpj.trim()) e.cnpj = 'Informe o CNPJ';
+    if (!uf.trim()) e.uf = 'Informe o estado';
     if (!cidade.trim()) e.cidade = 'Informe a cidade';
     return e;
   }
@@ -39,7 +44,7 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
     setSubmitting(true);
     setSubmitError('');
     try {
-      const payload = { nome: nome.trim(), cnpj: cnpj.trim(), cidade: cidade.trim() };
+      const payload = { nome: nome.trim(), cnpj: cnpj.trim(), cidade: cidade.trim(), uf };
       if (imobiliaria) {
         await updateImobiliaria(imobiliaria.id, payload);
       } else {
@@ -59,7 +64,7 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-2 sm:mx-4 flex flex-col" style={{ maxHeight: '92vh' }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-2 sm:mx-4 flex flex-col" style={{ maxHeight: '92vh' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 border-b flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
           <div className="flex items-center gap-3">
@@ -80,7 +85,7 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4">
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">
-              Nome<span className="text-red-400 ml-0.5">*</span>
+              Razão Social<span className="text-red-400 ml-0.5">*</span>
             </label>
             <input
               className={`form-input ${errors.nome ? 'border-red-400' : ''}`}
@@ -102,16 +107,35 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
             />
             {errors.cnpj && <p className="text-xs text-red-500 mt-1">{errors.cnpj}</p>}
           </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">
-              Cidade<span className="text-red-400 ml-0.5">*</span>
-            </label>
-            <input
-              className={`form-input ${errors.cidade ? 'border-red-400' : ''}`}
-              value={cidade}
-              onChange={(e) => { setCidade(e.target.value); setErrors((er) => ({ ...er, cidade: '' })); }}
-            />
-            {errors.cidade && <p className="text-xs text-red-500 mt-1">{errors.cidade}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">
+                Estado<span className="text-red-400 ml-0.5">*</span>
+              </label>
+              <select
+                className={`form-input ${errors.uf ? 'border-red-400' : ''}`}
+                value={uf}
+                onChange={(e) => { setUf(e.target.value); setCidade(''); setErrors((er) => ({ ...er, uf: '' })); }}
+              >
+                <option value="">Selecionar...</option>
+                {UF_OPTIONS.map((u) => <option key={u.sigla} value={u.sigla}>{u.nome}</option>)}
+              </select>
+              {errors.uf && <p className="text-xs text-red-500 mt-1">{errors.uf}</p>}
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">
+                Cidade<span className="text-red-400 ml-0.5">*</span>
+              </label>
+              <Combobox
+                value={cidade}
+                onChange={(v) => { setCidade(v); setErrors((er) => ({ ...er, cidade: '' })); }}
+                options={cidadesOptions.map((c) => ({ id: c, label: c }))}
+                placeholder={uf ? 'Buscar cidade...' : 'Selecione o estado primeiro'}
+                disabled={!uf}
+                className={`form-input ${errors.cidade ? 'border-red-400' : ''}`}
+              />
+              {errors.cidade && <p className="text-xs text-red-500 mt-1">{errors.cidade}</p>}
+            </div>
           </div>
 
           {submitError && <p className="text-xs text-red-500">{submitError}</p>}

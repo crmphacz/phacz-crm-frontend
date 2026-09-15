@@ -235,7 +235,7 @@ export function CompanyProfileView() {
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800 truncate">{item.nome}</p>
-                  <p className="text-xs text-gray-400 truncate">{item.cnpj} · {item.cidade}</p>
+                  <p className="text-xs text-gray-400 truncate">{item.cnpj} · {item.cidade}{item.uf ? `/${item.uf}` : ''}</p>
                 </div>
                 <button
                   onClick={() => openEditImobiliaria(item)}
