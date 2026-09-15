@@ -338,7 +338,7 @@ export function CorretorDetailPanel() {
 
       {/* Panel */}
       <div
-        className="fixed right-0 top-0 bottom-0 z-40 flex flex-col bg-white detail-panel w-full sm:w-[520px]"
+        className="fixed right-0 top-0 bottom-0 z-40 flex flex-col bg-white detail-panel w-full sm:w-[680px]"
         style={{ boxShadow: '-4px 0 32px rgba(0,0,0,0.15)' }}
       >
         {/* Panel Header */}

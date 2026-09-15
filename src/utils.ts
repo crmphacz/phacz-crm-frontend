@@ -120,7 +120,7 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
 
 export function validateForStageMove(corretor: Corretor, toEtapa: number): string[] {
   const errors: string[] = [];
-  const required = getMandatoryFieldsForStage(toEtapa - 1);
+  const required = getMandatoryFieldsForStage(toEtapa);
 
   for (const field of required) {
     const val = corretor[field as keyof Corretor];
