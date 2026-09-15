@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { useStore, useFilteredCorretores } from '../store';
+import { useCorretoresQuery } from '../queries/corretores';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
@@ -46,24 +47,25 @@ export function PipelineView() {
   const moveCorretor = useStore((s) => s.moveCorretor);
   const addInteracao = useStore((s) => s.addInteracao);
   const corretores = useStore((s) => s.corretores);
+  const setCorretores = useStore((s) => s.setCorretores);
   const currentUser = useStore((s) => s.currentUser);
   const canCreate = canCreateCorretor(currentUser);
-  const reloadCorretores = useStore((s) => s.reloadCorretores);
   const showToast = useStore((s) => s.showToast);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [funnelFilter, setFunnelFilter] = useState<FunnelFilter>('todos');
 
-  // Busca os corretores de novo toda vez que o Pipeline é aberto — a automação de tráfego
-  // inclui leads no banco o tempo todo, e ninguém deveria precisar dar F5 pra ver os novos.
-  const [ready, setReady] = useState(false);
-  useViewReady(ready);
+  // TanStack Query cuida do cache/memoização da listagem: evita rebuscar ao trocar de tela e
+  // voltar dentro do staleTime, e revalida em background depois disso — a automação de tráfego
+  // inclui leads no banco o tempo todo, então a lista não pode ficar parada por muito tempo.
+  const { data: corretoresData, isLoading, error } = useCorretoresQuery();
+  useViewReady(!isLoading);
   useEffect(() => {
-    reloadCorretores()
-      .catch((err) => showToast(err instanceof ApiError ? err.message : 'Não foi possível atualizar o pipeline agora.', 'error'))
-      .finally(() => setReady(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (corretoresData) setCorretores(corretoresData);
+  }, [corretoresData, setCorretores]);
+  useEffect(() => {
+    if (error) showToast(error instanceof ApiError ? error.message : 'Não foi possível atualizar o pipeline agora.', 'error');
+  }, [error, showToast]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -116,7 +118,7 @@ export function PipelineView() {
     }
   }
 
-  if (!ready) return <ViewLoader label="Carregando pipeline…" />;
+  if (isLoading) return <ViewLoader label="Carregando pipeline…" />;
 
   return (
     <div className="flex flex-col h-full">

@@ -144,6 +144,11 @@ interface StoreState {
   // tráfego pode ter incluído no banco enquanto a pessoa estava em outra tela.
   reloadCorretores: () => Promise<void>;
 
+  // Setter puro, sem chamada de API — usado pelo Pipeline para sincronizar aqui o resultado já
+  // buscado/cacheado pelo TanStack Query (ver src/queries/corretores.ts), já que Detalhe do
+  // Corretor, Sidebar e outras telas continuam lendo a lista completa por aqui.
+  setCorretores: (corretores: Corretor[]) => void;
+
   // Busca o corretor completo (com interacoes/propostas) e substitui a entrada leve no array —
   // usado ao abrir o painel de detalhe, já que a listagem não traz mais esses dois campos.
   hydrateCorretorDetail: (id: string) => Promise<void>;
@@ -498,6 +503,8 @@ export const useStore = create<StoreState>()((set, get) => ({
     const corretores = await corretoresApi.list();
     set({ corretores });
   },
+
+  setCorretores: (corretores) => set({ corretores }),
 
   hydrateCorretorDetail: async (id) => {
     const full = await corretoresApi.get(id);
