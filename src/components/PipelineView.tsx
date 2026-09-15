@@ -19,7 +19,7 @@ import { STAGES } from '../data';
 import { ApiError } from '../api/client';
 import { CorretorCard } from './CorretorCard';
 import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
-import { canCreateCorretor, canWriteCorretor } from '../permissions';
+import { canCreateCorretor, canWriteCorretor, getHiddenPipelineStages } from '../permissions';
 import type { Corretor, StageConfig } from '../types';
 
 type FunnelFilter = 'todos' | 'pre-atendimento' | 'treinamento' | 'venda' | 'pos-venda';
@@ -72,7 +72,8 @@ export function PipelineView() {
   const activeCorretor = activeId ? corretores.find((l) => l.id === activeId) ?? null : null;
   const activeStage = activeCorretor ? STAGES.find((s) => s.id === activeCorretor.etapa) ?? null : null;
 
-  const visibleStageIds = FUNNEL_CONFIG[funnelFilter].stages;
+  const hiddenStageIds = getHiddenPipelineStages(currentUser);
+  const visibleStageIds = FUNNEL_CONFIG[funnelFilter].stages.filter((id) => !hiddenStageIds.includes(id));
 
   const corretoresByStage = STAGES.reduce<Record<number, Corretor[]>>((acc, stage) => {
     acc[stage.id] = filteredCorretores.filter((l) => l.etapa === stage.id);
@@ -195,10 +196,12 @@ export function PipelineView() {
       {/* Funnel tabs */}
       <div className="bg-white border-b flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
         <div className="px-4 md:px-6 flex items-center gap-1 overflow-x-auto">
-          {(Object.entries(FUNNEL_CONFIG) as [FunnelFilter, typeof FUNNEL_CONFIG[FunnelFilter]][]).map(([key, cfg]) => {
+          {(Object.entries(FUNNEL_CONFIG) as [FunnelFilter, typeof FUNNEL_CONFIG[FunnelFilter]][])
+            .filter(([, cfg]) => cfg.stages.some((id) => !hiddenStageIds.includes(id)))
+            .map(([key, cfg]) => {
             const isActive = funnelFilter === key;
             const count = key === 'todos'
-              ? filteredCorretores.length
+              ? filteredCorretores.filter((l) => !hiddenStageIds.includes(l.etapa)).length
               : filteredCorretores.filter((l) => cfg.stages.includes(l.etapa)).length;
             return (
               <button

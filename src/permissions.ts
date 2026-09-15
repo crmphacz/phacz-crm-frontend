@@ -138,6 +138,11 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
   }
 }
 
+/** Etapa 10 (Pós-venda/Fidelização) não é responsabilidade do SDR — some das colunas e do funil dele. */
+export function getHiddenPipelineStages(user: UserProfile | null): number[] {
+  return user?.cargo === 'SDR' ? [10] : [];
+}
+
 /** Primeira tela segura para o perfil logado, usada no login/bootstrap. */
 export function getDefaultView(user: UserProfile | null): ViewMode {
   if (canAccessView(user, 'pipeline')) return 'pipeline';
