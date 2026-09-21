@@ -24,6 +24,9 @@ export function NewCorretorModal() {
   const etapaInicialNome = STAGES.find((s) => s.id === etapaInicial)?.nome;
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const users = useStore((s) => s.users);
+  const currentUser = useStore((s) => s.currentUser);
+  // SDR que cadastra entra sempre como o responsável SDR do próprio card (o backend força isso).
+  const isSdr = currentUser?.cargo === 'SDR';
   const sdrUsers = users.filter((u) => u.cargo === 'SDR' && u.ativo);
   const canaisOrigem = useStore((s) => s.canaisOrigem).filter((c) => c.ativo);
   const tiposInteresseOptions = useStore((s) => s.tiposInteresseOptions).filter((t) => t.ativo);
@@ -42,7 +45,7 @@ export function NewCorretorModal() {
   const [cidade, setCidade] = useState('');
   const cidadesOptions = useCidadesPorUf(uf);
   const [canal, setCanal] = useState<CanalOrigem>('');
-  const [responsavelSDRId, setResponsavelSDRId] = useState('');
+  const [responsavelSDRId, setResponsavelSDRId] = useState(isSdr ? currentUser?.id ?? '' : '');
   const [interesses, setInteresses] = useState<TipoInteresse[]>([]);
   const [possuiInvestidores, setPossuiInvestidores] = useState(false);
   const [potencialParceria, setPotencialParceria] = useState(false);
@@ -330,7 +333,7 @@ export function NewCorretorModal() {
               </div>
               <div>
                 <FormLabel>SDR Responsável</FormLabel>
-                <select className="form-input" value={responsavelSDRId} onChange={(e) => setResponsavelSDRId(e.target.value)}>
+                <select className="form-input" value={responsavelSDRId} onChange={(e) => setResponsavelSDRId(e.target.value)} disabled={isSdr}>
                   <option value="">Selecionar...</option>
                   {sdrUsers.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
                 </select>

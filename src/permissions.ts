@@ -38,10 +38,10 @@ export function canWriteCorretor(user: UserProfile | null, corretor: Corretor): 
   }
 }
 
-/** Criar leads: Diretoria, GR e GV. SDR só altera dentro do próprio kanban, não cria. */
+/** Criar leads: Diretoria, SDR, GR e GV. Marketing, Administrativo e Recepção não criam. */
 export function canCreateCorretor(user: UserProfile | null): boolean {
   if (!user) return false;
-  return user.cargo === 'Diretora' || user.cargo === 'GR' || user.cargo === 'GV';
+  return user.cargo === 'Diretora' || user.cargo === 'SDR' || user.cargo === 'GR' || user.cargo === 'GV';
 }
 
 /** Regra global sem exceções: só a Diretoria exclui leads, clientes ou cards de kanban. */
