@@ -123,6 +123,9 @@ export interface Corretor {
   // Propostas
   propostas: Proposta[];
 
+  /** `true` quando `interacoes`/`propostas` vieram do backend (GET /:id ou mutação); `false`/ausente na listagem leve, onde ambos são só `[]` placeholder. */
+  detalheCarregado?: boolean;
+
   // Negócio derivado
   parentCorretorId?: string;
   clienteFinalNome?: string;

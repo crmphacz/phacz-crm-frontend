@@ -346,6 +346,7 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     // (ver hydrateCorretorDetail no store).
     interacoes: (l.interacoes ?? []).map(mapInteracaoFromApi),
     propostas: (l.propostas ?? []).map(mapPropostaFromApi),
+    detalheCarregado: l.interacoes !== undefined && l.propostas !== undefined,
     parentCorretorId: l.parentCorretorId ?? undefined,
     clienteFinalNome: l.clienteFinalNome ?? undefined,
     observacoes: l.observacoes,
@@ -383,7 +384,7 @@ export function mapCreateCorretorToApi(payload: CreateCorretorPayload) {
 export function mapCorretorUpdateToApi(updates: Partial<Corretor>): Record<string, unknown> {
   const {
     responsavelSDR: _sdr, responsavelGV: _gv, responsavelGR: _gr,
-    clientesFinais: _cf, interacoes: _int, propostas: _prop,
+    clientesFinais: _cf, interacoes: _int, propostas: _prop, detalheCarregado: _dc,
     id: _id, etapaTimestamps: _et,
     ...rest
   } = updates;

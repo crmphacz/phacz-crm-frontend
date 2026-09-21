@@ -126,6 +126,15 @@ export const corretoresApi = {
     const res = await apiFetch<{ corretores: ApiCorretor[]; total: number }>('/api/corretores', { query: { pageSize: 2000 } });
     return res.corretores.map(mapCorretorFromApi);
   },
+  // Sonda leve pra detectar corretores novos (ex.: inseridos direto no banco pelo Make): só o
+  // total do banco e o cadastro mais recente (pageSize=1) — barata o bastante pra rodar a cada
+  // poucos segundos, ao contrário de rebuscar a listagem inteira (list acima).
+  sonda: async (): Promise<{ total: number; maisRecenteId: string | null }> => {
+    const res = await apiFetch<{ corretores: { id: string }[]; total: number }>('/api/corretores', {
+      query: { pageSize: 1, sort: 'dataEntrada', dir: 'desc' },
+    });
+    return { total: res.total, maisRecenteId: res.corretores[0]?.id ?? null };
+  },
   // Paginação real (usada pela tela de Corretores): `total` é sempre a contagem do banco pro
   // filtro aplicado, nunca o tamanho da página carregada — é o que corrige o número "travado"
   // que antes vinha de `filtered.length` sobre um recorte client-side.

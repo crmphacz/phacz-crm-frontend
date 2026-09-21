@@ -8,11 +8,25 @@ import { TEMPERATURA_CONFIG, formatRelativeTime, formatCurrency } from '../utils
 import { canCreateCorretor } from '../permissions';
 import { corretoresApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { getViewCache, setViewCache } from '../lib/viewCache';
 import type { Corretor } from '../types';
 
 type SortField = 'nomeCorretor' | 'etapa' | 'temperatura' | 'dataUltimaInteracao';
 
 const PAGE_SIZE = 300;
+
+// Filtros, página e linhas já carregadas sobrevivem a trocar de menu e voltar (ver lib/viewCache).
+const CACHE_KEY = 'corretores-list';
+interface CorretoresListCache {
+  rows: Corretor[];
+  total: number;
+  page: number;
+  statusFilter: string;
+  sortField: SortField;
+  sortDir: 'asc' | 'desc';
+  searchInput: string;
+  search: string;
+}
 
 /**
  * Paginação real (300/página), diferente das outras telas que carregam `store.corretores`
@@ -31,29 +45,38 @@ export function CorretoresListView() {
   const currentUser = useStore((s) => s.currentUser);
   const isReadOnly = !canCreateCorretor(currentUser);
 
-  const [rows, setRows] = useState<Corretor[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>('ativo');
-  const [sortField, setSortField] = useState<SortField>('dataUltimaInteracao');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [saved] = useState(() => getViewCache<CorretoresListCache>(CACHE_KEY));
+  const [rows, setRows] = useState<Corretor[]>(saved?.rows ?? []);
+  const [total, setTotal] = useState(saved?.total ?? 0);
+  const [page, setPage] = useState(saved?.page ?? 1);
+  const [statusFilter, setStatusFilter] = useState<string>(saved?.statusFilter ?? 'ativo');
+  const [sortField, setSortField] = useState<SortField>(saved?.sortField ?? 'dataUltimaInteracao');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(saved?.sortDir ?? 'desc');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadTick, setReloadTick] = useState(0);
 
-  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
+  // Com cache, a tela reabre na hora com as linhas anteriores e revalida em segundo plano (o
+  // spinner sobre a tabela indica a atualização); o loader de tela cheia é só da primeira vez.
+  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(Boolean(saved));
   useViewReady(primeiraCargaFeita);
 
   // Debounce da busca livre — evita disparar uma requisição a cada tecla digitada.
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState(saved?.searchInput ?? '');
+  const [search, setSearch] = useState(saved?.search ?? '');
   useEffect(() => {
+    if (searchInput === search) return;
     const t = setTimeout(() => {
       setSearch(searchInput);
       setPage(1);
     }, 350);
     return () => clearTimeout(t);
-  }, [searchInput]);
+  }, [searchInput, search]);
+
+  useEffect(() => {
+    if (!primeiraCargaFeita) return;
+    setViewCache<CorretoresListCache>(CACHE_KEY, { rows, total, page, statusFilter, sortField, sortDir, searchInput, search });
+  }, [primeiraCargaFeita, rows, total, page, statusFilter, sortField, sortDir, searchInput, search]);
 
   useEffect(() => {
     let cancelled = false;

@@ -8,6 +8,7 @@ import { formatCurrency, formatRelativeTime } from '../utils';
 import { canWhatsappCliente } from '../permissions';
 import { corretoresApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { getViewCache, setViewCache } from '../lib/viewCache';
 import type { ClienteFinalComContexto } from '../types';
 import { NewClienteModal } from './NewClienteModal';
 import { WhatsappSendModal } from './WhatsappSendModal';
@@ -17,6 +18,18 @@ type ClienteComComprou = ClienteFinalComContexto & { comprou: boolean };
 type SortField = 'nome' | 'dataAdicionado' | 'orcamento';
 
 const PAGE_SIZE = 300;
+
+// Filtros, página e linhas já carregadas sobrevivem a trocar de menu e voltar (ver lib/viewCache).
+const CACHE_KEY = 'clientes-list';
+interface ClientesListCache {
+  rows: ClienteComComprou[];
+  total: number;
+  page: number;
+  sortField: SortField;
+  sortDir: 'asc' | 'desc';
+  searchInput: string;
+  search: string;
+}
 
 /**
  * Paginação real (300/página), no mesmo espírito da tela de Corretores: antes, esta tela
@@ -32,11 +45,12 @@ export function ClientesView() {
   const setView = useStore((s) => s.setView);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
 
-  const [rows, setRows] = useState<ClienteComComprou[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [sortField, setSortField] = useState<SortField>('dataAdicionado');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [saved] = useState(() => getViewCache<ClientesListCache>(CACHE_KEY));
+  const [rows, setRows] = useState<ClienteComComprou[]>(saved?.rows ?? []);
+  const [total, setTotal] = useState(saved?.total ?? 0);
+  const [page, setPage] = useState(saved?.page ?? 1);
+  const [sortField, setSortField] = useState<SortField>(saved?.sortField ?? 'dataAdicionado');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(saved?.sortDir ?? 'desc');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadTick, setReloadTick] = useState(0);
@@ -45,19 +59,27 @@ export function ClientesView() {
   const [editingCliente, setEditingCliente] = useState<ClienteComComprou | null>(null);
   const [whatsappCliente, setWhatsappCliente] = useState<ClienteComComprou | null>(null);
 
-  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
+  // Com cache, a tela reabre na hora com as linhas anteriores e revalida em segundo plano (o
+  // spinner sobre a tabela indica a atualização); o loader de tela cheia é só da primeira vez.
+  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(Boolean(saved));
   useViewReady(primeiraCargaFeita);
 
   // Debounce da busca livre — evita disparar uma requisição a cada tecla digitada.
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState(saved?.searchInput ?? '');
+  const [search, setSearch] = useState(saved?.search ?? '');
   useEffect(() => {
+    if (searchInput === search) return;
     const t = setTimeout(() => {
       setSearch(searchInput);
       setPage(1);
     }, 350);
     return () => clearTimeout(t);
-  }, [searchInput]);
+  }, [searchInput, search]);
+
+  useEffect(() => {
+    if (!primeiraCargaFeita) return;
+    setViewCache<ClientesListCache>(CACHE_KEY, { rows, total, page, sortField, sortDir, searchInput, search });
+  }, [primeiraCargaFeita, rows, total, page, sortField, sortDir, searchInput, search]);
 
   useEffect(() => {
     let cancelled = false;

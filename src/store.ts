@@ -15,6 +15,7 @@ import { mapCargoFromApi } from './api/mappers.js';
 import { getToken, setToken, clearToken, ApiError } from './api/client.js';
 import { isPushSupported, getExistingPushSubscription, subscribeToPush, unsubscribeFromPush } from './push';
 import { getDefaultView } from './permissions';
+import { clearViewCache } from './lib/viewCache';
 
 // Reexportado por conveniência — NewClienteModal/ClientesView importam este tipo daqui (`from
 // '../store'`) desde antes dele existir em types.ts; mora lá agora só pra endpoints.ts poder
@@ -63,6 +64,26 @@ export interface Toast {
   type: 'success' | 'error';
 }
 
+export type PipelineFunnel = 'todos' | 'pre-atendimento' | 'treinamento' | 'venda' | 'pos-venda';
+
+/**
+ * Aplica no estado uma lista vinda do backend sem perder o que já foi carregado em detalhe.
+ * A listagem é "leve" (sem interacoes/propostas — ver corretorListInclude no backend); se ela
+ * simplesmente substituísse o array, todo corretor cujo detalhe já tinha sido aberto voltaria a
+ * mostrar histórico vazio a cada revalidação em segundo plano ou ao voltar para o Pipeline/Dashboard.
+ */
+function mergeCorretoresLista(atuais: Corretor[], recebidos: Corretor[]): Corretor[] {
+  const detalhados = new Map<string, Corretor>();
+  for (const c of atuais) if (c.detalheCarregado) detalhados.set(c.id, c);
+
+  return recebidos.map((novo) => {
+    if (novo.detalheCarregado) return novo;
+    const antigo = detalhados.get(novo.id);
+    if (!antigo) return novo;
+    return { ...novo, interacoes: antigo.interacoes, propostas: antigo.propostas, detalheCarregado: true };
+  });
+}
+
 export interface PipelineFiltros {
   searchQuery: string;
   filterTemperatura: Temperatura | 'all';
@@ -90,8 +111,12 @@ interface StoreState {
   filterResponsavel: string | 'all';
   filterCanalOrigem: CanalOrigem | 'all';
   searchQuery: string;
+  /** Aba de funil selecionada no Pipeline — fica aqui pra sobreviver a trocar de menu e voltar. */
+  pipelineFunnel: PipelineFunnel;
   savedSearches: SavedSearchItem[];
   showNewCorretorModal: boolean;
+  /** Etapa em que o corretor do modal "Novo Corretor" deve entrar (coluna clicada no Pipeline); 1 = padrão. */
+  newCorretorEtapa: number;
   isLoggedIn: boolean;
   isBootstrapping: boolean;
   authError: string | null;
@@ -167,7 +192,8 @@ interface StoreState {
   setFilterResponsavel: (r: string | 'all') => void;
   setFilterCanalOrigem: (c: CanalOrigem | 'all') => void;
   setSearchQuery: (q: string) => void;
-  setShowNewCorretorModal: (v: boolean) => void;
+  setPipelineFunnel: (f: PipelineFunnel) => void;
+  setShowNewCorretorModal: (v: boolean, etapa?: number) => void;
   clearAdvancedFilters: () => void;
 
   // Corretor CRUD
@@ -292,8 +318,10 @@ export const useStore = create<StoreState>()((set, get) => ({
   filterResponsavel: 'all',
   filterCanalOrigem: 'all',
   searchQuery: '',
+  pipelineFunnel: 'todos',
   savedSearches: [],
   showNewCorretorModal: false,
+  newCorretorEtapa: 1,
   isLoggedIn: false,
   isBootstrapping: false,
   authError: null,
@@ -361,7 +389,9 @@ export const useStore = create<StoreState>()((set, get) => ({
     // ainda cobre esse caso, só não é imediata.
     authApi.logout().catch(() => undefined);
     clearToken();
+    clearViewCache();
     set({
+      pipelineFunnel: 'todos',
       isLoggedIn: false,
       currentUser: null,
       mustChangePassword: false,
@@ -500,11 +530,17 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   reloadCorretores: async () => {
-    const corretores = await corretoresApi.list();
-    set({ corretores });
+    const recebidos = await corretoresApi.list();
+    get().setCorretores(recebidos);
   },
 
-  setCorretores: (corretores) => set({ corretores }),
+  setCorretores: (recebidos) =>
+    set((state) => {
+      if (recebidos === state.corretores) return state;
+      const corretores = mergeCorretoresLista(state.corretores, recebidos);
+      const igual = corretores.length === state.corretores.length && corretores.every((c, i) => c === state.corretores[i]);
+      return igual ? state : { corretores };
+    }),
 
   hydrateCorretorDetail: async (id) => {
     const full = await corretoresApi.get(id);
@@ -563,7 +599,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   setFilterResponsavel: (r) => set({ filterResponsavel: r }),
   setFilterCanalOrigem: (c) => set({ filterCanalOrigem: c }),
   setSearchQuery: (q) => set({ searchQuery: q }),
-  setShowNewCorretorModal: (v) => set({ showNewCorretorModal: v }),
+  setPipelineFunnel: (f) => set({ pipelineFunnel: f }),
+  setShowNewCorretorModal: (v, etapa) => set({ showNewCorretorModal: v, newCorretorEtapa: v ? etapa ?? 1 : 1 }),
   clearAdvancedFilters: () => set({ filterEtapa: 'all', filterResponsavel: 'all', filterCanalOrigem: 'all' }),
 
   addCorretor: async (corretorData) => {

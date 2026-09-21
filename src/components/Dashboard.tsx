@@ -25,7 +25,9 @@ export function Dashboard() {
 
   // Busca os corretores de novo toda vez que o Dashboard é aberto — mesma lógica do Pipeline:
   // a automação de tráfego inclui leads o tempo todo, os números não podem ficar defasados.
-  const [ready, setReady] = useState(false);
+  // Se a store já tem corretores (voltou de outra tela), mostra o que já tem na hora e atualiza
+  // em segundo plano — o loader de tela cheia fica só para a primeira carga.
+  const [ready, setReady] = useState(corretores.length > 0);
   useViewReady(ready);
   useEffect(() => {
     reloadCorretores()

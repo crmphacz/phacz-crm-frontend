@@ -3,35 +3,58 @@ import { Search, History, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { logAcaoApi } from '../api/endpoints';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
+import { getViewCache, setViewCache } from '../lib/viewCache';
 import type { LogAcao } from '../types';
 
 const PAGE_SIZE = 30;
 
+// Filtros, página e registros já carregados sobrevivem a trocar de menu e voltar (ver lib/viewCache).
+const CACHE_KEY = 'historico-acoes';
+interface HistoricoCache {
+  logs: LogAcao[];
+  total: number;
+  entidadesDisponiveis: string[];
+  page: number;
+  search: string;
+  searchInput: string;
+  entidadeFiltro: string;
+  de: string;
+  ate: string;
+}
+
 export function HistoricoAcoesView() {
-  const [logs, setLogs] = useState<LogAcao[]>([]);
-  const [total, setTotal] = useState(0);
-  const [entidadesDisponiveis, setEntidadesDisponiveis] = useState<string[]>([]);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [entidadeFiltro, setEntidadeFiltro] = useState('');
-  const [de, setDe] = useState('');
-  const [ate, setAte] = useState('');
+  const [saved] = useState(() => getViewCache<HistoricoCache>(CACHE_KEY));
+  const [logs, setLogs] = useState<LogAcao[]>(saved?.logs ?? []);
+  const [total, setTotal] = useState(saved?.total ?? 0);
+  const [entidadesDisponiveis, setEntidadesDisponiveis] = useState<string[]>(saved?.entidadesDisponiveis ?? []);
+  const [page, setPage] = useState(saved?.page ?? 1);
+  const [search, setSearch] = useState(saved?.search ?? '');
+  const [entidadeFiltro, setEntidadeFiltro] = useState(saved?.entidadeFiltro ?? '');
+  const [de, setDe] = useState(saved?.de ?? '');
+  const [ate, setAte] = useState(saved?.ate ?? '');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Dispensa o toast de navegação assim que a primeira página do histórico chega.
-  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
+  // Dispensa o toast de navegação assim que a primeira página do histórico chega (ou já na
+  // abertura, se há cache — aí a tela reaparece na hora e revalida em segundo plano).
+  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(Boolean(saved));
   useViewReady(primeiraCargaFeita);
 
   // Debounce da busca livre — evita disparar uma requisição a cada tecla digitada.
-  const [searchInput, setSearchInput] = useState('');
+  const [searchInput, setSearchInput] = useState(saved?.searchInput ?? '');
   useEffect(() => {
+    if (searchInput === search) return;
     const t = setTimeout(() => {
       setSearch(searchInput);
       setPage(1);
     }, 350);
     return () => clearTimeout(t);
-  }, [searchInput]);
+  }, [searchInput, search]);
+
+  useEffect(() => {
+    if (!primeiraCargaFeita) return;
+    setViewCache<HistoricoCache>(CACHE_KEY, { logs, total, entidadesDisponiveis, page, search, searchInput, entidadeFiltro, de, ate });
+  }, [primeiraCargaFeita, logs, total, entidadesDisponiveis, page, search, searchInput, entidadeFiltro, de, ate]);
 
   useEffect(() => {
     let cancelled = false;

@@ -22,6 +22,7 @@ import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor } from '../permissions';
 import { WhatsappSendModal } from './WhatsappSendModal';
 import { WhatsappIcon } from './WhatsappIcon';
+import { Spinner, InlineLoader } from './Spinner';
 import type { TipoInteracao, Temperatura, TipoInteresse, CanalOrigem, Corretor, Unidade } from '../types';
 
 function alertError(err: unknown, fallback: string) {
@@ -71,10 +72,30 @@ export function CorretorDetailPanel() {
   // A listagem não traz mais interacoes/propostas completos (ver corretorListInclude no
   // backend) — ao abrir o painel de um corretor, busca o registro completo e substitui a
   // entrada leve no store, igual ao que addInteracao/addProposta já fazem depois de escrever.
+  // Se o detalhe já foi carregado antes (e preservado pelo store), a tela mostra o que já tem e
+  // esta busca só revalida em segundo plano — o loader das abas só aparece na primeira vez.
+  const [detailFailed, setDetailFailed] = useState(false);
+  const [detailRetry, setDetailRetry] = useState(0);
+  const corretorId = corretorOrNull?.id;
   useEffect(() => {
-    if (corretorOrNull?.id) hydrateCorretorDetail(corretorOrNull.id).catch(() => undefined);
+    if (!corretorId) return;
+    let vivo = true;
+    setDetailFailed(false);
+    hydrateCorretorDetail(corretorId).catch(() => { if (vivo) setDetailFailed(true); });
+    return () => { vivo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corretorOrNull?.id]);
+  }, [corretorId, detailRetry]);
+  const detailPending = Boolean(corretorOrNull) && !corretorOrNull!.detalheCarregado && !detailFailed;
+
+  // Loaders das ações: cada uma só destrava quando a requisição (e o refresh do corretor) termina.
+  const [savingGeral, setSavingGeral] = useState(false);
+  const [movingStage, setMovingStage] = useState(false);
+  const [savingActivity, setSavingActivity] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [markingWon, setMarkingWon] = useState(false);
+  const [gerandoNegocioId, setGerandoNegocioId] = useState<string | null>(null);
+  const [removingClienteId, setRemovingClienteId] = useState<string | null>(null);
+  const [propostaBusyId, setPropostaBusyId] = useState<string | null>(null);
 
   // Ao trocar de corretor, sai do modo edição e joga fora qualquer rascunho não salvo.
   useEffect(() => {
@@ -98,12 +119,15 @@ export function CorretorDetailPanel() {
       setEditingGeral(false);
       return;
     }
+    setSavingGeral(true);
     try {
       await updateCorretor(corretor.id, draft);
       setDraft({});
       setEditingGeral(false);
     } catch (err) {
       alertError(err, 'Não foi possível salvar as alterações.');
+    } finally {
+      setSavingGeral(false);
     }
   }
   function handleCancelGeral() {
@@ -198,11 +222,13 @@ export function CorretorDetailPanel() {
   const tempConfig = TEMPERATURA_CONFIG[corretor.temperatura];
 
   async function handleMoveStage(direction: 'next' | 'prev') {
+    if (movingStage) return;
     const targetEtapa = direction === 'next' ? corretor.etapa + 1 : corretor.etapa - 1;
     if (targetEtapa < 1 || targetEtapa > 10) return;
     const errors = validateForStageMove(corretor, targetEtapa);
     if (errors.length > 0) { setStageError(errors); return; }
     setStageError([]);
+    setMovingStage(true);
     try {
       await moveCorretor(corretor.id, targetEtapa);
       await addInteracao(corretor.id, {
@@ -214,12 +240,15 @@ export function CorretorDetailPanel() {
       });
     } catch (err) {
       alertError(err, 'Não foi possível mover o corretor de etapa.');
+    } finally {
+      setMovingStage(false);
     }
   }
 
   async function handleMoveToStage(targetEtapa: number) {
-    if (targetEtapa === corretor.etapa) return;
+    if (movingStage || targetEtapa === corretor.etapa) return;
     setStageError([]);
+    setMovingStage(true);
     try {
       await moveCorretor(corretor.id, targetEtapa);
       await addInteracao(corretor.id, {
@@ -231,11 +260,14 @@ export function CorretorDetailPanel() {
       });
     } catch (err) {
       alertError(err, 'Não foi possível mover o corretor de etapa.');
+    } finally {
+      setMovingStage(false);
     }
   }
 
   async function handleSaveActivity() {
-    if (!actResumo.trim()) return;
+    if (!actResumo.trim() || savingActivity) return;
+    setSavingActivity(true);
     try {
       await addInteracao(corretor.id, {
         data: actData ? datetimeLocalToISO(actData) : new Date().toISOString(),
@@ -249,6 +281,8 @@ export function CorretorDetailPanel() {
       setShowActivityForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a atividade.');
+    } finally {
+      setSavingActivity(false);
     }
   }
 
@@ -283,33 +317,68 @@ export function CorretorDetailPanel() {
   }
 
   async function handleGerarNegocio(cfId: string) {
+    if (gerandoNegocioId) return;
+    setGerandoNegocioId(cfId);
     try {
       const newId = await gerarNegocio(corretor.id, cfId);
       setSelectedCorretor(newId);
     } catch (err) {
       alertError(err, 'Não foi possível gerar o negócio.');
+    } finally {
+      setGerandoNegocioId(null);
+    }
+  }
+
+  async function handleRemoveCliente(cfId: string) {
+    if (removingClienteId) return;
+    setRemovingClienteId(cfId);
+    try {
+      await removeClienteFinal(corretor.id, cfId);
+    } catch (err) {
+      alertError(err, 'Não foi possível remover o cliente.');
+    } finally {
+      setRemovingClienteId(null);
+    }
+  }
+
+  async function handleUpdateProposta(propostaId: string, status: 'aceita' | 'recusada') {
+    if (propostaBusyId) return;
+    setPropostaBusyId(propostaId);
+    try {
+      await updateProposta(corretor.id, propostaId, { status });
+    } catch (err) {
+      alertError(err, 'Não foi possível atualizar a proposta.');
+    } finally {
+      setPropostaBusyId(null);
     }
   }
 
   async function handleWon() {
+    if (markingWon) return;
     const v = parseCurrencyBRL(wonValue) ?? 0;
+    setMarkingWon(true);
     try {
       await markAsWon(corretor.id, v);
       setShowWonConfirm(false);
       setSelectedCorretor(null);
     } catch (err) {
       alertError(err, 'Não foi possível marcar o corretor como ganho.');
+    } finally {
+      setMarkingWon(false);
     }
   }
 
   async function handleArchive() {
-    if (!archiveReason.trim()) return;
+    if (!archiveReason.trim() || archiving) return;
+    setArchiving(true);
     try {
       await archiveCorretor(corretor.id, archiveReason.trim());
       setShowArchiveConfirm(false);
       setSelectedCorretor(null);
     } catch (err) {
       alertError(err, 'Não foi possível arquivar o corretor.');
+    } finally {
+      setArchiving(false);
     }
   }
 
@@ -319,13 +388,33 @@ export function CorretorDetailPanel() {
     patchDraft({ tiposInteresse: updated });
   }
 
-  const tabs: { id: TabId; label: string; icon: React.ElementType; count?: number }[] = [
+  const tabs: { id: TabId; label: string; icon: React.ElementType; count?: number; loading?: boolean }[] = [
     { id: 'geral', label: 'Geral', icon: Tag },
     { id: 'clientes', label: 'Clientes', icon: Users, count: corretor.clientesFinais.length },
-    { id: 'atividades', label: 'Atividades', icon: MessageSquare, count: corretor.interacoes.length },
-    { id: 'propostas', label: 'Propostas', icon: FileText, count: corretor.propostas.length },
-    { id: 'cadencia', label: 'Cadência', icon: CalendarClock },
+    { id: 'atividades', label: 'Atividades', icon: MessageSquare, count: corretor.interacoes.length, loading: detailPending },
+    { id: 'propostas', label: 'Propostas', icon: FileText, count: corretor.propostas.length, loading: detailPending },
+    { id: 'cadencia', label: 'Cadência', icon: CalendarClock, loading: detailPending },
   ];
+
+  // Atividades, Propostas e Cadência dependem de `interacoes`/`propostas`, que só existem depois
+  // do detalhe carregado — antes disso mostrar "Nenhuma atividade" seria errado (é só um
+  // placeholder vazio da listagem leve), então a aba mostra o loader (ou o erro, com retry).
+  const detailGate = detailPending ? (
+    <InlineLoader label="Carregando histórico do corretor…" />
+  ) : !corretor.detalheCarregado ? (
+    <div className="p-5">
+      <div className="rounded-xl border p-4 text-center" style={{ borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
+        <p className="text-sm font-semibold text-red-700">Não foi possível carregar o histórico deste corretor.</p>
+        <button
+          onClick={() => setDetailRetry((n) => n + 1)}
+          className="mt-3 px-4 py-2 rounded-xl text-xs font-bold text-white"
+          style={{ backgroundColor: '#d55006' }}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <>
@@ -400,7 +489,7 @@ export function CorretorDetailPanel() {
           </div>
 
           {/* Stage navigator */}
-          <fieldset disabled={isReadOnly} className="border-0 m-0 min-w-0 pt-0 px-5 pb-3">
+          <fieldset disabled={isReadOnly || movingStage} className="border-0 m-0 min-w-0 pt-0 px-5 pb-3">
             <div className="flex items-center gap-2 p-2 rounded-xl" style={{ backgroundColor: '#f8f9fa' }}>
               <button
                 onClick={() => handleMoveStage('prev')}
@@ -415,8 +504,9 @@ export function CorretorDetailPanel() {
                   <span className="text-sm font-semibold" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#1e1e1e' }}>
                     {corretor.etapa}. {stage.nome}
                   </span>
+                  {movingStage && <Spinner size={13} className="text-[#d55006]" />}
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5">SLA: {stage.slaLabel}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{movingStage ? 'Movendo de etapa…' : `SLA: ${stage.slaLabel}`}</p>
               </div>
               <button
                 onClick={() => handleMoveStage('next')}
@@ -479,7 +569,7 @@ export function CorretorDetailPanel() {
 
           {/* Tabs */}
           <div className="flex border-t px-4 overflow-x-auto" style={{ borderColor: '#e5e7eb' }}>
-            {tabs.map(({ id, label, icon: Icon, count }) => (
+            {tabs.map(({ id, label, icon: Icon, count, loading }) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -491,7 +581,8 @@ export function CorretorDetailPanel() {
               >
                 <Icon size={13} />
                 {label}
-                {count !== undefined && count > 0 && (
+                {loading && <Spinner size={11} />}
+                {!loading && count !== undefined && count > 0 && (
                   <span
                     className="px-1.5 py-0.5 rounded-full text-white leading-none"
                     style={{ backgroundColor: tab === id ? '#d55006' : '#9ca3af', fontSize: '10px' }}
@@ -516,17 +607,19 @@ export function CorretorDetailPanel() {
                     <>
                       <button
                         onClick={handleCancelGeral}
-                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-500 hover:bg-gray-100 transition-colors"
+                        disabled={savingGeral}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
                       >
                         Cancelar
                       </button>
                       <button
                         onClick={handleSaveGeral}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-colors"
+                        disabled={savingGeral}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-colors disabled:opacity-70"
                         style={{ backgroundColor: '#d55006' }}
                       >
-                        <CheckCheck size={13} />
-                        Salvar alterações
+                        {savingGeral ? <Spinner size={13} /> : <CheckCheck size={13} />}
+                        {savingGeral ? 'Salvando…' : 'Salvar alterações'}
                       </button>
                     </>
                   ) : (
@@ -903,11 +996,12 @@ export function CorretorDetailPanel() {
                       {!cf.negocioGerado && corretor.etapa >= 5 && (
                         <button
                           onClick={() => handleGerarNegocio(cf.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl text-white"
+                          disabled={gerandoNegocioId !== null}
+                          className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl text-white disabled:opacity-60"
                           style={{ backgroundColor: '#d55006' }}
                         >
-                          <ArrowUpRight size={12} />
-                          Gerar Negócio
+                          {gerandoNegocioId === cf.id ? <Spinner size={12} /> : <ArrowUpRight size={12} />}
+                          {gerandoNegocioId === cf.id ? 'Gerando…' : 'Gerar Negócio'}
                         </button>
                       )}
                       {corretor.etapa < 5 && !cf.negocioGerado && (
@@ -927,11 +1021,12 @@ export function CorretorDetailPanel() {
                       )}
                       {canDelete && (
                         <button
-                          onClick={() => removeClienteFinal(corretor.id, cf.id).catch((err) => alertError(err, 'Não foi possível remover o cliente.'))}
-                          className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          onClick={() => handleRemoveCliente(cf.id)}
+                          disabled={removingClienteId !== null}
+                          className="flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-60"
                           title="Excluir cliente"
                         >
-                          <Trash2 size={11} />
+                          {removingClienteId === cf.id ? <Spinner size={11} className="text-red-500" /> : <Trash2 size={11} />}
                         </button>
                       )}
                     </div>
@@ -942,7 +1037,8 @@ export function CorretorDetailPanel() {
           )}
 
           {/* ─── ATIVIDADES TAB ─── */}
-          {tab === 'atividades' && (
+          {tab === 'atividades' && detailGate}
+          {tab === 'atividades' && !detailGate && (
             <fieldset disabled={isReadOnly} className="border-0 m-0 min-w-0 p-5 space-y-4">
               <button
                 onClick={() => setShowActivityForm(!showActivityForm)}
@@ -1032,10 +1128,20 @@ export function CorretorDetailPanel() {
                     />
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={handleSaveActivity} className="px-4 py-2 rounded-xl text-sm font-bold text-white" style={{ backgroundColor: '#d55006' }}>
-                      Salvar
+                    <button
+                      onClick={handleSaveActivity}
+                      disabled={savingActivity}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-70"
+                      style={{ backgroundColor: '#d55006' }}
+                    >
+                      {savingActivity && <Spinner size={14} />}
+                      {savingActivity ? 'Salvando…' : 'Salvar'}
                     </button>
-                    <button onClick={() => setShowActivityForm(false)} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-colors">
+                    <button
+                      onClick={() => setShowActivityForm(false)}
+                      disabled={savingActivity}
+                      className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                    >
                       Cancelar
                     </button>
                   </div>
@@ -1089,7 +1195,8 @@ export function CorretorDetailPanel() {
           )}
 
           {/* ─── PROPOSTAS TAB ─── */}
-          {tab === 'propostas' && (
+          {tab === 'propostas' && detailGate}
+          {tab === 'propostas' && !detailGate && (
             <fieldset disabled={isReadOnly} className="border-0 m-0 min-w-0 p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-500">{corretor.propostas.length} proposta{corretor.propostas.length !== 1 ? 's' : ''}</p>
@@ -1215,10 +1322,11 @@ export function CorretorDetailPanel() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={handleSaveProposta} disabled={pSubmitting} className="px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-60" style={{ backgroundColor: '#d55006' }}>
-                      {pSubmitting ? 'Salvando...' : 'Salvar'}
+                    <button onClick={handleSaveProposta} disabled={pSubmitting} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-70" style={{ backgroundColor: '#d55006' }}>
+                      {pSubmitting && <Spinner size={14} />}
+                      {pSubmitting ? 'Salvando…' : 'Salvar'}
                     </button>
-                    <button onClick={() => setShowPropostaForm(false)} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100">Cancelar</button>
+                    <button onClick={() => setShowPropostaForm(false)} disabled={pSubmitting} className="px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 disabled:opacity-50">Cancelar</button>
                   </div>
                 </div>
               )}
@@ -1269,8 +1377,12 @@ export function CorretorDetailPanel() {
                         </span>
                         {p.status === 'pendente' && (
                           <div className="flex gap-1">
-                            <button onClick={() => updateProposta(corretor.id, p.id, { status: 'aceita' }).catch((err) => alertError(err, 'Não foi possível atualizar a proposta.'))} className="flex-1 px-2 py-1.5 text-xs rounded-lg font-bold text-white" style={{ backgroundColor: '#059669' }}>Aceitar</button>
-                            <button onClick={() => updateProposta(corretor.id, p.id, { status: 'recusada' }).catch((err) => alertError(err, 'Não foi possível atualizar a proposta.'))} className="flex-1 px-2 py-1.5 text-xs rounded-lg font-bold text-white" style={{ backgroundColor: '#dc2626' }}>Recusar</button>
+                            <button onClick={() => handleUpdateProposta(p.id, 'aceita')} disabled={propostaBusyId !== null} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded-lg font-bold text-white disabled:opacity-60" style={{ backgroundColor: '#059669' }}>
+                              {propostaBusyId === p.id && <Spinner size={11} />}Aceitar
+                            </button>
+                            <button onClick={() => handleUpdateProposta(p.id, 'recusada')} disabled={propostaBusyId !== null} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded-lg font-bold text-white disabled:opacity-60" style={{ backgroundColor: '#dc2626' }}>
+                              {propostaBusyId === p.id && <Spinner size={11} />}Recusar
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1282,7 +1394,8 @@ export function CorretorDetailPanel() {
           )}
 
           {/* ─── CADÊNCIA TAB ─── */}
-          {tab === 'cadencia' && (
+          {tab === 'cadencia' && detailGate}
+          {tab === 'cadencia' && !detailGate && (
             <div className="p-5 space-y-4">
               {(() => {
                 const cadenceRole =
@@ -1407,6 +1520,7 @@ export function CorretorDetailPanel() {
           confirmColor="#dc2626"
           onConfirm={handleArchive}
           onCancel={() => setShowArchiveConfirm(false)}
+          loading={archiving}
         >
           <textarea
             className="form-input resize-none mt-3"
@@ -1426,6 +1540,7 @@ export function CorretorDetailPanel() {
           confirmColor="#059669"
           onConfirm={handleWon}
           onCancel={() => setShowWonConfirm(false)}
+          loading={markingWon}
         >
           <input
             className="form-input mt-3"
@@ -1551,9 +1666,9 @@ function EmptyState({ icon, title, description }: { icon: React.ReactNode; title
   );
 }
 
-function ConfirmModal({ title, description, confirmLabel, confirmColor, onConfirm, onCancel, children }: {
+function ConfirmModal({ title, description, confirmLabel, confirmColor, onConfirm, onCancel, loading = false, children }: {
   title: string; description: string; confirmLabel: string; confirmColor: string;
-  onConfirm: () => void; onCancel: () => void; children?: React.ReactNode;
+  onConfirm: () => void; onCancel: () => void; loading?: boolean; children?: React.ReactNode;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
@@ -1562,10 +1677,11 @@ function ConfirmModal({ title, description, confirmLabel, confirmColor, onConfir
         <p className="text-sm text-gray-500">{description}</p>
         {children}
         <div className="flex gap-2 mt-5">
-          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ backgroundColor: confirmColor }}>
-            {confirmLabel}
+          <button onClick={onConfirm} disabled={loading} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-70" style={{ backgroundColor: confirmColor }}>
+            {loading && <Spinner size={14} />}
+            {loading ? 'Aguarde…' : confirmLabel}
           </button>
-          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 border transition-colors" style={{ borderColor: '#e5e7eb' }}>
+          <button onClick={onCancel} disabled={loading} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 border transition-colors disabled:opacity-50" style={{ borderColor: '#e5e7eb' }}>
             Cancelar
           </button>
         </div>

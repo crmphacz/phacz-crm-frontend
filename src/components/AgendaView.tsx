@@ -12,7 +12,16 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { AniversarioModal } from './AniversarioModal';
 import { TIPO_INTERACAO_CONFIG } from '../utils';
+import { getViewCache, setViewCache } from '../lib/viewCache';
 import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda } from '../types';
+
+// Mês aberto e agenda já carregada sobrevivem a trocar de menu e voltar (ver lib/viewCache).
+const CACHE_KEY = 'agenda';
+interface AgendaCache {
+  currentMonth: Date;
+  aniversarios: AniversarioAgenda[];
+  atividades: AtividadeAgenda[];
+}
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -25,16 +34,23 @@ function primeiroNome(nome: string): string {
 
 export function AgendaView() {
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
-  const [currentMonth, setCurrentMonth] = useState(() => new Date());
-  const [aniversarios, setAniversarios] = useState<AniversarioAgenda[]>([]);
-  const [atividades, setAtividades] = useState<AtividadeAgenda[]>([]);
+  const [saved] = useState(() => getViewCache<AgendaCache>(CACHE_KEY));
+  const [currentMonth, setCurrentMonth] = useState(() => saved?.currentMonth ?? new Date());
+  const [aniversarios, setAniversarios] = useState<AniversarioAgenda[]>(saved?.aniversarios ?? []);
+  const [atividades, setAtividades] = useState<AtividadeAgenda[]>(saved?.atividades ?? []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<AniversarioAgenda | null>(null);
 
-  // Primeira carga: dispensa o toast de navegação quando a agenda do mês chega.
-  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
+  // Primeira carga: dispensa o toast de navegação quando a agenda do mês chega (ou já na
+  // abertura, se há cache — aí o calendário reaparece na hora e revalida em segundo plano).
+  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(Boolean(saved));
   useViewReady(primeiraCargaFeita);
+
+  useEffect(() => {
+    if (!primeiraCargaFeita) return;
+    setViewCache<AgendaCache>(CACHE_KEY, { currentMonth, aniversarios, atividades });
+  }, [primeiraCargaFeita, currentMonth, aniversarios, atividades]);
 
   const ano = currentMonth.getFullYear();
   const mes = currentMonth.getMonth() + 1;

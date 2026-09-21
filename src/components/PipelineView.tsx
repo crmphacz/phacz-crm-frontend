@@ -12,7 +12,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { useStore, useFilteredCorretores } from '../store';
+import { useStore, useFilteredCorretores, type PipelineFunnel } from '../store';
 import { useCorretoresQuery } from '../queries/corretores';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
@@ -23,7 +23,7 @@ import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
 import { canCreateCorretor, canWriteCorretor, getHiddenPipelineStages } from '../permissions';
 import type { Corretor, StageConfig } from '../types';
 
-type FunnelFilter = 'todos' | 'pre-atendimento' | 'treinamento' | 'venda' | 'pos-venda';
+type FunnelFilter = PipelineFunnel;
 
 const FUNNEL_CONFIG: Record<FunnelFilter, { label: string; stages: number[]; cor: string; desc: string }> = {
   'todos': { label: 'Todos os funis', stages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], cor: '#64748b', desc: 'Visão completa' },
@@ -53,7 +53,8 @@ export function PipelineView() {
   const showToast = useStore((s) => s.showToast);
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [funnelFilter, setFunnelFilter] = useState<FunnelFilter>('todos');
+  const funnelFilter = useStore((s) => s.pipelineFunnel);
+  const setFunnelFilter = useStore((s) => s.setPipelineFunnel);
 
   // TanStack Query cuida do cache/memoização da listagem: evita rebuscar ao trocar de tela e
   // voltar dentro do staleTime, e revalida em background depois disso — a automação de tráfego
@@ -84,6 +85,10 @@ export function PipelineView() {
 
   const visibleCorretores = filteredCorretores.filter((l) => visibleStageIds.includes(l.etapa));
   const totalActive = visibleCorretores.length;
+
+  // Busca sem nenhum resultado em qualquer funil: cada coluna oferece "+ Adicionar corretor",
+  // já abrindo o cadastro na etapa da coluna clicada.
+  const showAddOnEmpty = canCreate && searchQuery.trim() !== '' && filteredCorretores.length === 0;
 
   const visibleColumns = ALL_STAGE_COLUMNS.filter((group) =>
     group.some((id) => visibleStageIds.includes(id))
@@ -253,6 +258,8 @@ export function PipelineView() {
                     key={stageId}
                     stage={stage}
                     corretores={corretoresByStage[stageId] ?? []}
+                    showAddButton={showAddOnEmpty}
+                    onAdd={() => setShowNewCorretorModal(true, stageId)}
                   />
                 );
               }
@@ -278,11 +285,15 @@ export function PipelineView() {
                     stage={stage6}
                     corretores={corretoresByStage[id6] ?? []}
                     noBorderRight
+                    showAddButton={showAddOnEmpty}
+                    onAdd={() => setShowNewCorretorModal(true, id6)}
                   />
                   <DroppableStageColumn
                     stage={stage7}
                     corretores={corretoresByStage[id7] ?? []}
                     noBorderLeft
+                    showAddButton={showAddOnEmpty}
+                    onAdd={() => setShowNewCorretorModal(true, id7)}
                   />
                 </div>
               );
@@ -307,11 +318,15 @@ function DroppableStageColumn({
   corretores,
   noBorderRight,
   noBorderLeft,
+  showAddButton,
+  onAdd,
 }: {
   stage: StageConfig;
   corretores: Corretor[];
   noBorderRight?: boolean;
   noBorderLeft?: boolean;
+  showAddButton?: boolean;
+  onAdd?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `stage-${stage.id}` });
 
@@ -367,6 +382,16 @@ function DroppableStageColumn({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        {showAddButton && corretores.length === 0 && !isOver && (
+          <button
+            onClick={onAdd}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-dashed transition-colors hover:opacity-80"
+            style={{ color: stage.cor, borderColor: stage.cor, backgroundColor: stage.corBg }}
+          >
+            <Plus size={14} />
+            Adicionar corretor
+          </button>
+        )}
         {corretores.length === 0 && !isOver ? (
           <div className="py-8 text-center">
             <div className="text-2xl mb-2 opacity-20">○</div>

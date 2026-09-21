@@ -24,6 +24,7 @@ import { EmpreendimentosListView } from './components/EmpreendimentosListView';
 import { HistoricoAcoesView } from './components/HistoricoAcoesView';
 import { ToastContainer } from './components/ToastContainer';
 import { ViewLoader } from './components/ViewLoader';
+import { useCorretoresLiveSync } from './queries/corretoresSync';
 
 // Carrega sob demanda: puxa a biblioteca de planilha (fortune-sheet), pesada.
 const TabelasEmpreendimentosView = lazy(() =>
@@ -50,6 +51,9 @@ export default function App() {
     initFromToken();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Corretores novos que entram no banco por fora do app (Make) aparecem sem recarregar a página.
+  useCorretoresLiveSync(isLoggedIn && !isBootstrapping && !mustChangePassword);
 
   // A política de privacidade precisa renderizar por cima de QUALQUER tela (inclusive antes
   // do login), então fica fora do if/else abaixo em vez de duplicada em cada branch.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X, Building2, User, Mail, Tag, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useStore } from '../store';
+import { STAGES } from '../data';
 import { ApiError } from '../api/client';
 import { corretoresApi, type ImobiliariaMatch } from '../api/endpoints';
 import { maskPhone, maskCPF, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
@@ -16,6 +17,11 @@ function responsavelLabel(m: ImobiliariaMatch): string {
 export function NewCorretorModal() {
   const setShowNewCorretorModal = useStore((s) => s.setShowNewCorretorModal);
   const addCorretor = useStore((s) => s.addCorretor);
+  const moveCorretor = useStore((s) => s.moveCorretor);
+  const showToast = useStore((s) => s.showToast);
+  // Etapa da coluna clicada em "+ Adicionar corretor" no Pipeline (1 quando aberto pelos outros botões).
+  const etapaInicial = useStore((s) => s.newCorretorEtapa);
+  const etapaInicialNome = STAGES.find((s) => s.id === etapaInicial)?.nome;
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const users = useStore((s) => s.users);
   const sdrUsers = users.filter((u) => u.cargo === 'SDR' && u.ativo);
@@ -111,6 +117,24 @@ export function NewCorretorModal() {
         observacoes: observacoes.trim(),
       });
 
+      // O backend sempre cria o corretor na etapa 1; a etapa da coluna clicada é aplicada logo
+      // depois pelo mesmo endpoint de mover (com as mesmas validações de campos obrigatórios).
+      // Se a etapa exigir algo que o cadastro não tem (ex.: GR/GV na etapa 5), o corretor já foi
+      // criado — só avisa o que falta, e o painel dele abre em seguida para completar.
+      if (etapaInicial !== 1 && etapaInicialNome) {
+        try {
+          await moveCorretor(id, etapaInicial);
+        } catch (err) {
+          const campos = err instanceof ApiError && Array.isArray((err.details as { campos?: unknown } | undefined)?.campos)
+            ? ((err.details as { campos: string[] }).campos).join(', ')
+            : '';
+          showToast(
+            `Corretor criado em "Novo Corretor". Não foi possível movê-lo para "${etapaInicialNome}"${campos ? ` — falta: ${campos}` : err instanceof ApiError ? ` — ${err.message}` : ''}.`,
+            'error'
+          );
+        }
+      }
+
       setShowNewCorretorModal(false);
       setSelectedCorretor(id);
     } catch (err) {
@@ -135,7 +159,11 @@ export function NewCorretorModal() {
             </div>
             <div>
               <h2 className="font-questrial font-bold text-lg text-gray-900">Novo Corretor</h2>
-              <p className="text-xs text-gray-400">Preencha os dados do corretor</p>
+              <p className="text-xs text-gray-400">
+                {etapaInicial !== 1 && etapaInicialNome
+                  ? <>Será adicionado em <strong className="text-gray-600">{etapaInicialNome}</strong></>
+                  : 'Preencha os dados do corretor'}
+              </p>
             </div>
           </div>
           <button onClick={() => setShowNewCorretorModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
