@@ -95,7 +95,7 @@ export function PrivacyPolicyModal({ onClose }: { onClose: () => void }) {
               </p>
             ) : (
               <p className="text-gray-400 italic">
-                Ainda não configurado. A Diretoria pode preencher em Configurações → Perfil da Empresa.
+                Ainda não configurado. A Diretoria pode preencher em Configurações da Empresa.
               </p>
             )}
           </Section>

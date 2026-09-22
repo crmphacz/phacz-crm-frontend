@@ -16,6 +16,7 @@ import {
   CalendarClock,
   History,
   Table2,
+  FileText,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
 import { getInitials, getFirstName } from '../utils';
@@ -46,8 +47,8 @@ const NAV_SECONDARY: { id: ViewMode; icon: React.ElementType; label: string }[] 
 
 const NAV_CONFIG: { id: ViewMode; icon: React.ElementType; label: string; diretoraOnly?: boolean }[] = [
   { id: 'config-usuarios', icon: Users, label: 'Usuários', diretoraOnly: true },
-  { id: 'config-empresa', icon: Building2, label: 'Perfil da Empresa' },
-  { id: 'config-regras', icon: Settings, label: 'Regras' },
+  { id: 'config-empresa', icon: Settings, label: 'Configurações da Empresa' },
+  { id: 'config-regras', icon: FileText, label: 'Documentação' },
 ];
 
 const NAV_IA: { id: ViewMode; icon: React.ElementType; label: string }[] = [

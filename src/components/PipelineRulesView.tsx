@@ -30,7 +30,7 @@ export function PipelineRulesView() {
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            Regras
+            Documentação
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             Equipe comercial, etapas do pipeline e campos obrigatórios para avançar.
