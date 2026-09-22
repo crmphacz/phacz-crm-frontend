@@ -8,8 +8,6 @@ import { EmpreendimentoFormModal } from './EmpreendimentoFormModal';
 import { EmpreendimentoDetailView } from './EmpreendimentoDetailView';
 
 export function EmpreendimentosListView() {
-  const currentUser = useStore((s) => s.currentUser);
-  const isReadOnly = currentUser?.cargo === 'Marketing';
   const empreendimentos = useStore((s) => s.empreendimentos);
   const ensureEmpreendimentosLoaded = useStore((s) => s.ensureEmpreendimentosLoaded);
 
@@ -40,15 +38,13 @@ export function EmpreendimentosListView() {
             </h1>
             <p className="text-sm text-gray-500 mt-1">{empreendimentos.length} empreendimento(s) cadastrado(s)</p>
           </div>
-          {!isReadOnly && (
-            <button
-              onClick={() => setFormOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors flex-shrink-0"
-              style={{ backgroundColor: '#d55006' }}
-            >
-              <Plus size={16} /> Novo empreendimento
-            </button>
-          )}
+          <button
+            onClick={() => setFormOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors flex-shrink-0"
+            style={{ backgroundColor: '#d55006' }}
+          >
+            <Plus size={16} /> Novo empreendimento
+          </button>
         </div>
 
         {empreendimentos.length === 0 ? (

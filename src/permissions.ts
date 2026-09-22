@@ -44,6 +44,11 @@ export function canCreateCorretor(user: UserProfile | null): boolean {
   return user.cargo === 'Diretora' || user.cargo === 'SDR' || user.cargo === 'GR' || user.cargo === 'GV';
 }
 
+/** Empreendimentos e unidades: o Marketing cria, mas não edita nem exclui os que já existem. */
+export function canEditEmpreendimento(user: UserProfile | null): boolean {
+  return user?.cargo !== 'Marketing';
+}
+
 /** Regra global sem exceções: só a Diretoria exclui leads, clientes ou cards de kanban. */
 export function canDeleteLeadClienteOuCard(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora';
