@@ -13,7 +13,15 @@ import { ViewLoader } from './ViewLoader';
 import { AniversarioModal } from './AniversarioModal';
 import { TIPO_INTERACAO_CONFIG } from '../utils';
 import { getViewCache, setViewCache } from '../lib/viewCache';
-import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda } from '../types';
+import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda, TipoInteracao } from '../types';
+
+/**
+ * Únicos tipos de atividade que viram compromisso na agenda — nota, proposta, especulação,
+ * e-mail e os registros automáticos do funil (que são nota) ficam de fora. Espelha
+ * TIPOS_NA_AGENDA no backend, que já filtra na consulta; aqui é só para não exibir o que
+ * estiver no cache de uma versão anterior da tela.
+ */
+const TIPOS_NA_AGENDA = new Set<TipoInteracao>(['ligacao', 'whatsapp', 'reuniao', 'treinamento', 'visita']);
 
 // Mês aberto e agenda já carregada sobrevivem a trocar de menu e voltar (ver lib/viewCache).
 const CACHE_KEY = 'agenda';
@@ -79,11 +87,19 @@ export function AgendaView() {
     return map;
   }, [aniversarios, diasNoMes]);
 
+  // Compromisso é só o que ainda vai acontecer: um registro feito "agora" já nasce no passado e
+  // não entra; um horário mais tarde no mesmo dia entra. O backend já aplica a mesma regra — a
+  // repetição aqui cobre o cache da tela e o tempo passando com a agenda aberta.
+  const compromissos = useMemo(
+    () => atividades.filter((a) => TIPOS_NA_AGENDA.has(a.tipo) && new Date(a.data).getTime() > Date.now()),
+    [atividades]
+  );
+
   // A API traz uma folga de ±1 dia (por fuso); aqui descartamos o que sobrar de mês adjacente
   // e agrupamos pelo dia exato, lido em horário local do navegador (mesmo horário que o usuário digitou).
   const porDiaAtividades = useMemo(() => {
     const map = new Map<number, AtividadeAgenda[]>();
-    for (const a of atividades) {
+    for (const a of compromissos) {
       const quando = new Date(a.data);
       if (!isSameMonth(quando, currentMonth)) continue;
       const dia = quando.getDate();
@@ -92,7 +108,7 @@ export function AgendaView() {
       map.set(dia, list);
     }
     return map;
-  }, [atividades, currentMonth]);
+  }, [compromissos, currentMonth]);
 
   const days = useMemo(() => {
     const gridStart = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
@@ -119,7 +135,7 @@ export function AgendaView() {
             <p className="text-sm text-gray-500 mt-0.5">
               {loading
                 ? 'Carregando…'
-                : `${aniversarios.length} aniversário(s) e ${atividades.length} compromisso(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
+                : `${aniversarios.length} aniversário(s) e ${compromissos.length} compromisso(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
             </p>
           </div>
         </div>
@@ -162,10 +178,7 @@ export function AgendaView() {
             <Cake size={12} style={{ color: '#c2410c' }} /> Aniversário
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#dbeafe' }} /> Compromisso futuro
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#f3f4f6' }} /> Realizado
+            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#dbeafe' }} /> Compromisso agendado (ligação, WhatsApp, reunião, treinamento ou visita)
           </span>
         </div>
 
@@ -219,14 +232,13 @@ export function AgendaView() {
                     ))}
                     {ativVisiveis.map((at) => {
                       const config = TIPO_INTERACAO_CONFIG[at.tipo];
-                      const futuro = new Date(at.data).getTime() > Date.now();
                       return (
                         <button
                           key={at.id}
                           onClick={() => setSelectedCorretor(at.corretorId)}
                           title={`${format(new Date(at.data), 'HH:mm')} · ${config.label} · ${at.corretorNome} — ${at.resumo}`}
                           className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate transition-colors hover:brightness-95"
-                          style={futuro ? { backgroundColor: '#dbeafe', color: '#1d4ed8' } : { backgroundColor: '#f3f4f6', color: '#4b5563' }}
+                          style={{ backgroundColor: '#dbeafe', color: '#1d4ed8' }}
                         >
                           <span className="flex-shrink-0">{config.icon}</span>
                           <span className="truncate">{primeiroNome(at.corretorNome)}</span>
@@ -243,7 +255,7 @@ export function AgendaView() {
           </div>
         </div>
 
-        {!loading && aniversarios.length === 0 && atividades.length === 0 && !error && (
+        {!loading && aniversarios.length === 0 && compromissos.length === 0 && !error && (
           <p className="text-sm text-gray-400 text-center mt-6">
             Nenhum aniversário ou compromisso em {format(currentMonth, 'MMMM', { locale: ptBR })}.
           </p>

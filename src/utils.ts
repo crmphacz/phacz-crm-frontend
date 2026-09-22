@@ -84,6 +84,7 @@ export const TIPO_INTERACAO_CONFIG = {
   nota: { label: 'Nota', icon: '📝' },
   proposta: { label: 'Proposta', icon: '📄' },
   especulacao: { label: 'Especulação', icon: '💭' },
+  treinamento: { label: 'Treinamento', icon: '🎓' },
 } as const;
 
 /** Cor de badge própria e consistente para cada um dos 5 status de unidade em toda a tela. */

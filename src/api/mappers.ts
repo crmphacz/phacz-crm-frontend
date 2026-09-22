@@ -29,6 +29,7 @@ const statusCorretorMap = makeEnumMap<string, StatusCorretor>([
 const tipoInteracaoMap = makeEnumMap<string, TipoInteracao>([
   ['LIGACAO', 'ligacao'], ['WHATSAPP', 'whatsapp'], ['EMAIL', 'email'], ['VISITA', 'visita'],
   ['REUNIAO', 'reuniao'], ['NOTA', 'nota'], ['PROPOSTA', 'proposta'], ['ESPECULACAO', 'especulacao'],
+  ['TREINAMENTO', 'treinamento'],
 ]);
 
 export function mapTipoInteracaoFromApi(tipo: string): TipoInteracao {

@@ -1,6 +1,6 @@
 export type Temperatura = 'quente' | 'morno' | 'frio';
 export type StatusCorretor = 'ativo' | 'nutricao' | 'arquivado' | 'ganho' | 'perdido';
-export type TipoInteracao = 'ligacao' | 'whatsapp' | 'email' | 'visita' | 'reuniao' | 'nota' | 'proposta' | 'especulacao';
+export type TipoInteracao = 'ligacao' | 'whatsapp' | 'email' | 'visita' | 'reuniao' | 'nota' | 'proposta' | 'especulacao' | 'treinamento';
 export type TipoInteresse = string;
 export type CanalOrigem = string;
 export type UserCargo = 'Diretora' | 'GR' | 'GV' | 'SDR' | 'Marketing' | 'Administrativo' | 'Recepcao';
