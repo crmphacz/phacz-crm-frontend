@@ -13,6 +13,7 @@ import {
   formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG,
   TIPO_INTERACAO_CONFIG, getInitials, nowForDatetimeLocal, datetimeLocalToISO,
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF, maskPhone,
+  camposPendentesDoErro, mensagemEtapaBloqueada,
 } from '../utils';
 import { ApiError } from '../api/client';
 import { empreendimentosApi } from '../api/endpoints';
@@ -45,6 +46,7 @@ export function CorretorDetailPanel() {
   const cidadesOptions = useCidadesPorUf(ufAtual);
 
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
+  const showToast = useStore((s) => s.showToast);
   const currentUser = useStore((s) => s.currentUser);
   // "Somente leitura" agora segue a posse do card: Diretoria sempre edita; SDR/GV/GR só no
   // próprio kanban; Marketing/Administrativo/Recepção nunca escrevem em corretores.
@@ -221,12 +223,23 @@ export function CorretorDetailPanel() {
   const parentCorretor = corretor.parentCorretorId ? corretores.find((l) => l.id === corretor.parentCorretorId) : null;
   const tempConfig = TEMPERATURA_CONFIG[corretor.temperatura];
 
-  async function handleMoveStage(direction: 'next' | 'prev') {
-    if (movingStage) return;
-    const targetEtapa = direction === 'next' ? corretor.etapa + 1 : corretor.etapa - 1;
+  /**
+   * Caminho único de mudança de etapa (setas e botões de salto). Quando a etapa exige campos
+   * que faltam, o toast diz exatamente quais — na checagem local e também quando é o backend
+   * que recusa (400 com `details.campos`). A lista também fica fixada abaixo dos botões.
+   */
+  async function moverParaEtapa(targetEtapa: number, verbo: 'Avançou' | 'Movido') {
+    if (movingStage || targetEtapa === corretor.etapa) return;
     if (targetEtapa < 1 || targetEtapa > 10) return;
-    const errors = validateForStageMove(corretor, targetEtapa);
-    if (errors.length > 0) { setStageError(errors); return; }
+
+    const nomeEtapa = STAGES.find((s) => s.id === targetEtapa)?.nome ?? `Etapa ${targetEtapa}`;
+    const pendentes = validateForStageMove(corretor, targetEtapa);
+    if (pendentes.length > 0) {
+      setStageError(pendentes);
+      showToast(mensagemEtapaBloqueada(nomeEtapa, pendentes), 'error');
+      return;
+    }
+
     setStageError([]);
     setMovingStage(true);
     try {
@@ -234,36 +247,27 @@ export function CorretorDetailPanel() {
       await addInteracao(corretor.id, {
         data: new Date().toISOString(),
         tipo: 'nota',
-        resumo: `Avançou para etapa ${targetEtapa}: ${STAGES.find((s) => s.id === targetEtapa)?.nome}`,
+        resumo: `${verbo} para etapa ${targetEtapa}: ${nomeEtapa}`,
         responsavel: 'Sistema',
         etapa: corretor.etapa,
       });
     } catch (err) {
-      alertError(err, 'Não foi possível mover o corretor de etapa.');
+      const campos = camposPendentesDoErro(err);
+      if (campos.length > 0) {
+        setStageError(campos);
+        showToast(mensagemEtapaBloqueada(nomeEtapa, campos), 'error');
+      } else {
+        alertError(err, 'Não foi possível mover o corretor de etapa.');
+      }
     } finally {
       setMovingStage(false);
     }
   }
 
-  async function handleMoveToStage(targetEtapa: number) {
-    if (movingStage || targetEtapa === corretor.etapa) return;
-    setStageError([]);
-    setMovingStage(true);
-    try {
-      await moveCorretor(corretor.id, targetEtapa);
-      await addInteracao(corretor.id, {
-        data: new Date().toISOString(),
-        tipo: 'nota',
-        resumo: `Movido para etapa ${targetEtapa}: ${STAGES.find((s) => s.id === targetEtapa)?.nome}`,
-        responsavel: 'Sistema',
-        etapa: corretor.etapa,
-      });
-    } catch (err) {
-      alertError(err, 'Não foi possível mover o corretor de etapa.');
-    } finally {
-      setMovingStage(false);
-    }
-  }
+  const handleMoveStage = (direction: 'next' | 'prev') =>
+    moverParaEtapa(direction === 'next' ? corretor.etapa + 1 : corretor.etapa - 1, 'Avançou');
+
+  const handleMoveToStage = (targetEtapa: number) => moverParaEtapa(targetEtapa, 'Movido');
 
   async function handleSaveActivity() {
     if (!actResumo.trim() || savingActivity) return;

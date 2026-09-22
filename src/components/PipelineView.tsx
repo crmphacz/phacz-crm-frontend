@@ -18,6 +18,7 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { ApiError } from '../api/client';
+import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada } from '../utils';
 import { CorretorCard } from './CorretorCard';
 import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
 import { canCreateCorretor, canWriteCorretor, getHiddenPipelineStages } from '../permissions';
@@ -109,17 +110,32 @@ export function PipelineView() {
     if (!corretor || corretor.etapa === toEtapa || isNaN(toEtapa)) return;
     if (!canWriteCorretor(currentUser, corretor)) return;
 
+    // Antes o card só voltava pro lugar, sem explicar por quê. Agora o toast diz exatamente
+    // quais campos faltam — tanto na checagem local quanto na recusa do backend.
+    const nomeEtapa = STAGES.find((s) => s.id === toEtapa)?.nome ?? `Etapa ${toEtapa}`;
+    const pendentes = validateForStageMove(corretor, toEtapa);
+    if (pendentes.length > 0) {
+      showToast(mensagemEtapaBloqueada(nomeEtapa, pendentes), 'error');
+      return;
+    }
+
     try {
       await moveCorretor(String(active.id), toEtapa);
       await addInteracao(String(active.id), {
         data: new Date().toISOString(),
         tipo: 'nota',
-        resumo: `Movido para etapa ${toEtapa}: ${STAGES.find((s) => s.id === toEtapa)?.nome}`,
+        resumo: `Movido para etapa ${toEtapa}: ${nomeEtapa}`,
         responsavel: 'Sistema',
         etapa: corretor.etapa,
       });
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Não foi possível mover o corretor de etapa.');
+      const campos = camposPendentesDoErro(err);
+      showToast(
+        campos.length > 0
+          ? mensagemEtapaBloqueada(nomeEtapa, campos)
+          : err instanceof ApiError ? err.message : 'Não foi possível mover o corretor de etapa.',
+        'error'
+      );
     }
   }
 

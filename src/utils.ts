@@ -1,6 +1,7 @@
 import { formatDistanceToNow, differenceInHours, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Corretor, StageConfig, StatusUnidade } from './types';
+import { ApiError } from './api/client';
 
 export function formatRelativeTime(iso: string): string {
   return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: ptBR });
@@ -144,6 +145,30 @@ export function validateForStageMove(corretor: Corretor, toEtapa: number): strin
   }
 
   return errors;
+}
+
+/** "A" · "A e B" · "A, B e C" */
+function listarCampos(campos: string[]): string {
+  if (campos.length <= 1) return campos[0] ?? '';
+  return `${campos.slice(0, -1).join(', ')} e ${campos[campos.length - 1]}`;
+}
+
+/**
+ * Campos obrigatórios que o backend devolve quando recusa a mudança de etapa
+ * (400 com `details.campos` — ver validateForStageMove em corretores/routes.ts). Array vazio
+ * quando a recusa foi por outro motivo (permissão, rede), aí a mensagem original é que vale.
+ */
+export function camposPendentesDoErro(err: unknown): string[] {
+  if (!(err instanceof ApiError)) return [];
+  const campos = (err.details as { campos?: unknown } | undefined)?.campos;
+  return Array.isArray(campos) ? campos.filter((c): c is string => typeof c === 'string') : [];
+}
+
+/** Mensagem única de etapa bloqueada, dizendo exatamente o que falta preencher. */
+export function mensagemEtapaBloqueada(nomeEtapa: string, campos: string[]): string {
+  if (campos.length === 0) return `Não foi possível mover para "${nomeEtapa}".`;
+  const preencher = campos.length === 1 ? 'preencha' : 'preencha os campos';
+  return `Para mover para "${nomeEtapa}", ${preencher}: ${listarCampos(campos)}.`;
 }
 
 export function getInitials(name: string): string {
