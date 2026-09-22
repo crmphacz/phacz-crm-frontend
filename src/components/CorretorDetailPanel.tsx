@@ -24,7 +24,7 @@ import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor } fro
 import { WhatsappSendModal } from './WhatsappSendModal';
 import { WhatsappIcon } from './WhatsappIcon';
 import { Spinner, InlineLoader } from './Spinner';
-import type { TipoInteracao, Temperatura, TipoInteresse, CanalOrigem, Corretor, Unidade } from '../types';
+import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade } from '../types';
 
 function alertError(err: unknown, fallback: string) {
   alert(err instanceof ApiError ? err.message : fallback);
@@ -859,16 +859,20 @@ export function CorretorDetailPanel() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-400 mb-1">Temperatura</p>
-                    <select
-                      className="form-input text-sm font-semibold"
-                      value={shown('temperatura')}
-                      onChange={(e) => patchDraft({ temperatura: e.target.value as Temperatura })}
-                      style={{ color: TEMPERATURA_CONFIG[shown('temperatura')].text }}
-                    >
-                      <option value="quente">🔥 Quente (&lt;30 dias)</option>
-                      <option value="morno">🌤 Morno (até 2 meses)</option>
-                      <option value="frio">❄️ Frio (&gt;3 meses)</option>
-                    </select>
+                    {/* Não se escolhe mais à mão: sai da etapa do funil (1-4 frio, 5-7 morno,
+                        8-10 quente) e de qualquer atividade de especulação, que deixa quente. */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="text-sm px-2.5 py-1 rounded-full font-semibold"
+                        style={{ backgroundColor: tempConfig.bg, color: tempConfig.text }}
+                      >
+                        {tempConfig.label}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        definida pela etapa {corretor.etapa}
+                        {corretor.interacoes.some((i) => i.tipo === 'especulacao') ? ' · especulação registrada' : ''}
+                      </span>
+                    </div>
                   </div>
                   <div>
                     <p className="text-xs text-gray-400 mb-0.5">Entrada no pipeline</p>
