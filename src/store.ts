@@ -3,10 +3,11 @@ import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, Temperatura, UserProfile, CanalOrigem,
   EmailTemplate, EmailCampaign, ChatMessage, DestinatarioTipo, UserCargo,
   Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, Empreendimento, CreateEmpreendimentoPayload,
+  WhatsappTemplate, WhatsappCampaign,
 } from './types';
 import {
   authApi, usersApi, corretoresApi, emailApi, iaApi, canaisOrigemApi, companyProfileApi, tiposInteresseApi, imobiliariasApi,
-  pushApi, savedSearchesApi, rodadasApi, notificacoesApi, empreendimentosApi,
+  pushApi, savedSearchesApi, rodadasApi, notificacoesApi, empreendimentosApi, whatsappBroadcastApi,
   type CreateCorretorPayload, type AppUser, type CanalOrigemItem, type CompanyProfile, type TipoInteresseItem, type ImobiliariaItem,
   type CreateImobiliariaPayload,
   type SavedSearchItem,
@@ -32,6 +33,7 @@ export type ViewMode =
   | 'config-regras'
   | 'indicadores'
   | 'email-marketing'
+  | 'whatsapp-massa'
   | 'phacz-ia'
   | 'rodadas'
   | 'agenda'
@@ -48,6 +50,7 @@ const NAV_ASYNC_VIEWS = new Set<ViewMode>([
   'pipeline',
   'dashboard',
   'email-marketing',
+  'whatsapp-massa',
   'phacz-ia',
   'rodadas',
   'empreendimentos',
@@ -132,6 +135,11 @@ interface StoreState {
   emailCampaigns: EmailCampaign[];
   emailMarketingLoaded: boolean;
 
+  whatsappTemplates: WhatsappTemplate[];
+  whatsappCampaigns: WhatsappCampaign[];
+  whatsappBroadcastConfigurado: boolean;
+  whatsappBroadcastLoaded: boolean;
+
   chatMessages: ChatMessage[];
   phaczIaLoaded: boolean;
 
@@ -160,6 +168,8 @@ interface StoreState {
   // Carregamento sob demanda (chamado no mount da view correspondente — ver App.tsx/views).
   // Cada um só busca na primeira vez; chamadas seguintes são no-op.
   ensureEmailMarketingLoaded: () => Promise<void>;
+  /** Carrega templates aprovados na Meta + histórico de disparos. Sempre rebusca: o status das campanhas muda sozinho (cron). */
+  loadWhatsappBroadcast: () => Promise<void>;
   ensurePhaczIaLoaded: () => Promise<void>;
   ensureRodadasLoaded: () => Promise<void>;
   ensureEmpreendimentosLoaded: () => Promise<void>;
@@ -335,6 +345,11 @@ export const useStore = create<StoreState>()((set, get) => ({
   emailCampaigns: [],
   emailMarketingLoaded: false,
 
+  whatsappTemplates: [],
+  whatsappCampaigns: [],
+  whatsappBroadcastConfigurado: false,
+  whatsappBroadcastLoaded: false,
+
   chatMessages: [],
   phaczIaLoaded: false,
 
@@ -408,6 +423,10 @@ export const useStore = create<StoreState>()((set, get) => ({
       emailTemplates: [],
       emailCampaigns: [],
       emailMarketingLoaded: false,
+      whatsappTemplates: [],
+      whatsappCampaigns: [],
+      whatsappBroadcastConfigurado: false,
+      whatsappBroadcastLoaded: false,
       chatMessages: [],
       phaczIaLoaded: false,
       savedSearches: [],
@@ -509,6 +528,19 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (get().emailMarketingLoaded) return;
     const [emailTemplates, emailCampaigns] = await Promise.all([emailApi.templates.list(), emailApi.campaigns.list()]);
     set({ emailTemplates, emailCampaigns, emailMarketingLoaded: true });
+  },
+
+  loadWhatsappBroadcast: async () => {
+    const [templates, campaigns] = await Promise.all([
+      whatsappBroadcastApi.templates(),
+      whatsappBroadcastApi.campaigns(),
+    ]);
+    set({
+      whatsappTemplates: templates.templates,
+      whatsappBroadcastConfigurado: templates.configurado,
+      whatsappCampaigns: campaigns,
+      whatsappBroadcastLoaded: true,
+    });
   },
 
   ensurePhaczIaLoaded: async () => {

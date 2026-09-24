@@ -9,12 +9,14 @@ import {
   type ApiRodada, type ApiRodadaResumo, type ApiNotificacao, type ApiEmpreendimento, type ApiEmpreendimentoDetail, type ApiUnidade,
   type ApiLogAcao, type ApiClienteFinalComContexto, type ApiAtividadeAgenda,
   type CreateCorretorPayload, type AppUser,
+  mapWhatsappTemplateFromApi, mapWhatsappCampaignFromApi, mapWhatsappCampaignDetalheFromApi, mapWhatsappOptOutFromApi,
+  type ApiWhatsappTemplate, type ApiWhatsappCampaign, type ApiWhatsappCampaignDetalhe, type ApiWhatsappOptOut,
 } from './mappers.js';
 import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, EmailTemplate, EmailCampaign,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
-  LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario,
+  LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario, CreateWhatsappCampaignPayload,
   TabelaEmpreendimentoResumo, TabelaEmpreendimentoDetalhe, CelulaAlterada,
 } from '../types';
 
@@ -374,6 +376,45 @@ export const whatsappApi = {
       method: 'POST',
       body: { ...alvo, message, ...(opts?.logOnly ? { logOnly: true } : {}) },
     }),
+};
+
+// ── WhatsApp em massa ──────────────────────────────────────────────
+// Disparo iniciado pela empresa exige template aprovado na Meta (texto livre fora da janela
+// de 24h é recusado), então a campanha sempre aponta para um template já aprovado.
+
+export const whatsappBroadcastApi = {
+  templates: () =>
+    apiFetch<{ configurado: boolean; templates: ApiWhatsappTemplate[] }>('/api/whatsapp/broadcast/templates')
+      .then((r) => ({ configurado: r.configurado, templates: r.templates.map(mapWhatsappTemplateFromApi) })),
+
+  campaigns: () =>
+    apiFetch<ApiWhatsappCampaign[]>('/api/whatsapp/broadcast/campaigns')
+      .then((rows) => rows.map(mapWhatsappCampaignFromApi)),
+
+  campaign: (id: string) =>
+    apiFetch<ApiWhatsappCampaignDetalhe>(`/api/whatsapp/broadcast/campaigns/${id}`)
+      .then(mapWhatsappCampaignDetalheFromApi),
+
+  criar: (payload: CreateWhatsappCampaignPayload) =>
+    apiFetch<ApiWhatsappCampaign>('/api/whatsapp/broadcast/campaigns', {
+      method: 'POST',
+      body: { ...payload, destinatarioTipo: mapDestinatarioTipoToApi(payload.destinatarioTipo) },
+    }).then(mapWhatsappCampaignFromApi),
+
+  cancelar: (id: string) =>
+    apiFetch<ApiWhatsappCampaign>(`/api/whatsapp/broadcast/campaigns/${id}/cancelar`, { method: 'POST' })
+      .then(mapWhatsappCampaignFromApi),
+
+  remover: (id: string) => apiFetch<void>(`/api/whatsapp/broadcast/campaigns/${id}`, { method: 'DELETE' }),
+
+  optOuts: () => apiFetch<ApiWhatsappOptOut[]>('/api/whatsapp/broadcast/opt-outs').then((rows) => rows.map(mapWhatsappOptOutFromApi)),
+
+  /** Sobe a imagem/vídeo do cabeçalho e devolve a URL pública que a Meta vai baixar. */
+  uploadMidia: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch<{ url: string }>('/api/whatsapp/broadcast/assets', { method: 'POST', body: form });
+  },
 };
 
 // ── Push ───────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import { ChangePasswordScreen } from './components/ChangePasswordScreen';
 import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { EmailMarketingView } from './components/EmailMarketingView';
+import { WhatsappBroadcastView } from './components/WhatsappBroadcastView';
 import { PhaczIAView } from './components/PhaczIAView';
 import { RodadasCalendarView } from './components/RodadasCalendarView';
 import { AgendaView } from './components/AgendaView';
@@ -147,6 +148,7 @@ export default function App() {
           {view === 'config-regras' && <PipelineRulesView />}
           {view === 'indicadores' && <IndicadoresView />}
           {view === 'email-marketing' && <EmailMarketingView />}
+          {view === 'whatsapp-massa' && <WhatsappBroadcastView />}
           {view === 'phacz-ia' && <PhaczIAView />}
           {view === 'rodadas' && <RodadasCalendarView />}
           {view === 'agenda' && <AgendaView />}

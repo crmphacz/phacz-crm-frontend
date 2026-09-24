@@ -17,6 +17,7 @@ import {
   History,
   Table2,
   FileText,
+  MessageCircle,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
 import { getInitials, getFirstName } from '../utils';
@@ -37,6 +38,7 @@ const NAV_MAIN: { id: ViewMode; icon: React.ElementType; label: string }[] = [
 
 const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'email-marketing', icon: Mail, label: 'Email Marketing' },
+  { id: 'whatsapp-massa', icon: MessageCircle, label: 'WhatsApp em massa' },
 ];
 
 const NAV_SECONDARY: { id: ViewMode; icon: React.ElementType; label: string }[] = [

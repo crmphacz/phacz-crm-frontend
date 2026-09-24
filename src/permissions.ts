@@ -134,6 +134,8 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
     case 'rodadas':
       return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
     case 'email-marketing':
+    // Disparo em massa de WhatsApp segue a mesma porta do e-mail marketing.
+    case 'whatsapp-massa':
       return user.cargo === 'Marketing';
     case 'tabelas-empreendimentos':
       // Dados financeiros: só Diretoria (+ Administrativo/Recepção, já liberados no topo).
