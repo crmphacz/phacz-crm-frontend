@@ -233,7 +233,8 @@ export interface EmailTemplate {
   atualizadoEm: string;
 }
 
-export type DestinatarioTipo = 'individual' | 'funil' | 'empreendimento';
+/** `grupo_funil` (funil inteiro) só existe no disparo de WhatsApp — o e-mail tem os outros três. */
+export type DestinatarioTipo = 'individual' | 'funil' | 'empreendimento' | 'grupo_funil';
 
 export interface EmailDestinatario {
   nome: string;
@@ -615,4 +616,91 @@ export interface LogAcao {
   entidade: string | null;
   entidadeId: string | null;
   criadoEm: string;
+}
+
+// ── WhatsApp em massa ──────────────────────────────────────────────
+// Disparo iniciado pela empresa exige template aprovado na Meta: texto livre fora da janela de
+// 24h desde a última resposta do destinatário é recusado (erro 131047). Por isso a campanha
+// aponta sempre para um template aprovado, e o que a pessoa escreve são as variáveis dele.
+
+/** Funis do pipeline como critério de público — mesmos grupos das abas do Pipeline. */
+export type GrupoFunil = 'todos' | 'pre-atendimento' | 'treinamento' | 'venda' | 'pos-venda';
+
+export interface WhatsappTemplateComponent {
+  tipo: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+  formato?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
+  texto?: string;
+}
+
+export interface WhatsappTemplate {
+  nome: string;
+  idioma: string;
+  categoria: string;
+  componentes: WhatsappTemplateComponent[];
+  /** Texto do corpo com os {{1}}, {{2}}… como vieram da Meta. */
+  corpo: string;
+  /** Quantas variáveis o corpo espera. */
+  totalVariaveis: number;
+  /** Cabeçalho de mídia, quando o template tem um. */
+  midiaCabecalho: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | null;
+}
+
+export type StatusDisparo = 'pendente' | 'enviando' | 'concluido' | 'cancelado';
+export type StatusEnvio = 'pendente' | 'enviado' | 'falhou' | 'pulado';
+
+export interface WhatsappCampaign {
+  id: string;
+  nome: string;
+  templateName: string;
+  templateLanguage: string;
+  previewTexto: string;
+  variaveis: string[];
+  midiaUrl: string;
+  midiaTipo: string;
+  destinatarioTipo: DestinatarioTipo;
+  etapaAlvo?: number;
+  funilAlvo?: GrupoFunil;
+  tipoInteresseAlvo?: string;
+  status: StatusDisparo;
+  totalDestinatarios: number;
+  enviados: number;
+  falhas: number;
+  criadoPorNome: string;
+  criadoEm: string;
+  concluidoEm?: string;
+}
+
+export interface WhatsappEnvio {
+  id: string;
+  nome: string;
+  telefone: string;
+  origem: string;
+  status: StatusEnvio;
+  erro?: string;
+  enviadoEm?: string;
+}
+
+export interface WhatsappCampaignDetalhe extends WhatsappCampaign {
+  envios: WhatsappEnvio[];
+}
+
+export interface WhatsappOptOut {
+  id: string;
+  nomeCorretor: string;
+  imobiliaria: string;
+  desdeEm?: string;
+}
+
+export interface CreateWhatsappCampaignPayload {
+  templateName: string;
+  templateLanguage: string;
+  previewTexto: string;
+  variaveis: string[];
+  midiaUrl?: string;
+  midiaTipo?: 'image' | 'video' | '';
+  destinatarioTipo: DestinatarioTipo;
+  etapaAlvo?: number;
+  funilAlvo?: GrupoFunil;
+  tipoInteresseAlvo?: string;
+  corretorIds?: string[];
 }

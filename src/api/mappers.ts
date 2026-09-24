@@ -7,6 +7,8 @@ import type {
   MaterialComercial, EstruturaOperacao, CategoriaOrcamento, ResponsavelEntrega, StatusEntrega, ComoConvite,
   ProximoPasso, InvestimentoOuMoradia, PlanoB, PotencialRetorno, PrioridadeTrimestre, Recomendacao,
   LogAcao,
+  WhatsappTemplate, WhatsappCampaign, WhatsappCampaignDetalhe, WhatsappEnvio, WhatsappOptOut,
+  StatusDisparo, StatusEnvio, GrupoFunil,
 } from '../types';
 
 function makeEnumMap<Api extends string, App extends string>(pairs: [Api, App][]) {
@@ -42,6 +44,7 @@ const propostaStatusMap = makeEnumMap<string, Proposta['status']>([
 
 const destinatarioTipoMap = makeEnumMap<string, DestinatarioTipo>([
   ['INDIVIDUAL', 'individual'], ['FUNIL', 'funil'], ['EMPREENDIMENTO', 'empreendimento'],
+  ['GRUPO_FUNIL', 'grupo_funil'],
 ]);
 
 const chatRoleMap = makeEnumMap<string, ChatMessage['role']>([
@@ -998,5 +1001,143 @@ export function mapLogAcaoFromApi(l: ApiLogAcao): LogAcao {
     entidade: l.entidade,
     entidadeId: l.entidadeId,
     criadoEm: l.criadoEm,
+  };
+}
+
+// ── WhatsApp em massa ──────────────────────────────────────────────
+
+const statusDisparoMap = makeEnumMap<string, StatusDisparo>([
+  ['PENDENTE', 'pendente'], ['ENVIANDO', 'enviando'], ['CONCLUIDO', 'concluido'], ['CANCELADO', 'cancelado'],
+]);
+
+const statusEnvioMap = makeEnumMap<string, StatusEnvio>([
+  ['PENDENTE', 'pendente'], ['ENVIADO', 'enviado'], ['FALHOU', 'falhou'], ['PULADO', 'pulado'],
+]);
+
+export interface ApiWhatsappTemplate {
+  name: string;
+  language: string;
+  category: string;
+  components: { type: string; format?: string; text?: string }[];
+}
+
+/**
+ * O template vem da Meta com os componentes crus. A tela precisa saber três coisas: o texto do
+ * corpo (para mostrar a prévia), quantas variáveis {{n}} ele espera e se o cabeçalho é de mídia
+ * — é o cabeçalho que recebe a imagem ou o vídeo no envio.
+ */
+export function mapWhatsappTemplateFromApi(t: ApiWhatsappTemplate): WhatsappTemplate {
+  const corpo = t.components.find((c) => c.type === 'BODY')?.text ?? '';
+  const header = t.components.find((c) => c.type === 'HEADER');
+  const formatoHeader = header?.format;
+  const midiaCabecalho =
+    formatoHeader === 'IMAGE' || formatoHeader === 'VIDEO' || formatoHeader === 'DOCUMENT' ? formatoHeader : null;
+
+  // Conta as variáveis distintas do corpo: "Olá {{1}}, o {{2}} está com {{1}}" espera 2.
+  const numeros = new Set([...corpo.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])));
+
+  return {
+    nome: t.name,
+    idioma: t.language,
+    categoria: t.category,
+    componentes: t.components.map((c) => ({
+      tipo: c.type as WhatsappTemplate['componentes'][number]['tipo'],
+      formato: c.format as WhatsappTemplate['componentes'][number]['formato'],
+      texto: c.text,
+    })),
+    corpo,
+    totalVariaveis: numeros.size === 0 ? 0 : Math.max(...numeros),
+    midiaCabecalho,
+  };
+}
+
+export interface ApiWhatsappCampaign {
+  id: string;
+  nome: string;
+  templateName: string;
+  templateLanguage: string;
+  previewTexto: string;
+  variaveis: unknown;
+  midiaUrl: string;
+  midiaTipo: string;
+  destinatarioTipo: string;
+  etapaAlvo: number | null;
+  funilAlvo: string | null;
+  tipoInteresseAlvo: string | null;
+  status: string;
+  totalDestinatarios: number;
+  enviados: number;
+  falhas: number;
+  createdBy?: { nome: string } | null;
+  criadoEm: string;
+  concluidoEm: string | null;
+}
+
+export function mapWhatsappCampaignFromApi(c: ApiWhatsappCampaign): WhatsappCampaign {
+  return {
+    id: c.id,
+    nome: c.nome,
+    templateName: c.templateName,
+    templateLanguage: c.templateLanguage,
+    previewTexto: c.previewTexto,
+    variaveis: Array.isArray(c.variaveis) ? (c.variaveis as string[]) : [],
+    midiaUrl: c.midiaUrl,
+    midiaTipo: c.midiaTipo,
+    destinatarioTipo: destinatarioTipoMap.toApp(c.destinatarioTipo),
+    etapaAlvo: c.etapaAlvo ?? undefined,
+    funilAlvo: (c.funilAlvo as GrupoFunil | null) ?? undefined,
+    tipoInteresseAlvo: c.tipoInteresseAlvo ?? undefined,
+    status: statusDisparoMap.toApp(c.status),
+    totalDestinatarios: c.totalDestinatarios,
+    enviados: c.enviados,
+    falhas: c.falhas,
+    criadoPorNome: c.createdBy?.nome ?? '—',
+    criadoEm: c.criadoEm,
+    concluidoEm: c.concluidoEm ?? undefined,
+  };
+}
+
+export interface ApiWhatsappCampaignDetalhe extends ApiWhatsappCampaign {
+  envios: {
+    id: string;
+    nome: string;
+    telefone: string;
+    origem: string;
+    status: string;
+    erro: string | null;
+    enviadoEm: string | null;
+  }[];
+}
+
+export function mapWhatsappCampaignDetalheFromApi(c: ApiWhatsappCampaignDetalhe): WhatsappCampaignDetalhe {
+  return {
+    ...mapWhatsappCampaignFromApi(c),
+    envios: c.envios.map(
+      (e): WhatsappEnvio => ({
+        id: e.id,
+        nome: e.nome,
+        telefone: e.telefone,
+        origem: e.origem,
+        status: statusEnvioMap.toApp(e.status),
+        erro: e.erro ?? undefined,
+        enviadoEm: e.enviadoEm ?? undefined,
+      })
+    ),
+  };
+}
+
+export interface ApiWhatsappOptOut {
+  id: string;
+  nomeCorretor: string;
+  imobiliaria: string;
+  whatsappOptOutEm: string | null;
+}
+
+export function mapWhatsappOptOutFromApi(c: ApiWhatsappOptOut): WhatsappOptOut {
+  return {
+    id: c.id,
+    nomeCorretor: c.nomeCorretor,
+    imobiliaria: c.imobiliaria,
+    desdeEm: c.whatsappOptOutEm ?? undefined,
   };
 }
