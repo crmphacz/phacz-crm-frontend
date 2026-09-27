@@ -4,7 +4,7 @@ import {
   addMonths, subMonths, format, isSameMonth, isToday,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Cake, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Cake, Check, Users } from 'lucide-react';
 import { agendaApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { useStore } from '../store';
@@ -29,6 +29,8 @@ interface AgendaCache {
   currentMonth: Date;
   aniversarios: AniversarioAgenda[];
   atividades: AtividadeAgenda[];
+  /** Filtro por pessoa da visão da Diretoria; '' = agenda de todos. */
+  responsavelId: string;
 }
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -42,10 +44,26 @@ function primeiroNome(nome: string): string {
 
 export function AgendaView() {
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
+  const currentUser = useStore((s) => s.currentUser);
+  const users = useStore((s) => s.users);
+
+  // A Diretoria enxerga a agenda da equipe inteira e pode filtrar por pessoa; os demais cargos
+  // veem só a própria — quem decide isso de fato é o backend, aqui é só a interface.
+  const ehDiretoria = currentUser?.cargo === 'Diretora';
+
   const [saved] = useState(() => getViewCache<AgendaCache>(CACHE_KEY));
   const [currentMonth, setCurrentMonth] = useState(() => saved?.currentMonth ?? new Date());
   const [aniversarios, setAniversarios] = useState<AniversarioAgenda[]>(saved?.aniversarios ?? []);
   const [atividades, setAtividades] = useState<AtividadeAgenda[]>(saved?.atividades ?? []);
+  const [responsavelId, setResponsavelId] = useState(saved?.responsavelId ?? '');
+
+  const usuariosDoFiltro = useMemo(
+    () => users.filter((u) => u.ativo).sort((a, b) => a.nome.localeCompare(b.nome)),
+    [users]
+  );
+
+  /** Agendas de várias pessoas misturadas na mesma grade — só quando a Diretoria não filtrou ninguém. */
+  const mostrandoVariasAgendas = ehDiretoria && !responsavelId;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<AniversarioAgenda | null>(null);
@@ -57,8 +75,8 @@ export function AgendaView() {
 
   useEffect(() => {
     if (!primeiraCargaFeita) return;
-    setViewCache<AgendaCache>(CACHE_KEY, { currentMonth, aniversarios, atividades });
-  }, [primeiraCargaFeita, currentMonth, aniversarios, atividades]);
+    setViewCache<AgendaCache>(CACHE_KEY, { currentMonth, aniversarios, atividades, responsavelId });
+  }, [primeiraCargaFeita, currentMonth, aniversarios, atividades, responsavelId]);
 
   const ano = currentMonth.getFullYear();
   const mes = currentMonth.getMonth() + 1;
@@ -67,12 +85,15 @@ export function AgendaView() {
     let vivo = true;
     setLoading(true);
     setError('');
-    Promise.all([agendaApi.aniversarios(ano, mes), agendaApi.atividades(ano, mes)])
+    Promise.all([
+      agendaApi.aniversarios(ano, mes),
+      agendaApi.atividades(ano, mes, ehDiretoria ? responsavelId || undefined : undefined),
+    ])
       .then(([niver, ativ]) => { if (vivo) { setAniversarios(niver); setAtividades(ativ); } })
       .catch((err) => { if (vivo) setError(err instanceof ApiError ? err.message : 'Não foi possível carregar a agenda.'); })
       .finally(() => { if (vivo) { setLoading(false); setPrimeiraCargaFeita(true); } });
     return () => { vivo = false; };
-  }, [ano, mes]);
+  }, [ano, mes, ehDiretoria, responsavelId]);
 
   const diasNoMes = endOfMonth(currentMonth).getDate();
 
@@ -138,6 +159,23 @@ export function AgendaView() {
                 : `${aniversarios.length} aniversário(s) e ${compromissos.length} compromisso(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
             </p>
           </div>
+
+          {ehDiretoria && (
+            <div className="flex items-center gap-2">
+              <Users size={14} className="text-gray-400 flex-shrink-0" />
+              <select
+                className="form-input text-sm"
+                style={{ minWidth: 200 }}
+                value={responsavelId}
+                onChange={(e) => setResponsavelId(e.target.value)}
+              >
+                <option value="">Todos os usuários</option>
+                {usuariosDoFiltro.map((u) => (
+                  <option key={u.id} value={u.id}>{u.nome} · {u.cargo}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -180,6 +218,12 @@ export function AgendaView() {
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#dbeafe' }} /> Compromisso agendado (ligação, WhatsApp, reunião, treinamento ou visita)
           </span>
+          {mostrandoVariasAgendas && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#9ca3af' }} />
+              A cor da bolinha indica de qual usuário é o compromisso
+            </span>
+          )}
         </div>
 
         {/* Grid */}
@@ -232,14 +276,23 @@ export function AgendaView() {
                     ))}
                     {ativVisiveis.map((at) => {
                       const config = TIPO_INTERACAO_CONFIG[at.tipo];
+                      const dono = at.responsavelNome ? ` · agenda de ${at.responsavelNome}` : '';
                       return (
                         <button
                           key={at.id}
                           onClick={() => setSelectedCorretor(at.corretorId)}
-                          title={`${format(new Date(at.data), 'HH:mm')} · ${config.label} · ${at.corretorNome} — ${at.resumo}`}
+                          title={`${format(new Date(at.data), 'HH:mm')} · ${config.label} · ${at.corretorNome}${dono} — ${at.resumo}`}
                           className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate transition-colors hover:brightness-95"
                           style={{ backgroundColor: '#dbeafe', color: '#1d4ed8' }}
                         >
+                          {/* Na visão "todos" um compromisso azul sozinho não diz de quem é —
+                              a bolinha na cor do usuário resolve isso sem ocupar espaço. */}
+                          {mostrandoVariasAgendas && at.responsavelNome && (
+                            <span
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: at.responsavelCor || '#1d4ed8' }}
+                            />
+                          )}
                           <span className="flex-shrink-0">{config.icon}</span>
                           <span className="truncate">{primeiroNome(at.corretorNome)}</span>
                         </button>
