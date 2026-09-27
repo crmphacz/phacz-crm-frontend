@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, Temperatura, UserProfile, CanalOrigem,
   EmailTemplate, EmailCampaign, ChatMessage, DestinatarioTipo, UserCargo,
-  Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, Empreendimento, CreateEmpreendimentoPayload,
+  Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, TipoNotificacao, Empreendimento, CreateEmpreendimentoPayload,
   WhatsappTemplate, WhatsappCampaign,
 } from './types';
 import {
@@ -293,6 +293,7 @@ interface StoreState {
   removeRodada: (id: string) => Promise<void>;
   approveRodada: (id: string) => Promise<Rodada>;
   rejectRodada: (id: string, motivo: string) => Promise<Rodada>;
+  requestRodadaCorrection: (id: string, motivo: string) => Promise<Rodada>;
 
   // Notificações in-app
   loadNotificacoes: () => Promise<void>;
@@ -959,6 +960,12 @@ export const useStore = create<StoreState>()((set, get) => ({
     return updated;
   },
 
+  requestRodadaCorrection: async (id, motivo) => {
+    const updated = await rodadasApi.solicitarCorrecao(id, motivo);
+    set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
+    return updated;
+  },
+
   loadNotificacoes: async () => {
     const { notificacoes, naoLidas } = await notificacoesApi.list();
     set({ notificacoes, notificacoesNaoLidas: naoLidas });
@@ -984,9 +991,10 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (n.tipo === 'aniversario_hoje' || n.tipo === 'aniversario_enviado') {
       set({ view: 'agenda', selectedCorretorId: null });
     } else {
-      // Rodada pendente de aprovação não aparece no calendário — abre direto na Lista,
-      // onde toda rodada visível pro usuário (qualquer status) é mostrada.
-      const rodadaFocoTab = n.tipo === 'rodada_pendente_aprovacao' ? 'lista' : 'calendario';
+      // O calendário só mostra rodada APROVADA. Pendente, recusada e devolvida para correção
+      // abrem direto na Lista — no calendário elas simplesmente não estariam lá.
+      const soNaLista: TipoNotificacao[] = ['rodada_pendente_aprovacao', 'rodada_recusada', 'rodada_correcao_solicitada'];
+      const rodadaFocoTab = soNaLista.includes(n.tipo) ? 'lista' : 'calendario';
       set({ view: 'rodadas', selectedCorretorId: null, rodadaFocoData: n.rodadaDataInicio ?? null, rodadaFocoTab });
     }
     if (!n.lida) get().markNotificacaoLida(n.id);

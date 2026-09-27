@@ -6,7 +6,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import {
   Plus, ChevronLeft, ChevronRight, MapPin, Wallet, User, Pencil, Trash2, X,
-  CalendarDays, LayoutGrid, List as ListIcon, Check, XCircle, Clock, AlertCircle,
+  CalendarDays, LayoutGrid, List as ListIcon, Check, XCircle, Clock, AlertCircle, PencilLine,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
@@ -17,13 +17,18 @@ import { canViewRodadas, canWriteRodadas, canViewFullRodada, canApproveRodada } 
 import { isRodadaCompleta, type Rodada, type RodadaResumo, type TipoAcaoRodada, type StatusAprovacaoRodada } from '../types';
 import { RodadaFormModal } from './RodadaFormModal';
 import { RodadaResumoModal } from './RodadaResumoModal';
-import { RodadaRecusaModal } from './RodadaRecusaModal';
+import { RodadaMotivoModal, type ModoMotivo } from './RodadaMotivoModal';
 
 const STATUS_APROVACAO_CONFIG: Record<StatusAprovacaoRodada, { label: string; bg: string; text: string; icon: React.ElementType }> = {
   pendente: { label: 'Pendente de aprovação', bg: '#fef9c3', text: '#854d0e', icon: Clock },
   aprovada: { label: 'Aprovada', bg: '#dcfce7', text: '#166534', icon: Check },
   recusada: { label: 'Recusada', bg: '#fee2e2', text: '#b91c1c', icon: XCircle },
+  correcao_solicitada: { label: 'Correção solicitada', bg: '#ffedd5', text: '#c2410c', icon: PencilLine },
 };
+
+/** Ordem dos filtros da aba Lista. 'todas' primeiro, depois o ciclo de vida da aprovação. */
+const FILTROS_STATUS = ['todas', 'pendente', 'correcao_solicitada', 'aprovada', 'recusada'] as const;
+type FiltroStatus = (typeof FILTROS_STATUS)[number];
 
 /** `RodadaResumo` nunca chega pendente/recusada pro cliente — a API já filtra isso pra quem não vê o formulário completo. */
 function statusDe(r: Rodada | RodadaResumo): StatusAprovacaoRodada {
@@ -97,7 +102,9 @@ export function RodadasCalendarView() {
   const [deleteError, setDeleteError] = useState('');
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
-  const [recusandoId, setRecusandoId] = useState<string | null>(null);
+  // Modal do recado da Diretoria: mesmo formulário para recusar e para pedir correção.
+  const [motivoModal, setMotivoModal] = useState<{ id: string; modo: ModoMotivo } | null>(null);
+  const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todas');
 
   useEffect(() => {
     if (rodadaFocoData) {
@@ -138,6 +145,24 @@ export function RodadasCalendarView() {
 
   const rodadasPendentes = useMemo(() => rodadas.filter((r) => statusDe(r) === 'pendente'), [rodadas]);
 
+  /** Quantas rodadas o usuário enxerga em cada status — alimenta os chips de filtro da Lista. */
+  const contagemPorStatus = useMemo(() => {
+    const base: Record<FiltroStatus, number> = {
+      todas: rodadas.length, pendente: 0, correcao_solicitada: 0, aprovada: 0, recusada: 0,
+    };
+    for (const r of rodadas) base[statusDe(r)] += 1;
+    return base;
+  }, [rodadas]);
+
+  /**
+   * Quem acompanha o andamento das próprias rodadas (a GR) precisa ver de relance o que voltou
+   * para ela. A Diretoria tem o atalho de pendentes; aqui é o outro lado do fluxo.
+   */
+  const minhasAguardandoCorrecao = useMemo(
+    () => rodadas.filter((r) => statusDe(r) === 'correcao_solicitada' && isRodadaCompleta(r) && r.criadoPorId === currentUser?.id),
+    [rodadas, currentUser]
+  );
+
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
@@ -147,8 +172,10 @@ export function RodadasCalendarView() {
   }, [currentMonth]);
 
   const rodadasOrdenadas = useMemo(
-    () => [...rodadas].sort((a, b) => b.dataInicio.localeCompare(a.dataInicio)),
-    [rodadas]
+    () => [...rodadas]
+      .filter((r) => filtroStatus === 'todas' || statusDe(r) === filtroStatus)
+      .sort((a, b) => b.dataInicio.localeCompare(a.dataInicio)),
+    [rodadas, filtroStatus]
   );
 
   function openNewForm(dataKey?: string) {
@@ -218,9 +245,19 @@ export function RodadasCalendarView() {
             <p className="text-sm text-gray-500 mt-0.5">{rodadasDoMes.length} rodada(s) aprovada(s) neste mês</p>
           </div>
           <div className="flex items-center gap-3">
+            {!canApprove && minhasAguardandoCorrecao.length > 0 && (
+              <button
+                onClick={() => { setTab('lista'); setFiltroStatus('correcao_solicitada'); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                style={{ backgroundColor: '#ffedd5', color: '#c2410c' }}
+                title="Ver as rodadas que a Diretoria devolveu para você corrigir"
+              >
+                <PencilLine size={13} /> {minhasAguardandoCorrecao.length} aguardando correção
+              </button>
+            )}
             {canApprove && rodadasPendentes.length > 0 && (
               <button
-                onClick={() => setTab('lista')}
+                onClick={() => { setTab('lista'); setFiltroStatus('pendente'); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
                 style={{ backgroundColor: '#fef9c3', color: '#854d0e' }}
                 title="Ver rodadas aguardando sua aprovação"
@@ -331,6 +368,30 @@ export function RodadasCalendarView() {
         </div>
       ) : (
         <div className="flex-1 overflow-auto bg-white">
+          {/* Filtro por situação: antes, rodada recusada ou devolvida para correção só era
+              alcançável clicando na notificação do sino — passada a notificação, sumia. */}
+          {canSeeFull && (
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b" style={{ borderColor: '#f3f4f6' }}>
+              {FILTROS_STATUS.map((f) => {
+                const cfg = f === 'todas' ? null : STATUS_APROVACAO_CONFIG[f];
+                const ativo = filtroStatus === f;
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setFiltroStatus(f)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors"
+                    style={ativo
+                      ? { backgroundColor: cfg?.bg ?? '#292929', color: cfg?.text ?? '#fff', borderColor: 'transparent' }
+                      : { backgroundColor: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }}
+                  >
+                    {cfg ? <cfg.icon size={12} /> : null}
+                    {cfg?.label ?? 'Todas'}
+                    <span style={{ opacity: 0.65 }}>{contagemPorStatus[f]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {actionError && <p className="text-xs text-red-500 px-4 pt-3">{actionError}</p>}
           <table className="w-full text-sm min-w-[880px]">
             <thead className="sticky top-0 bg-white border-b" style={{ borderColor: '#e5e7eb' }}>
@@ -378,15 +439,21 @@ export function RodadasCalendarView() {
                       <span
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
                         style={{ backgroundColor: statusConfig.bg, color: statusConfig.text }}
-                        title={status === 'recusada' && isRodadaCompleta(r) ? `Motivo: ${r.motivoRecusa}` : undefined}
                       >
                         <StatusIcon size={11} /> {statusConfig.label}
                       </span>
+                      {/* O recado da Diretoria fica na linha, não só no tooltip: é o que a
+                          pessoa precisa ler para saber o que ajustar. */}
+                      {isRodadaCompleta(r) && r.motivoRecusa && (status === 'recusada' || status === 'correcao_solicitada') && (
+                        <p className="text-xs text-gray-500 mt-1 max-w-[260px] whitespace-normal" title={r.motivoRecusa}>
+                          {r.motivoRecusa}
+                        </p>
+                      )}
                     </td>
                   )}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      {canApprove && status === 'pendente' && (
+                      {canApprove && (status === 'pendente' || status === 'correcao_solicitada') && (
                         <>
                           <button
                             onClick={(ev) => { ev.stopPropagation(); handleApprove(r.id); }}
@@ -397,7 +464,15 @@ export function RodadasCalendarView() {
                             <Check size={14} />
                           </button>
                           <button
-                            onClick={(ev) => { ev.stopPropagation(); setRecusandoId(r.id); }}
+                            onClick={(ev) => { ev.stopPropagation(); setMotivoModal({ id: r.id, modo: 'correcao' }); }}
+                            className="w-7 h-7 rounded flex items-center justify-center hover:bg-orange-50"
+                            style={{ color: '#c2410c' }}
+                            title="Solicitar correção"
+                          >
+                            <PencilLine size={14} />
+                          </button>
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); setMotivoModal({ id: r.id, modo: 'recusa' }); }}
                             className="w-7 h-7 rounded flex items-center justify-center text-red-500 hover:bg-red-50"
                             title="Recusar"
                           >
@@ -426,7 +501,9 @@ export function RodadasCalendarView() {
               {rodadasOrdenadas.length === 0 && (
                 <tr>
                   <td colSpan={canSeeFull ? 8 : 5} className="py-16 text-center text-gray-400 text-sm">
-                    Nenhuma rodada cadastrada
+                    {filtroStatus === 'todas'
+                      ? 'Nenhuma rodada cadastrada'
+                      : `Nenhuma rodada com a situação "${STATUS_APROVACAO_CONFIG[filtroStatus].label}".`}
                   </td>
                 </tr>
               )}
@@ -533,8 +610,12 @@ export function RodadasCalendarView() {
         <RodadaResumoModal rodada={viewingResumo} onClose={() => setViewingResumo(null)} />
       )}
 
-      {recusandoId && (
-        <RodadaRecusaModal rodadaId={recusandoId} onClose={() => setRecusandoId(null)} />
+      {motivoModal && (
+        <RodadaMotivoModal
+          rodadaId={motivoModal.id}
+          modo={motivoModal.modo}
+          onClose={() => setMotivoModal(null)}
+        />
       )}
     </div>
   );

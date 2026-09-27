@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
-  X, CalendarDays, ChevronRight, ChevronDown, ChevronUp, Plus, Trash2, Upload, Loader2,
+  X, CalendarDays, ChevronRight, ChevronDown, ChevronUp, Plus, Trash2, Upload, Loader2, Paperclip,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
@@ -161,6 +161,7 @@ interface FormState {
   uf: string;
   tipoAcao: TipoAcaoRodada;
   tipoAcaoOutro: string;
+  temperaturaRodada: '' | 'FRIA' | 'QUENTE';
   imobiliaria: string;
   vinculoTipo: VinculoRodadaTipo;
   responsavelImobiliaria: string;
@@ -235,7 +236,7 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
   if (!rodada) {
     return {
       dataSolicitacao: '', dataInicio: dataInicial ?? '', dataFim: dataInicial ?? '', cidade: '', uf: '',
-      tipoAcao: 'rodada', tipoAcaoOutro: '', imobiliaria: '', vinculoTipo: 'imobiliaria', responsavelImobiliaria: '',
+      tipoAcao: 'rodada', tipoAcaoOutro: '', temperaturaRodada: '', imobiliaria: '', vinculoTipo: 'imobiliaria', responsavelImobiliaria: '',
       gerenteVendasInternas: '', solicitanteRelacionamento: '',
       parceiroEndereco: '', parceiroPerfil: '', parceiroHistorico: '', parceiroParticipouAcaoAnterior: null,
       parceiroParticipouQuando: '', parceiroResumoRelacionamento: '',
@@ -264,6 +265,7 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
     cidade: rodada.cidade,
     uf: rodada.uf,
     tipoAcao: rodada.tipoAcao,
+    temperaturaRodada: rodada.temperaturaRodada ?? '',
     tipoAcaoOutro: rodada.tipoAcaoOutro,
     imobiliaria: rodada.imobiliaria,
     vinculoTipo: rodada.vinculoTipo,
@@ -350,6 +352,7 @@ function toPayload(form: FormState): CreateRodadaPayload {
     cidade: form.cidade.trim(),
     uf: form.uf.trim().toUpperCase(),
     tipoAcao: form.tipoAcao,
+    temperaturaRodada: form.temperaturaRodada || null,
     tipoAcaoOutro: form.tipoAcaoOutro.trim(),
     imobiliaria: form.imobiliaria,
     vinculoTipo: form.vinculoTipo,
@@ -606,6 +609,19 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                 <select className="form-input" value={form.tipoAcao} onChange={(ev) => set('tipoAcao', ev.target.value as TipoAcaoRodada)}>
                   {TIPO_ACAO_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+              </div>
+              <div>
+                <FormLabel>Temperatura da rodada</FormLabel>
+                <select
+                  className="form-input"
+                  value={form.temperaturaRodada}
+                  onChange={(ev) => set('temperaturaRodada', ev.target.value as '' | 'FRIA' | 'QUENTE')}
+                >
+                  <option value="">Não informar</option>
+                  <option value="FRIA">Fria — imobiliária nova</option>
+                  <option value="QUENTE">Quente — parceira já ativa</option>
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">Conta separado no placar de metas da Gerência de Relacionamento.</p>
               </div>
               {form.tipoAcao === 'outro' && (
                 <div ref={fieldRef('tipoAcaoOutro')}>
@@ -1219,18 +1235,34 @@ function RemoveRowButton({ label, onClick }: { label: string; onClick: () => voi
   );
 }
 
+/** Último pedaço da URL do anexo, só para dar ao link um rótulo melhor que a URL inteira. */
+function nomeDoArquivo(url: string): string {
+  try {
+    const caminho = new URL(url, window.location.origin).pathname;
+    return decodeURIComponent(caminho.split('/').pop() || 'Anexo enviado');
+  } catch {
+    return 'Anexo enviado';
+  }
+}
+
 function OrcamentoItemEditor({ row, onUpdate, onRemove }: {
   row: OrcamentoItemRow;
   onUpdate: (patch: Partial<OrcamentoItemRow>) => void;
   onRemove: () => void;
 }) {
+  const [erroUpload, setErroUpload] = useState('');
+
   async function handleUploadAnexo(file: File) {
+    setErroUpload('');
     onUpdate({ uploading: true });
     try {
       const { url } = await rodadasApi.uploadAsset(file);
       onUpdate({ anexoUrl: url, uploading: false });
-    } catch {
+    } catch (err) {
+      // Antes a falha era engolida: o "Enviando..." sumia e nada aparecia, então dava pra
+      // salvar a rodada achando que o arquivo tinha subido.
       onUpdate({ uploading: false });
+      setErroUpload(err instanceof ApiError ? err.message : 'Não foi possível enviar o arquivo. Tente novamente.');
     }
   }
 
@@ -1258,12 +1290,44 @@ function OrcamentoItemEditor({ row, onUpdate, onRemove }: {
         </div>
       )}
 
-      {row.categoria === 'evento_estrutura' && (
-        <div>
-          <FormLabel>Anexo do cardápio selecionado</FormLabel>
-          {row.anexoUrl && (
-            <a href={row.anexoUrl} target="_blank" rel="noreferrer" className="text-xs underline block mb-1" style={{ color: '#d55006' }}>Ver anexo enviado</a>
-          )}
+      {/* Anexo vale para QUALQUER item do orçamento — nota fiscal, orçamento do fornecedor,
+          comprovante. Antes só aparecia em "Evento e estrutura", então os outros itens não
+          tinham onde anexar nada. */}
+      <div>
+        <FormLabel>
+          {row.categoria === 'evento_estrutura' ? 'Anexo do cardápio selecionado' : 'Anexo (orçamento, nota, comprovante)'}
+        </FormLabel>
+
+        {row.anexoUrl ? (
+          // Com arquivo enviado: dá para abrir, trocar ou remover só o anexo — antes o único
+          // botão era o "Remover item", que apagava a linha inteira do orçamento.
+          <div className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg border" style={{ borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
+            <Paperclip size={13} style={{ color: '#d55006' }} className="flex-shrink-0" />
+            <a
+              href={row.anexoUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs underline flex-1 min-w-0 truncate"
+              style={{ color: '#d55006' }}
+            >
+              {nomeDoArquivo(row.anexoUrl)}
+            </a>
+            <label
+              htmlFor={`orcamento-anexo-${row._key}`}
+              className="text-xs font-semibold cursor-pointer text-gray-500 hover:text-orange-600 transition-colors flex-shrink-0"
+            >
+              {row.uploading ? 'Enviando...' : 'Trocar'}
+            </label>
+            <button
+              type="button"
+              onClick={() => onUpdate({ anexoUrl: '' })}
+              className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+              title="Remover apenas o anexo"
+            >
+              <Trash2 size={12} /> Remover anexo
+            </button>
+          </div>
+        ) : (
           <label
             htmlFor={`orcamento-anexo-${row._key}`}
             className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed text-xs font-semibold cursor-pointer transition-colors hover:border-orange-300 hover:text-orange-600"
@@ -1272,16 +1336,19 @@ function OrcamentoItemEditor({ row, onUpdate, onRemove }: {
             {row.uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
             {row.uploading ? 'Enviando...' : 'Anexar arquivo (PDF/imagem)'}
           </label>
-          <input
-            id={`orcamento-anexo-${row._key}`}
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            className="hidden"
-            disabled={row.uploading}
-            onChange={(ev) => { const file = ev.target.files?.[0]; if (file) handleUploadAnexo(file); ev.target.value = ''; }}
-          />
-        </div>
-      )}
+        )}
+
+        {erroUpload && <p className="text-xs text-red-500 mt-1">{erroUpload}</p>}
+
+        <input
+          id={`orcamento-anexo-${row._key}`}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,image/webp"
+          className="hidden"
+          disabled={row.uploading}
+          onChange={(ev) => { const file = ev.target.files?.[0]; if (file) handleUploadAnexo(file); ev.target.value = ''; }}
+        />
+      </div>
 
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-2 text-xs text-gray-600">
