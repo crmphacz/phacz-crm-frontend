@@ -7,13 +7,14 @@ import {
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
+import { PlacarMetasView } from './PlacarMetasView';
 import { STAGES } from '../data';
 import { formatCurrency, formatRelativeTime } from '../utils';
 import { ApiError } from '../api/client';
 import { dashboardApi, type AtividadeRecente } from '../api/endpoints';
 import type { Corretor } from '../types';
 
-type DashTab = 'geral' | 'sdr' | 'gr' | 'gv';
+type DashTab = 'metas' | 'geral' | 'sdr' | 'gr' | 'gv';
 
 export function Dashboard() {
   const corretores = useStore((s) => s.corretores);
@@ -37,14 +38,15 @@ export function Dashboard() {
   }, []);
 
   const cargo = currentUser?.cargo ?? 'Diretora';
-  const defaultTab: DashTab =
-    cargo === 'SDR' ? 'sdr' :
-    cargo === 'GR' ? 'gr' :
-    cargo === 'GV' ? 'gv' : 'geral';
+  // O placar de metas abre primeiro para quem é medido por ele e para a Diretoria: é o que
+  // substituiu a planilha e o que se olha todo dia. Os funis continuam a um clique.
+  const temPlacar = cargo === 'SDR' || cargo === 'GR' || cargo === 'GV';
+  const defaultTab: DashTab = temPlacar || cargo === 'Diretora' ? 'metas' : 'geral';
 
   const [dashTab, setDashTab] = useState<DashTab>(defaultTab);
 
   const allTabs: { id: DashTab; label: string; visible: boolean; cor: string }[] = [
+    { id: 'metas', label: 'Placar de Metas', visible: temPlacar || cargo === 'Diretora', cor: '#d55006' },
     { id: 'geral', label: 'Visão Geral', visible: cargo === 'Diretora', cor: '#d55006' },
     { id: 'sdr', label: 'Funil SDR', visible: cargo === 'Diretora' || cargo === 'SDR', cor: '#8b5cf6' },
     { id: 'gr', label: 'Funil GR', visible: cargo === 'Diretora' || cargo === 'GR', cor: '#0d9488' },
@@ -97,12 +99,17 @@ export function Dashboard() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-6" style={{ backgroundColor: '#e6e3de' }}>
-        {dashTab === 'geral' && <DashGeral corretores={corretores} onNavigate={navigate} />}
-        {dashTab === 'sdr' && <DashSDR corretores={corretores} currentUser={currentUser?.nome} onNavigate={navigate} />}
-        {dashTab === 'gr' && <DashGR corretores={corretores} currentUser={currentUser?.nome} onNavigate={navigate} />}
-        {dashTab === 'gv' && <DashGV corretores={corretores} currentUser={currentUser?.nome} onNavigate={navigate} />}
-      </div>
+      {dashTab === 'metas' ? (
+        // O placar traz o próprio cabeçalho (mês, exportação) e a própria rolagem.
+        <div className="flex-1 min-h-0"><PlacarMetasView /></div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-4 md:p-6" style={{ backgroundColor: '#e6e3de' }}>
+          {dashTab === 'geral' && <DashGeral corretores={corretores} onNavigate={navigate} />}
+          {dashTab === 'sdr' && <DashSDR corretores={corretores} currentUser={currentUser?.nome} onNavigate={navigate} />}
+          {dashTab === 'gr' && <DashGR corretores={corretores} currentUser={currentUser?.nome} onNavigate={navigate} />}
+          {dashTab === 'gv' && <DashGV corretores={corretores} currentUser={currentUser?.nome} onNavigate={navigate} />}
+        </div>
+      )}
     </div>
   );
 }
