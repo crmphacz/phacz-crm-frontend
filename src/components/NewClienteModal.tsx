@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { X, User, Search, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
 import type { ClienteFinalComContexto } from '../store';
+import type { CanalOrigem } from '../types';
 import { ApiError } from '../api/client';
 import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
@@ -25,6 +26,7 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
   // libera os campos. Ao criar um novo, já abre liberado.
   const [editing, setEditing] = useState(!isEdit);
   const corretores = useStore((s) => s.corretores);
+  const canaisOrigem = useStore((s) => s.canaisOrigem);
   const addClienteFinal = useStore((s) => s.addClienteFinal);
   const updateClienteFinal = useStore((s) => s.updateClienteFinal);
 
@@ -46,6 +48,7 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
   const [cidade, setCidade] = useState(cliente?.cidade ?? '');
   const cidadesOptions = useCidadesPorUf(uf);
   const [interesse, setInteresse] = useState(cliente?.interesse ?? '');
+  const [canalOrigem, setCanalOrigem] = useState<CanalOrigem>(cliente?.canalOrigem ?? '');
   const [orcamento, setOrcamento] = useState(cliente?.orcamento ? formatCurrencyBRL(cliente.orcamento) : '');
   const [observacoes, setObservacoes] = useState(cliente?.observacoes ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -63,6 +66,14 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
   // Busca na lista completa (não só nas opções filtradas) pra um corretor pré-selecionado
   // pelo contexto — ex.: card arquivado/perdido — ainda aparecer como selecionado.
   const selectedCorretor = corretores.find((c) => c.id === corretorId);
+
+  // Se o canal gravado no cliente já não existe mais na lista (foi renomeado/excluído em
+  // Configurações da Empresa), ele entra como opção mesmo assim: sem isso o select abriria
+  // vazio e salvar o cliente apagaria o valor antigo sem ninguém perceber.
+  const canalOptions = useMemo(() => {
+    const nomes = canaisOrigem.map((c) => c.nome);
+    return canalOrigem && !nomes.includes(canalOrigem) ? [...nomes, canalOrigem] : nomes;
+  }, [canaisOrigem, canalOrigem]);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -90,6 +101,7 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
       interesse: interesse.trim(),
       orcamento: orcamento ? parseCurrencyBRL(orcamento) : undefined,
       observacoes: observacoes.trim() || undefined,
+      canalOrigem: canalOrigem || undefined,
     };
     try {
       if (cliente) {
@@ -279,6 +291,17 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
                   value={interesse}
                   onChange={(e) => setInteresse(e.target.value)}
                 />
+              </div>
+              <div className="sm:col-span-2">
+                <FormLabel>Canal de origem</FormLabel>
+                <select
+                  className="form-input"
+                  value={canalOrigem}
+                  onChange={(e) => setCanalOrigem(e.target.value as CanalOrigem)}
+                >
+                  <option value="">Selecionar...</option>
+                  {canalOptions.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+                </select>
               </div>
               <div className="sm:col-span-2">
                 <FormLabel>Observações</FormLabel>

@@ -37,6 +37,8 @@ export interface ClienteFinal {
   negocioGerado: boolean;
   negocioCorretorId?: string;
   empreendimentoInteresse?: string;
+  /** Mesma lista do canal de origem do corretor. Vazio nos clientes cadastrados antes do campo existir. */
+  canalOrigem?: CanalOrigem;
 }
 
 export interface Interacao {
@@ -44,6 +46,10 @@ export interface Interacao {
   data: string;
   tipo: TipoInteracao;
   resumo: string;
+  /** Como aconteceu — alimenta as linhas "presencial" × "vídeo chamada" do placar de metas. */
+  modalidade?: ModalidadeAtividade;
+  /** Empreendimento a que a atividade se refere — quebra a especulação no placar. */
+  empreendimento?: string;
   responsavel: string;
   etapa: number;
   /** Preenchido quando `tipo === 'proposta'` e a atividade foi vinculada a uma proposta específica. */
@@ -265,7 +271,7 @@ export interface EmailCampaign {
 export type TipoAcaoRodada = 'rodada' | 'cafe_na_obra' | 'evento_externo' | 'trafego_pago' | 'almoco_jantar' | 'outro';
 /** O que o campo `imobiliaria` da rodada representa: nome de uma imobiliária ou de um corretor cadastrado. */
 export type VinculoRodadaTipo = 'imobiliaria' | 'corretor';
-export type StatusAprovacaoRodada = 'pendente' | 'aprovada' | 'recusada';
+export type StatusAprovacaoRodada = 'pendente' | 'aprovada' | 'recusada' | 'correcao_solicitada';
 export type PerfilImobiliaria = 'alto_padrao' | 'misto' | 'investidor' | 'baixo_ticket';
 export type HistoricoParceria = 'ja_parceira' | 'nao_parceira';
 export type IntencaoPrincipal = 'abrir_relacionamento' | 'reativar_base' | 'engajar_corretores' | 'gerar_visitas_propostas' | 'conversao_vendas';
@@ -340,6 +346,8 @@ export interface Rodada {
   uf: string;
   tipoAcao: TipoAcaoRodada;
   tipoAcaoOutro: string;
+  /** Fria (imobiliária nova) × quente (parceira ativa) — conta no placar de metas do GR. */
+  temperaturaRodada?: TemperaturaRodada | null;
   imobiliaria: string;
   vinculoTipo: VinculoRodadaTipo;
   responsavelImobiliaria: string;
@@ -429,13 +437,14 @@ export interface Rodada {
   aprovadoPorNome?: string;
   aprovadoEm?: string;
 
+  criadoPorId: string;
   criadoPorNome: string;
   criadoEm: string;
 }
 
 export type CreateRodadaPayload = Omit<
   Rodada,
-  'id' | 'criadoPorNome' | 'criadoEm' | 'custoRodada' | 'empreendimentos' | 'statusAprovacao' | 'motivoRecusa' | 'aprovadoPorNome' | 'aprovadoEm'
+  'id' | 'criadoPorId' | 'criadoPorNome' | 'criadoEm' | 'custoRodada' | 'empreendimentos' | 'statusAprovacao' | 'motivoRecusa' | 'aprovadoPorNome' | 'aprovadoEm'
 > & {
   empreendimentoIds: string[];
 };
@@ -469,6 +478,7 @@ export type TipoNotificacao =
   | 'rodada_pendente_aprovacao'
   | 'rodada_aprovada'
   | 'rodada_recusada'
+  | 'rodada_correcao_solicitada'
   | 'aniversario_hoje'
   | 'aniversario_enviado';
 
@@ -537,6 +547,10 @@ export interface AtividadeAgenda {
   etapa: number;
   corretorId: string;
   corretorNome: string;
+  /** Dono do compromisso. Só varia na visão da Diretoria, que vê a agenda de todos. */
+  responsavelId?: string;
+  responsavelNome?: string;
+  responsavelCor?: string;
 }
 
 // ── Empreendimentos & Unidades ──────────────────────────────────────
@@ -703,4 +717,52 @@ export interface CreateWhatsappCampaignPayload {
   funilAlvo?: GrupoFunil;
   tipoInteresseAlvo?: string;
   corretorIds?: string[];
+}
+
+// ── Placar de metas (substitui a planilha "ACOMPANHAMENTO") ──────────
+
+/** Como a atividade aconteceu — separa "presencial" de "vídeo chamada" nas linhas do placar. */
+export type ModalidadeAtividade = 'PRESENCIAL' | 'VIDEO_CHAMADA' | 'TELEFONE' | 'MENSAGEM';
+
+export type TemperaturaRodada = 'FRIA' | 'QUENTE';
+
+export type CargoPlacar = 'SDR' | 'GR' | 'GV';
+
+export interface DefinicaoMetrica {
+  chave: string;
+  label: string;
+  grupo: string;
+  cargo: CargoPlacar;
+  porEmpreendimento: boolean;
+  /** Frase curta explicando de onde vem o número — mostrada como dica na tela. */
+  explicacao: string;
+}
+
+export interface SemanaPlacar {
+  numero: number;
+  inicio: string;
+  fim: string;
+  dias: string[];
+}
+
+export interface ValorMetrica {
+  chave: string;
+  porDia: Record<string, number>;
+  porEmpreendimento?: Record<string, number>;
+  total: number;
+  meta: number;
+}
+
+export interface PlacarPessoa {
+  userId: string;
+  nome: string;
+  cargo: CargoPlacar;
+  cor: string;
+  metricas: ValorMetrica[];
+}
+
+export interface Placar {
+  periodo: string;
+  semanas: SemanaPlacar[];
+  pessoas: PlacarPessoa[];
 }

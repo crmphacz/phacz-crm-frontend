@@ -14,6 +14,7 @@ import {
 } from './mappers.js';
 import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, EmailTemplate, EmailCampaign,
+  Placar, DefinicaoMetrica,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
   LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario, CreateWhatsappCampaignPayload,
@@ -353,10 +354,15 @@ export const agendaApi = {
       method: 'POST',
       body: { ano, mensagem },
     }),
-  /** Compromissos/atividades do usuário logado (ligações, visitas, reuniões etc.) no mês, passados e futuros. */
-  atividades: (ano: number, mes: number) =>
-    apiFetch<ApiAtividadeAgenda[]>('/api/agenda/atividades', { query: { ano, mes } })
-      .then((rows) => rows.map(mapAtividadeAgendaFromApi)),
+  /**
+   * Compromissos/atividades no mês (ligações, visitas, reuniões etc.). Para a Diretoria vêm os
+   * de toda a equipe — `responsavelId` restringe a uma pessoa; os demais cargos recebem sempre
+   * só os próprios, independente do que for mandado aqui (o servidor decide).
+   */
+  atividades: (ano: number, mes: number, responsavelId?: string) =>
+    apiFetch<ApiAtividadeAgenda[]>('/api/agenda/atividades', {
+      query: { ano, mes, ...(responsavelId ? { responsavelId } : {}) },
+    }).then((rows) => rows.map(mapAtividadeAgendaFromApi)),
 };
 
 // ── WhatsApp ───────────────────────────────────────────────────────
@@ -545,6 +551,9 @@ export const rodadasApi = {
     apiFetch<ApiRodada>(`/api/rodadas/${id}/aprovar`, { method: 'PATCH' }).then(mapRodadaFromApi),
   recusar: (id: string, motivo: string): Promise<Rodada> =>
     apiFetch<ApiRodada>(`/api/rodadas/${id}/recusar`, { method: 'PATCH', body: { motivo } }).then(mapRodadaFromApi),
+  /** Devolve a rodada para quem cadastrou ajustar (sem recusar) — o backend avisa por e-mail. */
+  solicitarCorrecao: (id: string, motivo: string): Promise<Rodada> =>
+    apiFetch<ApiRodada>(`/api/rodadas/${id}/solicitar-correcao`, { method: 'PATCH', body: { motivo } }).then(mapRodadaFromApi),
   uploadAsset: (file: File): Promise<{ url: string }> => {
     const form = new FormData();
     form.append('file', file);
@@ -635,4 +644,17 @@ export const logAcaoApi = {
     }>('/api/logs-acao', { query: { ...params } });
     return { ...res, logs: res.logs.map(mapLogAcaoFromApi) };
   },
+};
+
+export const placarApi = {
+  metricas: () => apiFetch<DefinicaoMetrica[]>('/api/placar/metricas'),
+  get: (periodo: string) => apiFetch<Placar>('/api/placar', { query: { periodo } }),
+  salvarMetas: (periodo: string, metas: { userId: string; metrica: string; valorMeta: number }[]) =>
+    apiFetch<Placar>('/api/placar/metas', { method: 'PUT', body: { periodo, metas } }),
+  copiarMetas: (de: string, para: string) =>
+    apiFetch<Placar>('/api/placar/metas/copiar', { method: 'POST', body: { de, para } }),
+  exportarXlsx: (periodo: string) =>
+    downloadFile('/api/placar/export.xlsx', `placar-metas-${periodo}.xlsx`, { periodo }),
+  exportarPdf: (periodo: string) =>
+    downloadFile('/api/placar/export.pdf', `placar-metas-${periodo}.pdf`, { periodo }),
 };

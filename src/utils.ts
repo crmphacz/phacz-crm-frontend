@@ -1,6 +1,6 @@
 import { formatDistanceToNow, differenceInHours, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Corretor, StageConfig, StatusUnidade } from './types';
+import type { Corretor, StageConfig, StatusUnidade, ModalidadeAtividade, TipoInteracao } from './types';
 import { ApiError } from './api/client';
 
 export function formatRelativeTime(iso: string): string {
@@ -271,3 +271,21 @@ export function formatDateKeyBR(key: string): string {
   const [y, m, d] = key.split('-');
   return `${d}/${m}/${y}`;
 }
+
+/**
+ * Rótulos da modalidade da atividade. A planilha de metas separa as linhas por aqui
+ * ("presencial com parceiros" × "vídeo chamada" × "wpp"), então o rótulo tem que ser o
+ * vocabulário que a equipe já usa, não o nome do enum.
+ */
+export const MODALIDADE_LABEL: Record<ModalidadeAtividade, string> = {
+  PRESENCIAL: 'Presencial',
+  VIDEO_CHAMADA: 'Vídeo chamada',
+  TELEFONE: 'Telefone',
+  MENSAGEM: 'Mensagem / WhatsApp',
+};
+
+/** Tipos de atividade em que perguntar "como aconteceu" faz diferença no placar. */
+export const PEDE_MODALIDADE = new Set<TipoInteracao>(['visita', 'reuniao', 'treinamento']);
+
+/** Tipos de atividade que o placar quebra por empreendimento. */
+export const PEDE_EMPREENDIMENTO = new Set<TipoInteracao>(['especulacao', 'proposta']);

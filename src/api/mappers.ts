@@ -134,6 +134,7 @@ export interface ApiClienteFinal {
   orcamento: number | null;
   observacoes: string | null;
   empreendimentoInteresse: string | null;
+  canalOrigem: string | null;
   dataAdicionado: string;
   negocioGerado: boolean;
   negocioCorretorId: string | null;
@@ -149,6 +150,8 @@ export interface ApiInteracao {
   responsavel: ApiResponsavel | null;
   etapa: number;
   propostaId: string | null;
+  modalidade: string | null;
+  empreendimento: string | null;
 }
 
 export interface ApiProposta {
@@ -230,6 +233,7 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
     negocioGerado: cf.negocioGerado,
     negocioCorretorId: cf.negocioCorretorId ?? undefined,
     empreendimentoInteresse: cf.empreendimentoInteresse ?? undefined,
+    canalOrigem: cf.canalOrigem || undefined,
   };
 }
 
@@ -263,6 +267,8 @@ function mapInteracaoFromApi(i: ApiInteracao): Interacao {
     data: i.data,
     tipo: tipoInteracaoMap.toApp(i.tipo),
     resumo: i.resumo,
+    modalidade: (i.modalidade as Interacao['modalidade']) ?? undefined,
+    empreendimento: i.empreendimento || undefined,
     responsavel: i.responsavel?.nome ?? 'Sistema',
     etapa: i.etapa,
     propostaId: i.propostaId ?? undefined,
@@ -277,6 +283,9 @@ export interface ApiAtividadeAgenda {
   etapa: number;
   corretorId: string;
   corretorNome: string;
+  responsavelId?: string | null;
+  responsavelNome?: string | null;
+  responsavelCor?: string | null;
 }
 
 export function mapAtividadeAgendaFromApi(a: ApiAtividadeAgenda): AtividadeAgenda {
@@ -288,6 +297,9 @@ export function mapAtividadeAgendaFromApi(a: ApiAtividadeAgenda): AtividadeAgend
     etapa: a.etapa,
     corretorId: a.corretorId,
     corretorNome: a.corretorNome,
+    responsavelId: a.responsavelId ?? undefined,
+    responsavelNome: a.responsavelNome ?? undefined,
+    responsavelCor: a.responsavelCor ?? undefined,
   };
 }
 
@@ -472,6 +484,7 @@ const vinculoRodadaTipoMap = makeEnumMap<string, VinculoRodadaTipo>([
 ]);
 const statusAprovacaoRodadaMap = makeEnumMap<string, StatusAprovacaoRodada>([
   ['PENDENTE', 'pendente'], ['APROVADA', 'aprovada'], ['RECUSADA', 'recusada'],
+  ['CORRECAO_SOLICITADA', 'correcao_solicitada'],
 ]);
 const perfilImobiliariaMap = makeEnumMap<string, PerfilImobiliaria>([
   ['ALTO_PADRAO', 'alto_padrao'], ['MISTO', 'misto'], ['INVESTIDOR', 'investidor'], ['BAIXO_TICKET', 'baixo_ticket'],
@@ -559,6 +572,7 @@ export interface ApiRodada {
   uf: string;
   tipoAcao: string;
   tipoAcaoOutro: string;
+  temperaturaRodada: string | null;
   imobiliaria: string;
   vinculoTipo: string;
   responsavelImobiliaria: string;
@@ -686,6 +700,7 @@ export function mapRodadaFromApi(r: ApiRodada): Rodada {
     cidade: r.cidade,
     uf: r.uf,
     tipoAcao: tipoAcaoMap.toApp(r.tipoAcao),
+    temperaturaRodada: (r.temperaturaRodada as 'FRIA' | 'QUENTE' | null) ?? null,
     tipoAcaoOutro: r.tipoAcaoOutro,
     imobiliaria: r.imobiliaria,
     vinculoTipo: vinculoRodadaTipoMap.toApp(r.vinculoTipo),
@@ -786,6 +801,7 @@ export function mapRodadaFromApi(r: ApiRodada): Rodada {
     aprovadoPorNome: r.aprovadoPor?.nome,
     aprovadoEm: r.aprovadoEm ?? undefined,
 
+    criadoPorId: r.criadoPor.id,
     criadoPorNome: r.criadoPor.nome,
     criadoEm: r.criadoEm,
   };
@@ -830,6 +846,7 @@ const tipoNotificacaoMap: Record<string, TipoNotificacao> = {
   RODADA_PENDENTE_APROVACAO: 'rodada_pendente_aprovacao',
   RODADA_APROVADA: 'rodada_aprovada',
   RODADA_RECUSADA: 'rodada_recusada',
+  RODADA_CORRECAO_SOLICITADA: 'rodada_correcao_solicitada',
   ANIVERSARIO_HOJE: 'aniversario_hoje',
   ANIVERSARIO_ENVIADO: 'aniversario_enviado',
 };

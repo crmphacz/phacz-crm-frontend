@@ -13,7 +13,8 @@ import {
   formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG,
   TIPO_INTERACAO_CONFIG, getInitials, nowForDatetimeLocal, datetimeLocalToISO,
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF, maskPhone,
-  camposPendentesDoErro, mensagemEtapaBloqueada,
+  camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
+  MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO,
 } from '../utils';
 import { ApiError } from '../api/client';
 import { empreendimentosApi } from '../api/endpoints';
@@ -24,7 +25,7 @@ import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor } fro
 import { WhatsappSendModal } from './WhatsappSendModal';
 import { WhatsappIcon } from './WhatsappIcon';
 import { Spinner, InlineLoader } from './Spinner';
-import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade } from '../types';
+import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade } from '../types';
 
 function alertError(err: unknown, fallback: string) {
   alert(err instanceof ApiError ? err.message : fallback);
@@ -152,6 +153,10 @@ export function CorretorDetailPanel() {
   const [actResponsavel, setActResponsavel] = useState(currentUser?.nome ?? '');
   const [actData, setActData] = useState(() => nowForDatetimeLocal());
   const [actPropostaId, setActPropostaId] = useState('');
+  // Alimentam o placar de metas. Só aparecem nos tipos em que a planilha faz a distinção —
+  // pedir modalidade numa nota interna só atrapalharia quem registra.
+  const [actModalidade, setActModalidade] = useState<ModalidadeAtividade | ''>('');
+  const [actEmpreendimento, setActEmpreendimento] = useState('');
   useEffect(() => {
     if (showActivityForm) {
       setActResponsavel(currentUser?.nome ?? '');
@@ -183,7 +188,9 @@ export function CorretorDetailPanel() {
   const [pUnidades, setPUnidades] = useState<Unidade[]>([]);
   const [pUnidadesLoading, setPUnidadesLoading] = useState(false);
   const [pCondicoesOptions, setPCondicoesOptions] = useState<string[]>([]);
-  const pUnidadesDisponiveis = pUnidades.filter((u) => u.status === 'disponivel');
+  // Só some da lista o que já está comprometido: vendido ou em contrato. Em negociação e
+  // alugado continuam propostáveis — pode haver proposta concorrente ou fim de locação.
+  const pUnidadesSelecionaveis = pUnidades.filter((u) => u.status !== 'vendido' && u.status !== 'em_contrato');
 
   // Ao abrir o formulário de proposta, garante a lista de empreendimentos carregada.
   useEffect(() => {
@@ -280,8 +287,11 @@ export function CorretorDetailPanel() {
         responsavel: actResponsavel || 'Não informado',
         etapa: corretor.etapa,
         propostaId: actType === 'proposta' && actPropostaId ? actPropostaId : undefined,
+        modalidade: PEDE_MODALIDADE.has(actType) && actModalidade ? actModalidade : undefined,
+        empreendimento: PEDE_EMPREENDIMENTO.has(actType) && actEmpreendimento ? actEmpreendimento : undefined,
       });
       setActResumo(''); setActType('nota'); setActResponsavel(currentUser?.nome ?? ''); setActData(nowForDatetimeLocal()); setActPropostaId('');
+      setActModalidade(''); setActEmpreendimento('');
       setShowActivityForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a atividade.');
@@ -1104,6 +1114,44 @@ export function CorretorDetailPanel() {
                       </select>
                     </div>
                   </div>
+                  {(PEDE_MODALIDADE.has(actType) || PEDE_EMPREENDIMENTO.has(actType)) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {PEDE_MODALIDADE.has(actType) && (
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 block mb-1">
+                            Como aconteceu
+                          </label>
+                          <select
+                            className="form-input text-sm"
+                            value={actModalidade}
+                            onChange={(e) => setActModalidade(e.target.value as ModalidadeAtividade | '')}
+                          >
+                            <option value="">Não informar</option>
+                            {(Object.entries(MODALIDADE_LABEL) as [ModalidadeAtividade, string][]).map(([k, v]) => (
+                              <option key={k} value={k}>{v}</option>
+                            ))}
+                          </select>
+                          <p className="text-[11px] text-gray-400 mt-1">Separa presencial de vídeo chamada no placar de metas.</p>
+                        </div>
+                      )}
+                      {PEDE_EMPREENDIMENTO.has(actType) && (
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 block mb-1">Empreendimento</label>
+                          <select
+                            className="form-input text-sm"
+                            value={actEmpreendimento}
+                            onChange={(e) => setActEmpreendimento(e.target.value)}
+                          >
+                            <option value="">Não informar</option>
+                            {empreendimentos.map((e) => (
+                              <option key={e.id} value={e.nome}>{e.nome}</option>
+                            ))}
+                          </select>
+                          <p className="text-[11px] text-gray-400 mt-1">Quebra a especulação por empreendimento no placar.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {actType === 'proposta' && (
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Proposta vinculada</label>
@@ -1280,13 +1328,20 @@ export function CorretorDetailPanel() {
                             ? 'Selecione o empreendimento primeiro'
                             : pUnidadesLoading
                               ? 'Carregando unidades...'
-                              : pUnidadesDisponiveis.length === 0
-                                ? 'Nenhuma unidade disponível'
+                              : pUnidadesSelecionaveis.length === 0
+                                // Separa "não tem unidade nenhuma" de "todas já saíram": sem isso
+                                // o usuário não sabe se falta cadastrar ou se o estoque acabou.
+                                ? pUnidades.length === 0
+                                  ? 'Nenhuma unidade cadastrada'
+                                  : 'Todas as unidades estão vendidas ou em contrato'
                                 : 'Selecionar unidade...'}
                         </option>
-                        {pUnidadesDisponiveis.map((u) => (
+                        {pUnidadesSelecionaveis.map((u) => (
                           <option key={u.id} value={u.numero}>
                             {u.numero}{u.tipo ? ` — ${u.tipo}` : ''}{u.metragemPrivativa ? ` · ${u.metragemPrivativa} m²` : ''}
+                            {/* Disponível é o caso normal e não precisa de rótulo; os outros sim,
+                                pra ninguém propor uma unidade em negociação sem perceber. */}
+                            {u.status !== 'disponivel' ? ` · ${STATUS_UNIDADE_CONFIG[u.status].label}` : ''}
                           </option>
                         ))}
                       </select>
