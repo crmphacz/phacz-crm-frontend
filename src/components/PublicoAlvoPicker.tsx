@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { STAGES } from '../data';
 import { getInitials } from '../utils';
 import { GRUPOS_FUNIL_LISTA, resolveDestinatarios, type CanalCampanha, type PublicoAlvo } from '../lib/publicoAlvo';
+import { corretoresDoDisparo } from '../permissions';
 import type { Corretor } from '../types';
 
 /**
@@ -18,10 +19,19 @@ interface Props {
   onChange: (v: PublicoAlvo) => void;
 }
 
-export function PublicoAlvoPicker({ canal, elegiveis, valor, onChange }: Props) {
-  const corretores = useStore((s) => s.corretores);
+export function PublicoAlvoPicker({ canal, elegiveis: elegiveisRecebidos, valor, onChange }: Props) {
+  const todosCorretores = useStore((s) => s.corretores);
+  const currentUser = useStore((s) => s.currentUser);
   const tiposInteresseOptions = useStore((s) => s.tiposInteresseOptions);
   const [search, setSearch] = useState('');
+
+  // No WhatsApp, SDR/GV/GR só alcançam o próprio funil — o mesmo recorte que o backend aplica
+  // ao montar a fila. Aplicado aqui, num ponto só, para a busca, as contagens e o total do
+  // rodapé contarem a mesma coisa que vai ser enviada de fato.
+  const recortar = (lista: Corretor[]) =>
+    canal === 'whatsapp' ? corretoresDoDisparo(currentUser, lista) : lista;
+  const elegiveis = useMemo(() => recortar(elegiveisRecebidos), [elegiveisRecebidos, canal, currentUser]);
+  const corretores = useMemo(() => recortar(todosCorretores), [todosCorretores, canal, currentUser]);
 
   const tiposAtivos = useMemo(
     () => tiposInteresseOptions.filter((t) => t.ativo).map((t) => t.nome),

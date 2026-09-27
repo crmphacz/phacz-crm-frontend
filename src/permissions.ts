@@ -44,9 +44,21 @@ export function canCreateCorretor(user: UserProfile | null): boolean {
   return user.cargo === 'Diretora' || user.cargo === 'SDR' || user.cargo === 'GR' || user.cargo === 'GV';
 }
 
-/** Empreendimentos e unidades: o Marketing cria, mas não edita nem exclui os que já existem. */
+/**
+ * Empreendimentos e unidades — editar/excluir o que já existe: só a Diretoria. Espelha os
+ * guards do backend (empreendimentos/routes.ts e unidades/routes.ts): Marketing só cria;
+ * SDR, GV e GR apenas consultam; Administrativo e Recepção são somente-leitura no sistema todo.
+ *
+ * Lista de quem PODE, e não de quem não pode: com a regra invertida, todo perfil novo nascia
+ * com permissão de editar e só perdia se alguém lembrasse de adicioná-lo à exceção.
+ */
 export function canEditEmpreendimento(user: UserProfile | null): boolean {
-  return user?.cargo !== 'Marketing';
+  return user?.cargo === 'Diretora';
+}
+
+/** Criar empreendimento/unidade: os que editam, mais o Marketing (que cria sem poder editar). */
+export function canCreateEmpreendimento(user: UserProfile | null): boolean {
+  return canEditEmpreendimento(user) || user?.cargo === 'Marketing';
 }
 
 /** Regra global sem exceções: só a Diretoria exclui leads, clientes ou cards de kanban. */
@@ -88,6 +100,35 @@ export function canApproveRodada(user: UserProfile | null): boolean {
 /** E-mail marketing: só Diretoria e Marketing usam a ferramenta (Administrativo/Recepção só leem). */
 export function canWriteEmailMarketing(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora' || user?.cargo === 'Marketing';
+}
+
+/**
+ * Quem dispara WhatsApp em massa. Espelha o `requireModule` de whatsapp/broadcast.ts: todos os
+ * perfis com acesso à tela enviam, menos o Administrativo, que só consulta. Recepção escreve
+ * neste módulo e só nele — é a exceção ao "somente-leitura" global do perfil.
+ */
+export function canWriteWhatsappBroadcast(user: UserProfile | null): boolean {
+  return !!user && user.cargo !== 'Administrativo';
+}
+
+/**
+ * Recorte do público do disparo em massa. Espelha `getCorretorDisparoScope` no backend: SDR,
+ * GV e GR só alcançam os parceiros do próprio funil; Diretoria, Marketing e Recepção alcançam
+ * a base inteira. O backend aplica a mesma regra na hora de montar a fila — aqui é para a
+ * contagem na tela bater com o que vai sair de fato.
+ */
+export function corretoresDoDisparo(user: UserProfile | null, corretores: Corretor[]): Corretor[] {
+  if (!user) return [];
+  switch (user.cargo) {
+    case 'SDR':
+      return corretores.filter((c) => c.responsavelSDRId === user.id);
+    case 'GV':
+      return corretores.filter((c) => c.responsavelGVId === user.id);
+    case 'GR':
+      return corretores.filter((c) => c.responsavelGRId === user.id);
+    default:
+      return corretores;
+  }
 }
 
 /**
@@ -134,9 +175,11 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
     case 'rodadas':
       return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
     case 'email-marketing':
-    // Disparo em massa de WhatsApp segue a mesma porta do e-mail marketing.
-    case 'whatsapp-massa':
       return user.cargo === 'Marketing';
+    case 'whatsapp-massa':
+      // Diferente do e-mail: SDR, GV e GR também disparam, só que apenas para os corretores
+      // do próprio funil (ver `corretoresDoDisparo`). Recepção entra pelo topo da função.
+      return user.cargo === 'Marketing' || user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
     case 'tabelas-empreendimentos':
       // Dados financeiros: só Diretoria (+ Administrativo/Recepção, já liberados no topo).
       return false;

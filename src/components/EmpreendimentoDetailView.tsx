@@ -12,7 +12,7 @@ import { formatCurrencyBRL, formatMetragem, parseDateKeyLocal, STATUS_UNIDADE_CO
 import type { EmpreendimentoDetail, Unidade, CreateUnidadePayload } from '../types';
 import { EmpreendimentoFormModal } from './EmpreendimentoFormModal';
 import { UnidadeFormModal } from './UnidadeFormModal';
-import { canEditEmpreendimento } from '../permissions';
+import { canCreateEmpreendimento, canEditEmpreendimento } from '../permissions';
 
 function formatMesAno(dateKey?: string): string {
   if (!dateKey) return '—';
@@ -27,6 +27,8 @@ export function EmpreendimentoDetailView({ id, onClose }: { id: string; onClose:
   const currentUser = useStore((s) => s.currentUser);
   // Marketing cria (empreendimento e unidade), mas não edita nem exclui o que já existe.
   const canEdit = canEditEmpreendimento(currentUser);
+  // Marketing cria unidade sem poder editar as já existentes — por isso as duas permissões.
+  const canCreate = canCreateEmpreendimento(currentUser);
   const canDelete = currentUser?.cargo === 'Diretora';
   const removeEmpreendimento = useStore((s) => s.removeEmpreendimento);
   const refreshEmpreendimentoSummary = useStore((s) => s.refreshEmpreendimentoSummary);
@@ -258,13 +260,15 @@ export function EmpreendimentoDetailView({ id, onClose }: { id: string; onClose:
                   <button onClick={handleCopyLink} className="w-9 h-9 rounded-full flex items-center justify-center border text-gray-500 hover:bg-gray-50 transition-colors" style={{ borderColor: '#e5e7eb' }} title="Copiar link">
                     {linkCopied ? <Check size={14} style={{ color: '#15803d' }} /> : <Copy size={14} />}
                   </button>
-                  <button
-                    onClick={() => setUnidadeModal({ unidade: null })}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold text-white hover:opacity-90 transition-colors"
-                    style={{ backgroundColor: '#d55006' }}
-                  >
-                    <Plus size={14} /> Nova unidade
-                  </button>
+                  {canCreate && (
+                    <button
+                      onClick={() => setUnidadeModal({ unidade: null })}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold text-white hover:opacity-90 transition-colors"
+                      style={{ backgroundColor: '#d55006' }}
+                    >
+                      <Plus size={14} /> Nova unidade
+                    </button>
+                  )}
                 </div>
               </div>
 

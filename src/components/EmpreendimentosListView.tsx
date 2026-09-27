@@ -6,10 +6,13 @@ import { ViewLoader } from './ViewLoader';
 import type { Empreendimento } from '../types';
 import { EmpreendimentoFormModal } from './EmpreendimentoFormModal';
 import { EmpreendimentoDetailView } from './EmpreendimentoDetailView';
+import { canCreateEmpreendimento } from '../permissions';
 
 export function EmpreendimentosListView() {
   const empreendimentos = useStore((s) => s.empreendimentos);
   const ensureEmpreendimentosLoaded = useStore((s) => s.ensureEmpreendimentosLoaded);
+  const currentUser = useStore((s) => s.currentUser);
+  const canCreate = canCreateEmpreendimento(currentUser);
 
   const [ready, setReady] = useState(false);
   useViewReady(ready);
@@ -38,13 +41,15 @@ export function EmpreendimentosListView() {
             </h1>
             <p className="text-sm text-gray-500 mt-1">{empreendimentos.length} empreendimento(s) cadastrado(s)</p>
           </div>
-          <button
-            onClick={() => setFormOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors flex-shrink-0"
-            style={{ backgroundColor: '#d55006' }}
-          >
-            <Plus size={16} /> Novo empreendimento
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => setFormOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors flex-shrink-0"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              <Plus size={16} /> Novo empreendimento
+            </button>
+          )}
         </div>
 
         {empreendimentos.length === 0 ? (
@@ -53,7 +58,9 @@ export function EmpreendimentosListView() {
               <Building2 size={22} />
             </div>
             <p className="text-sm font-semibold text-gray-700">Nenhum empreendimento cadastrado ainda</p>
-            <p className="text-xs text-gray-400 max-w-xs">Cadastre o primeiro empreendimento para começar a gerenciar as unidades.</p>
+            {canCreate && (
+              <p className="text-xs text-gray-400 max-w-xs">Cadastre o primeiro empreendimento para começar a gerenciar as unidades.</p>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

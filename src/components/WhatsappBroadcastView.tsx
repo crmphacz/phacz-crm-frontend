@@ -9,7 +9,7 @@ import { formatRelativeTime } from '../utils';
 import { descreveCriterio } from '../lib/publicoAlvo';
 import { WhatsappIcon } from './WhatsappIcon';
 import { WhatsappBroadcastModal } from './WhatsappBroadcastModal';
-import { canDeleteLeadClienteOuCard } from '../permissions';
+import { canDeleteLeadClienteOuCard, canWriteWhatsappBroadcast } from '../permissions';
 import type { WhatsappCampaign, WhatsappOptOut } from '../types';
 
 const STATUS_CONFIG = {
@@ -26,7 +26,7 @@ export function WhatsappBroadcastView() {
   const currentUser = useStore((s) => s.currentUser);
   const showToast = useStore((s) => s.showToast);
   const podeExcluir = canDeleteLeadClienteOuCard(currentUser);
-  const somenteLeitura = currentUser?.cargo !== 'Diretora' && currentUser?.cargo !== 'Marketing';
+  const somenteLeitura = !canWriteWhatsappBroadcast(currentUser);
 
   const [ready, setReady] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
