@@ -50,6 +50,8 @@ export interface Interacao {
   modalidade?: ModalidadeAtividade;
   /** Empreendimento a que a atividade se refere — quebra a especulação no placar. */
   empreendimento?: string;
+  /** Quem REALIZOU a atividade. Nem sempre é quem registrou: a Diretoria lança pelos outros. */
+  responsavelId?: string;
   responsavel: string;
   etapa: number;
   /** Preenchido quando `tipo === 'proposta'` e a atividade foi vinculada a uma proposta específica. */

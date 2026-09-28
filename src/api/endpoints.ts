@@ -206,7 +206,19 @@ export const corretoresApi = {
   addInteracao: (id: string, data: Omit<Interacao, 'id'>) =>
     apiFetch(`/api/corretores/${id}/interacoes`, {
       method: 'POST',
-      body: { tipo: data.tipo.toUpperCase(), resumo: data.resumo, etapa: data.etapa, data: data.data, propostaId: data.propostaId },
+      body: {
+        tipo: data.tipo.toUpperCase(),
+        resumo: data.resumo,
+        etapa: data.etapa,
+        data: data.data,
+        propostaId: data.propostaId,
+        // Sem estes três o placar de metas não recebe nada: modalidade e empreendimento
+        // alimentam as linhas da planilha, e responsavelId credita a atividade a quem de
+        // fato a realizou (o backend cai no usuário logado se vier vazio).
+        modalidade: data.modalidade,
+        empreendimento: data.empreendimento,
+        responsavelId: data.responsavelId,
+      },
     }),
 
   addProposta: (id: string, data: Omit<Proposta, 'id'>, arquivo?: File) => {

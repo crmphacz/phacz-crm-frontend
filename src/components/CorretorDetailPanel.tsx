@@ -150,7 +150,9 @@ export function CorretorDetailPanel() {
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [actType, setActType] = useState<TipoInteracao>('nota');
   const [actResumo, setActResumo] = useState('');
-  const [actResponsavel, setActResponsavel] = useState(currentUser?.nome ?? '');
+  // Guarda o ID de quem realizou, não o nome: é o id que credita a atividade no placar de
+  // metas, e nome se repete e muda.
+  const [actResponsavelId, setActResponsavelId] = useState(currentUser?.id ?? '');
   const [actData, setActData] = useState(() => nowForDatetimeLocal());
   const [actPropostaId, setActPropostaId] = useState('');
   // Alimentam o placar de metas. Só aparecem nos tipos em que a planilha faz a distinção —
@@ -159,10 +161,10 @@ export function CorretorDetailPanel() {
   const [actEmpreendimento, setActEmpreendimento] = useState('');
   useEffect(() => {
     if (showActivityForm) {
-      setActResponsavel(currentUser?.nome ?? '');
+      setActResponsavelId(currentUser?.id ?? '');
       setActData(nowForDatetimeLocal());
     }
-  }, [showActivityForm, currentUser?.nome]);
+  }, [showActivityForm, currentUser?.id]);
   // Ao trocar o tipo pra algo diferente de "Proposta", esquece a proposta que tinha sido selecionada.
   useEffect(() => {
     if (actType !== 'proposta') setActPropostaId('');
@@ -284,13 +286,14 @@ export function CorretorDetailPanel() {
         data: actData ? datetimeLocalToISO(actData) : new Date().toISOString(),
         tipo: actType,
         resumo: actResumo.trim(),
-        responsavel: actResponsavel || 'Não informado',
+        responsavel: users.find((u) => u.id === actResponsavelId)?.nome ?? currentUser?.nome ?? 'Não informado',
+        responsavelId: actResponsavelId || undefined,
         etapa: corretor.etapa,
         propostaId: actType === 'proposta' && actPropostaId ? actPropostaId : undefined,
         modalidade: PEDE_MODALIDADE.has(actType) && actModalidade ? actModalidade : undefined,
         empreendimento: PEDE_EMPREENDIMENTO.has(actType) && actEmpreendimento ? actEmpreendimento : undefined,
       });
-      setActResumo(''); setActType('nota'); setActResponsavel(currentUser?.nome ?? ''); setActData(nowForDatetimeLocal()); setActPropostaId('');
+      setActResumo(''); setActType('nota'); setActResponsavelId(currentUser?.id ?? ''); setActData(nowForDatetimeLocal()); setActPropostaId('');
       setActModalidade(''); setActEmpreendimento('');
       setShowActivityForm(false);
     } catch (err) {
@@ -1098,20 +1101,18 @@ export function CorretorDetailPanel() {
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Quem realizou</label>
                       <select
                         className="form-input text-sm"
-                        value={actResponsavel}
-                        onChange={(e) => setActResponsavel(e.target.value)}
+                        value={actResponsavelId}
+                        onChange={(e) => setActResponsavelId(e.target.value)}
                       >
-                        {actResponsavel && !users.some((u) => u.ativo && u.nome === actResponsavel) && (
-                          <option value={actResponsavel}>{actResponsavel}</option>
-                        )}
                         {users
                           .filter((u) => u.ativo)
                           .slice()
                           .sort((a, b) => a.nome.localeCompare(b.nome))
                           .map((u) => (
-                            <option key={u.id} value={u.nome}>{u.nome}</option>
+                            <option key={u.id} value={u.id}>{u.nome}</option>
                           ))}
                       </select>
+                      <p className="text-[11px] text-gray-400 mt-1">A atividade conta no placar de metas de quem for escolhido aqui.</p>
                     </div>
                   </div>
                   {(PEDE_MODALIDADE.has(actType) || PEDE_EMPREENDIMENTO.has(actType)) && (
