@@ -12,6 +12,68 @@ export class ApiError extends Error {
   }
 }
 
+/** Rótulo legível de cada campo que o backend valida — o Zod devolve o nome técnico. */
+const CAMPO_LABEL: Record<string, string> = {
+  nome: 'Nome completo',
+  nomeCorretor: 'Nome do corretor',
+  telefone: 'Telefone',
+  telefoneCorretor: 'Telefone',
+  email: 'E-mail',
+  emailCorretor: 'E-mail',
+  cidade: 'Cidade',
+  uf: 'Estado',
+  interesse: 'Interesse / Tipo de imóvel',
+  orcamento: 'Orçamento',
+  observacoes: 'Observações',
+  canalOrigem: 'Canal de origem',
+  imobiliaria: 'Imobiliária',
+  cpf: 'CPF',
+  creci: 'CRECI',
+  valor: 'Valor',
+  unidade: 'Unidade',
+  empreendimento: 'Empreendimento',
+  condicoes: 'Condições de pagamento',
+  motivo: 'Motivo',
+  resumo: 'Resumo',
+  etapa: 'Etapa',
+  data: 'Data',
+};
+
+/**
+ * Traduz o `details` que o backend manda num erro 400 (o `flatten()` do Zod) para uma frase
+ * que diga QUAL campo travou o salvamento.
+ *
+ * Sem isto, toda falha de validação chegava na tela como "Dados inválidos", sem dizer o quê —
+ * o backend já mandava os campos, e o cliente jogava fora.
+ */
+export function detalharErroDeValidacao(err: unknown): string | null {
+  if (!(err instanceof ApiError) || !err.details) return null;
+
+  const d = err.details as {
+    fieldErrors?: Record<string, string[] | undefined>;
+    formErrors?: string[];
+  };
+
+  const campos = Object.entries(d.fieldErrors ?? {})
+    .filter(([, mensagens]) => (mensagens?.length ?? 0) > 0)
+    .map(([campo]) => CAMPO_LABEL[campo] ?? campo);
+
+  if (campos.length > 0) {
+    return campos.length === 1
+      ? `Confira o campo ${campos[0]}.`
+      : `Confira estes campos: ${campos.join(', ')}.`;
+  }
+
+  return d.formErrors?.length ? d.formErrors.join(' ') : null;
+}
+
+/** Mensagem pronta para a tela: a do servidor, acrescida dos campos que falharam. */
+export function mensagemDeErro(err: unknown, padrao: string): string {
+  if (!(err instanceof ApiError)) return padrao;
+  const detalhe = detalharErroDeValidacao(err);
+  return detalhe ? `${err.message} — ${detalhe}` : err.message;
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }

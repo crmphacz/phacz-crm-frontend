@@ -3,7 +3,7 @@ import { X, User, Search, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
 import type { ClienteFinalComContexto } from '../store';
 import type { CanalOrigem } from '../types';
-import { ApiError } from '../api/client';
+import { mensagemDeErro } from '../api/client';
 import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { Combobox } from './Combobox';
@@ -112,8 +112,10 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
       onCreated?.(corretorId);
       onClose();
     } catch (err) {
+      // mensagemDeErro acrescenta QUAIS campos o servidor recusou — antes a tela mostrava só
+      // "Dados inválidos" e não dava para saber o que corrigir.
       setSubmitError(
-        err instanceof ApiError ? err.message : `Não foi possível ${isEdit ? 'salvar' : 'cadastrar'} o cliente. Tente novamente.`
+        mensagemDeErro(err, `Não foi possível ${isEdit ? 'salvar' : 'cadastrar'} o cliente. Tente novamente.`)
       );
     } finally {
       setSubmitting(false);
