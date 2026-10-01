@@ -18,9 +18,14 @@ export function isGlobalReadOnly(user: UserProfile | null): boolean {
 }
 
 /**
- * "Kanban próprio": SDR só edita corretores em que é o responsável SDR, GV (perfil "GRV")
- * só os em que é o responsável GV, GR (perfil "Gerente de Relacionamento") só os em que é
- * o responsável GR. Diretoria sempre pode. Os demais perfis nunca escrevem em corretores.
+ * "Kanban próprio": GV (perfil "GRV") só edita os corretores em que é o responsável GV, GR
+ * ("Gerente de Relacionamento") só os em que é o responsável GR. Diretoria sempre pode. Os
+ * demais perfis nunca escrevem em corretores.
+ *
+ * O SDR é a exceção: além dos cards em que já é responsável, escreve em qualquer card SEM
+ * responsável SDR, tenha GV atrelado ou não — os leads entram pela automação sem responsável,
+ * e com a posse pura ele via o pipeline inteiro sem poder tocar em nada. Espelha
+ * `canWriteCorretor` no backend.
  */
 export function canWriteCorretor(user: UserProfile | null, corretor: Corretor): boolean {
   if (!user) return false;
@@ -28,7 +33,8 @@ export function canWriteCorretor(user: UserProfile | null, corretor: Corretor): 
     case 'Diretora':
       return true;
     case 'SDR':
-      return corretor.responsavelSDRId === user.id;
+      // O mapper converte ausência para undefined; o backend guarda null. Vale dos dois jeitos.
+      return !corretor.responsavelSDRId || corretor.responsavelSDRId === user.id;
     case 'GV':
       return corretor.responsavelGVId === user.id;
     case 'GR':
