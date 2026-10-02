@@ -117,11 +117,19 @@ export function CorretorDetailPanel() {
   function patchDraft(updates: Partial<Corretor>) {
     setDraft((d) => ({ ...d, ...updates }));
   }
+
+  // "HH:MM" compara direto como texto, porque as duas horas têm sempre o mesmo formato.
+  const horaInicio = shown('horaInicioTreinamento') ?? '';
+  const horaFim = shown('horaFimTreinamento') ?? '';
+  const horarioTreinamentoInvertido = Boolean(horaInicio && horaFim && horaFim <= horaInicio);
+
   async function handleSaveGeral() {
     if (Object.keys(draft).length === 0) {
       setEditingGeral(false);
       return;
     }
+    // O backend recusa do mesmo jeito; barrar aqui evita a ida ao servidor só para voltar erro.
+    if (horarioTreinamentoInvertido) return;
     setSavingGeral(true);
     try {
       await updateCorretor(corretor.id, draft);
@@ -631,7 +639,8 @@ export function CorretorDetailPanel() {
                       </button>
                       <button
                         onClick={handleSaveGeral}
-                        disabled={savingGeral}
+                        disabled={savingGeral || horarioTreinamentoInvertido}
+                        title={horarioTreinamentoInvertido ? 'Corrija o horário do treinamento para salvar.' : undefined}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-colors disabled:opacity-70"
                         style={{ backgroundColor: '#d55006' }}
                       >
@@ -848,7 +857,28 @@ export function CorretorDetailPanel() {
                             onChange={(e) => patchDraft({ dataRealizacaoTreinamento: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
                           />
                         </div>
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1">Horário de início</p>
+                          <input
+                            type="time"
+                            className="form-input text-sm"
+                            value={shown('horaInicioTreinamento') ?? ''}
+                            onChange={(e) => patchDraft({ horaInicioTreinamento: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1">Horário de fim</p>
+                          <input
+                            type="time"
+                            className="form-input text-sm"
+                            value={shown('horaFimTreinamento') ?? ''}
+                            onChange={(e) => patchDraft({ horaFimTreinamento: e.target.value })}
+                          />
+                        </div>
                       </div>
+                      {horarioTreinamentoInvertido && (
+                        <p className="text-xs text-red-500 mt-2">O horário de fim deve ser depois do início.</p>
+                      )}
                     </div>
                   )}
                 </div>

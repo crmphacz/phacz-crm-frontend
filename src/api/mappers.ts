@@ -189,6 +189,8 @@ export interface ApiCorretor {
   treinamento: boolean;
   dataAgendamentoTreinamento: string | null;
   dataRealizacaoTreinamento: string | null;
+  horaInicioTreinamento: string | null;
+  horaFimTreinamento: string | null;
   etapa: number;
   temperatura: string;
   status: string;
@@ -340,6 +342,8 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     treinamento: l.treinamento,
     dataAgendamentoTreinamento: l.dataAgendamentoTreinamento ?? undefined,
     dataRealizacaoTreinamento: l.dataRealizacaoTreinamento ?? undefined,
+    horaInicioTreinamento: l.horaInicioTreinamento ?? undefined,
+    horaFimTreinamento: l.horaFimTreinamento ?? undefined,
     etapa: l.etapa,
     temperatura: temperaturaMap.toApp(l.temperatura),
     status: statusCorretorMap.toApp(l.status),

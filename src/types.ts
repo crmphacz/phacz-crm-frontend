@@ -93,9 +93,12 @@ export interface Corretor {
   potencialParceria: boolean;
   treinamento: boolean;
 
-  // Treinamento — datas
+  // Treinamento — datas e horários
   dataAgendamentoTreinamento?: string;
   dataRealizacaoTreinamento?: string;
+  /** Hora de relógio "HH:MM". Vazio quando não informado. */
+  horaInicioTreinamento?: string;
+  horaFimTreinamento?: string;
 
   // Pipeline
   etapa: number;
