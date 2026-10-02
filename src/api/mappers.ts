@@ -175,6 +175,7 @@ export interface ApiCorretor {
   nomeCorretor: string;
   telefoneCorretor: string;
   whatsappCorretor: string;
+  paisTelefone: string | null;
   emailCorretor: string;
   imobiliaria: string;
   ticketMedio: number | null;
@@ -327,6 +328,7 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     id: l.id,
     nomeCorretor: l.nomeCorretor,
     telefoneCorretor: l.telefoneCorretor,
+    paisTelefone: l.paisTelefone ?? 'BR',
     whatsappCorretor: l.whatsappCorretor,
     emailCorretor: l.emailCorretor,
     imobiliaria: l.imobiliaria,
@@ -379,6 +381,7 @@ export interface CreateCorretorPayload {
   nomeCorretor: string;
   telefoneCorretor: string;
   whatsappCorretor?: string;
+  paisTelefone?: string;
   emailCorretor?: string;
   imobiliaria?: string;
   ticketMedio?: number;

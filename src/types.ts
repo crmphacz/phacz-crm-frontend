@@ -79,6 +79,8 @@ export interface Corretor {
   // Corretor
   nomeCorretor: string;
   telefoneCorretor: string;
+  /** País do telefone (ISO 3166-1 alfa-2). Define a máscara e o DDI. Padrão 'BR'. */
+  paisTelefone?: string;
   whatsappCorretor: string;
   emailCorretor: string;
   imobiliaria: string;

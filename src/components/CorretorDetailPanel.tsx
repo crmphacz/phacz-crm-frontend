@@ -12,10 +12,11 @@ import { STAGES, CADENCIAS } from '../data';
 import {
   formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG,
   TIPO_INTERACAO_CONFIG, getInitials, nowForDatetimeLocal, datetimeLocalToISO,
-  validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF, maskPhone,
+  validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
   camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
   MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO,
 } from '../utils';
+import { PAISES, paisPorIso, maskTelefone, exemploTelefone, paraFormatoInternacional } from '../lib/paises';
 import { ApiError } from '../api/client';
 import { empreendimentosApi } from '../api/endpoints';
 import { Combobox } from './Combobox';
@@ -116,6 +117,17 @@ export function CorretorDetailPanel() {
   }
   function patchDraft(updates: Partial<Corretor>) {
     setDraft((d) => ({ ...d, ...updates }));
+  }
+
+  const paisDoCorretor = paisPorIso(shown('paisTelefone'));
+
+  /** Troca o país e reformata os dois números com a máscara nova, sem perder os dígitos. */
+  function trocarPaisTelefone(iso: string) {
+    patchDraft({
+      paisTelefone: iso,
+      telefoneCorretor: maskTelefone(shown('telefoneCorretor') ?? '', iso),
+      whatsappCorretor: maskTelefone(shown('whatsappCorretor') ?? '', iso),
+    });
   }
 
   // "HH:MM" compara direto como texto, porque as duas horas têm sempre o mesmo formato.
@@ -672,23 +684,40 @@ export function CorretorDetailPanel() {
                     placeholder="Nome do corretor"
                     disabled={isReadOnly || !editingGeral}
                   />
+                  {/* O país vale para os dois números do cadastro: define a máscara e o DDI
+                      dos links. Antes era tudo fixo no Brasil, e um número estrangeiro saía
+                      deformado no campo e com DDI errado no wa.me. */}
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">País do telefone</p>
+                    <select
+                      className="form-input text-sm"
+                      style={{ maxWidth: 240 }}
+                      value={paisDoCorretor.iso}
+                      disabled={isReadOnly || !editingGeral}
+                      onChange={(e) => trocarPaisTelefone(e.target.value)}
+                    >
+                      {PAISES.map((p) => (
+                        <option key={p.iso} value={p.iso}>{p.bandeira} {p.nome} (+{p.ddi})</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <EditFieldLink
                       label="Telefone"
-                      value={maskPhone(shown('telefoneCorretor'))}
-                      onChange={(v) => patchDraft({ telefoneCorretor: maskPhone(v) })}
-                      href={`tel:${corretor.telefoneCorretor.replace(/\D/g, '')}`}
+                      value={maskTelefone(shown('telefoneCorretor'), paisDoCorretor.iso)}
+                      onChange={(v) => patchDraft({ telefoneCorretor: maskTelefone(v, paisDoCorretor.iso) })}
+                      href={`tel:+${paraFormatoInternacional(corretor.telefoneCorretor, corretor.paisTelefone) ?? ''}`}
                       icon={<Phone size={11} />}
-                      placeholder="(11) 99999-9999"
+                      placeholder={exemploTelefone(paisDoCorretor.iso)}
                       disabled={isReadOnly || !editingGeral}
                     />
                     <EditFieldLink
                       label="WhatsApp"
-                      value={maskPhone(shown('whatsappCorretor'))}
-                      onChange={(v) => patchDraft({ whatsappCorretor: maskPhone(v) })}
-                      href={`https://wa.me/55${corretor.whatsappCorretor.replace(/\D/g, '')}`}
+                      value={maskTelefone(shown('whatsappCorretor'), paisDoCorretor.iso)}
+                      onChange={(v) => patchDraft({ whatsappCorretor: maskTelefone(v, paisDoCorretor.iso) })}
+                      href={`https://wa.me/${paraFormatoInternacional(corretor.whatsappCorretor, corretor.paisTelefone) ?? ''}`}
                       icon={<WhatsappIcon size={12} />}
-                      placeholder="(11) 99999-9999"
+                      placeholder={exemploTelefone(paisDoCorretor.iso)}
                       disabled={isReadOnly || !editingGeral}
                     />
                   </div>

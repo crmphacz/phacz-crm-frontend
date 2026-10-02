@@ -4,7 +4,9 @@ import { useStore } from '../store';
 import { STAGES } from '../data';
 import { ApiError } from '../api/client';
 import { corretoresApi, type ImobiliariaMatch } from '../api/endpoints';
-import { maskPhone, maskCPF, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
+import { maskCPF, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
+import { PAIS_PADRAO, maskTelefone } from '../lib/paises';
+import { TelefoneInput } from './TelefoneInput';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { Combobox } from './Combobox';
 import type { TipoInteresse, CanalOrigem } from '../types';
@@ -35,6 +37,15 @@ export function NewCorretorModal() {
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  // Um país para o cadastro inteiro: telefone e WhatsApp da mesma pessoa são do mesmo lugar.
+  const [paisTelefone, setPaisTelefone] = useState(PAIS_PADRAO);
+
+  /** Troca o país e reformata o que já foi digitado, em vez de obrigar a redigitar. */
+  function trocarPais(iso: string) {
+    setPaisTelefone(iso);
+    setTelefone((t) => (t ? maskTelefone(t, iso) : t));
+    setWhatsapp((w) => (w ? maskTelefone(w, iso) : w));
+  }
   const [email, setEmail] = useState('');
   const [imobiliaria, setImobiliaria] = useState('');
   const [ticketMedio, setTicketMedio] = useState('');
@@ -103,6 +114,7 @@ export function NewCorretorModal() {
         nomeCorretor: nome.trim(),
         telefoneCorretor: telefone.trim(),
         whatsappCorretor: whatsapp.trim() || telefone.trim(),
+        paisTelefone,
         emailCorretor: email.trim(),
         imobiliaria: imobiliaria.trim(),
         ticketMedio: ticketMedio ? parseCurrencyBRL(ticketMedio) : undefined,
@@ -191,26 +203,18 @@ export function NewCorretorModal() {
               </div>
               <div>
                 <FormLabel required>Telefone</FormLabel>
-                <input
-                  className={`form-input ${errors.telefone ? 'border-red-400' : ''}`}
-                  placeholder="(11) 99999-9999"
-                  inputMode="numeric"
-                  maxLength={15}
-                  value={telefone}
-                  onChange={(e) => { setTelefone(maskPhone(e.target.value)); setErrors((er) => ({ ...er, telefone: '' })); }}
+                <TelefoneInput
+                  valor={telefone}
+                  onChange={(v) => { setTelefone(v); setErrors((er) => ({ ...er, telefone: '' })); }}
+                  pais={paisTelefone}
+                  onPaisChange={trocarPais}
+                  erro={Boolean(errors.telefone)}
                 />
                 {errors.telefone && <p className="text-xs text-red-500 mt-1">{errors.telefone}</p>}
               </div>
               <div>
                 <FormLabel>WhatsApp</FormLabel>
-                <input
-                  className="form-input"
-                  placeholder="(11) 99999-9999"
-                  inputMode="numeric"
-                  maxLength={15}
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(maskPhone(e.target.value))}
-                />
+                <TelefoneInput valor={whatsapp} onChange={setWhatsapp} pais={paisTelefone} onPaisChange={trocarPais} />
               </div>
               <div>
                 <FormLabel>E-mail</FormLabel>
