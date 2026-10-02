@@ -4,7 +4,9 @@ import { useStore } from '../store';
 import type { ClienteFinalComContexto } from '../store';
 import type { CanalOrigem } from '../types';
 import { mensagemDeErro } from '../api/client';
-import { maskPhone, maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
+import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
+import { PAIS_PADRAO, maskTelefone } from '../lib/paises';
+import { TelefoneInput } from './TelefoneInput';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { Combobox } from './Combobox';
 
@@ -42,7 +44,16 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
   const [corretorId, setCorretorId] = useState(cliente?.corretorId ?? initialCorretorId ?? '');
 
   const [nome, setNome] = useState(cliente?.nome ?? '');
-  const [telefone, setTelefone] = useState(cliente ? maskPhone(cliente.telefone) : '');
+  const [paisTelefone, setPaisTelefone] = useState(cliente?.paisTelefone ?? PAIS_PADRAO);
+  const [telefone, setTelefone] = useState(
+    cliente ? maskTelefone(cliente.telefone, cliente.paisTelefone) : ''
+  );
+
+  /** Troca o país e reformata o número já digitado, em vez de obrigar a redigitar. */
+  function trocarPais(iso: string) {
+    setPaisTelefone(iso);
+    setTelefone((t) => (t ? maskTelefone(t, iso) : t));
+  }
   const [email, setEmail] = useState(cliente?.email ?? '');
   const [uf, setUf] = useState(cliente?.uf ?? '');
   const [cidade, setCidade] = useState(cliente?.cidade ?? '');
@@ -95,6 +106,7 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
     const data = {
       nome: nome.trim(),
       telefone: telefone.trim(),
+      paisTelefone,
       email: email.trim() || undefined,
       cidade: cidade.trim() || undefined,
       uf: uf || undefined,
@@ -234,13 +246,12 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
               </div>
               <div>
                 <FormLabel required>Telefone</FormLabel>
-                <input
-                  className={`form-input ${errors.telefone ? 'border-red-400' : ''}`}
-                  placeholder="(11) 99999-9999"
-                  inputMode="numeric"
-                  maxLength={15}
-                  value={telefone}
-                  onChange={(e) => { setTelefone(maskPhone(e.target.value)); setErrors((er) => ({ ...er, telefone: '' })); }}
+                <TelefoneInput
+                  valor={telefone}
+                  onChange={(v) => { setTelefone(v); setErrors((er) => ({ ...er, telefone: '' })); }}
+                  pais={paisTelefone}
+                  onPaisChange={trocarPais}
+                  erro={Boolean(errors.telefone)}
                 />
                 {errors.telefone && <p className="text-xs text-red-500 mt-1">{errors.telefone}</p>}
               </div>

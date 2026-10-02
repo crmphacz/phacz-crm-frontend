@@ -27,6 +27,8 @@ export interface ClienteFinal {
   id: string;
   nome: string;
   telefone: string;
+  /** País do telefone (ISO 3166-1 alfa-2). Define a máscara e o DDI. Padrão 'BR'. */
+  paisTelefone?: string;
   email?: string;
   cidade?: string;
   uf?: string;

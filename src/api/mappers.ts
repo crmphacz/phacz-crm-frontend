@@ -127,6 +127,7 @@ export interface ApiClienteFinal {
   corretorId: string;
   nome: string;
   telefone: string;
+  paisTelefone: string | null;
   email: string | null;
   cidade: string | null;
   uf: string | null;
@@ -226,6 +227,7 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
     id: cf.id,
     nome: cf.nome,
     telefone: cf.telefone,
+    paisTelefone: cf.paisTelefone ?? 'BR',
     email: cf.email ?? undefined,
     cidade: cf.cidade ?? undefined,
     uf: cf.uf ?? undefined,
