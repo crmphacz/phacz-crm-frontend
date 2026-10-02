@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { differenceInDays, differenceInHours } from 'date-fns';
 import {
   Phone, Users, ArrowRightLeft, Clock, TrendingUp,
@@ -53,9 +53,28 @@ function calcAvgDaysToScheduleTraining(corretores: Corretor[]): number {
 }
 
 export function IndicadoresView() {
-  const corretores = useStore((s) => s.corretores);
+  const todosCorretores = useStore((s) => s.corretores);
   const [funnelTab, setFunnelTab] = useState<FunnelTab>('completo');
-  const [periodoPdf, setPeriodoPdf] = useState(() => new Date().toISOString().slice(0, 7));
+  // '' = todo o período. Começa no mês corrente: o que a Diretoria olha é o mês em curso.
+  const [periodo, setPeriodo] = useState(() => new Date().toISOString().slice(0, 7));
+
+  /**
+   * Os KPIs passam a ser da SAFRA do mês escolhido: os corretores que ENTRARAM nele. Antes o
+   * seletor de mês alimentava só o PDF, e a tela somava a base inteira desde sempre -- "23 de
+   * 1235 contatados" com outubro selecionado era o número de todos os tempos, não de outubro.
+   *
+   * Safra, e não "eventos do mês", porque estes KPIs são TAXAS: contato, qualificação e
+   * conversão só fazem sentido sobre o mesmo grupo de leads do início ao fim. Misturar lead
+   * que entrou em agosto com lead que entrou ontem dá uma porcentagem que não significa nada.
+   */
+  const corretores = useMemo(() => {
+    if (!periodo) return todosCorretores;
+    return todosCorretores.filter((c) => (c.dataEntrada ?? '').slice(0, 7) === periodo);
+  }, [todosCorretores, periodo]);
+
+  const rotuloPeriodo = periodo
+    ? new Date(`${periodo}-02T00:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    : 'todo o período';
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [pdfError, setPdfError] = useState('');
 
@@ -70,7 +89,7 @@ export function IndicadoresView() {
     setPdfError('');
     setGerandoPdf(true);
     try {
-      await exportsApi.kpisPdf(periodoPdf);
+      await exportsApi.kpisPdf(periodo || new Date().toISOString().slice(0, 7));
     } catch (err) {
       setPdfError(err instanceof ApiError ? err.message : 'Não foi possível gerar o relatório.');
     } finally {
@@ -135,21 +154,29 @@ export function IndicadoresView() {
               Indicadores de Performance
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              KPIs do pipeline comercial PHACZ — calculados em tempo real.
+              KPIs dos corretores que entraram em <strong>{rotuloPeriodo}</strong> — calculados em tempo real.
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
               <div className="text-xs px-3 py-1.5 rounded-full font-semibold flex-shrink-0" style={{ backgroundColor: '#fff7ed', color: '#d55006', border: '1px solid #fed7aa' }}>
-                {total} corretores analisados
+                {total} {total === 1 ? 'corretor' : 'corretores'} em {rotuloPeriodo}
               </div>
               <input
                 type="month"
-                value={periodoPdf}
-                onChange={(e) => setPeriodoPdf(e.target.value)}
+                value={periodo}
+                onChange={(e) => setPeriodo(e.target.value)}
                 className="text-xs px-2.5 py-1.5 rounded-full border font-medium"
                 style={{ borderColor: '#e5e7eb', color: '#374151' }}
               />
+              <button
+                onClick={() => setPeriodo((p) => (p ? '' : new Date().toISOString().slice(0, 7)))}
+                className="text-xs px-3 py-1.5 rounded-full border font-semibold flex-shrink-0 hover:bg-gray-50"
+                style={{ borderColor: '#e5e7eb', color: periodo ? '#374151' : '#d55006' }}
+                title="Alternar entre o mês escolhido e a base inteira"
+              >
+                {periodo ? 'Ver todo o período' : 'Ver por mês'}
+              </button>
               <button
                 onClick={handleDownloadKpisPdf}
                 disabled={gerandoPdf}
