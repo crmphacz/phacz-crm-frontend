@@ -539,6 +539,8 @@ export interface AniversarioAgenda {
   imobiliaria: string;
   telefone: string;
   whatsapp: string;
+  /** País do telefone (ISO). Define o DDI do link do WhatsApp. */
+  paisTelefone?: string;
   dia: number; // 1-31
   dataNascimento: string; // ISO
   idade: number;

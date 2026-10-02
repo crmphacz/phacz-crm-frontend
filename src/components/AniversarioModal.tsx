@@ -4,7 +4,8 @@ import { useStore } from '../store';
 import { agendaApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { canSendAniversario } from '../permissions';
-import { formatPhone, toWaNumber } from '../utils';
+import { formatPhone } from '../utils';
+import { paraFormatoInternacional } from '../lib/paises';
 import { WhatsappIcon } from './WhatsappIcon';
 import type { AniversarioAgenda, SaudacaoAniversario } from '../types';
 
@@ -56,7 +57,7 @@ export function AniversarioModal({ aniversario, ano, onClose, onRegistered }: An
     setError('');
 
     window.open(
-      `https://wa.me/${toWaNumber(aniversario.whatsapp || aniversario.telefone)}?text=${encodeURIComponent(texto)}`,
+      `https://wa.me/${paraFormatoInternacional(aniversario.whatsapp || aniversario.telefone, aniversario.paisTelefone)}?text=${encodeURIComponent(texto)}`,
       '_blank',
       'noopener,noreferrer'
     );

@@ -332,6 +332,7 @@ export function ClientesView() {
           alvo={{ clienteFinalId: whatsappCliente.id }}
           nomeDestinatario={whatsappCliente.nome}
           telefone={whatsappCliente.telefone}
+          pais={whatsappCliente.paisTelefone}
           onClose={() => setWhatsappCliente(null)}
         />
       )}

@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useStore } from '../store';
 import { whatsappApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
-import { formatPhone, toWaNumber } from '../utils';
+import { paraFormatoInternacional } from '../lib/paises';
 import { WhatsappIcon } from './WhatsappIcon';
 
 interface WhatsappSendModalProps {
@@ -11,12 +11,19 @@ interface WhatsappSendModalProps {
   alvo: { corretorId: string } | { clienteFinalId: string };
   nomeDestinatario: string;
   telefone: string;
+  /**
+   * País do telefone (ISO). Sem ele o link era montado colando "55" em tudo, então um número
+   * português saía como 55914061629 — um número brasileiro, de outra pessoa.
+   */
+  pais?: string;
   onClose: () => void;
   /** Chamado depois de abrir a conversa — usado para re-hidratar o card e mostrar a interação registrada. */
   onSent?: () => void;
 }
 
-export function WhatsappSendModal({ alvo, nomeDestinatario, telefone, onClose, onSent }: WhatsappSendModalProps) {
+export function WhatsappSendModal({ alvo, nomeDestinatario, telefone, pais, onClose, onSent }: WhatsappSendModalProps) {
+  // Número como o WhatsApp precisa: DDI + telefone, só dígitos.
+  const numeroInternacional = paraFormatoInternacional(telefone, pais);
   const showToast = useStore((s) => s.showToast);
 
   const [message, setMessage] = useState('');
@@ -26,6 +33,10 @@ export function WhatsappSendModal({ alvo, nomeDestinatario, telefone, onClose, o
   async function handleOpen() {
     const texto = message.trim();
     if (!texto) return;
+    if (!numeroInternacional) {
+      setError('Este contato não tem um telefone válido cadastrado.');
+      return;
+    }
     setBusy(true);
     setError('');
 
@@ -43,7 +54,7 @@ export function WhatsappSendModal({ alvo, nomeDestinatario, telefone, onClose, o
     }
 
     window.open(
-      `https://wa.me/${toWaNumber(telefone)}?text=${encodeURIComponent(texto)}`,
+      `https://wa.me/${numeroInternacional}?text=${encodeURIComponent(texto)}`,
       '_blank',
       'noopener,noreferrer'
     );
@@ -68,7 +79,7 @@ export function WhatsappSendModal({ alvo, nomeDestinatario, telefone, onClose, o
               <h2 className="font-questrial font-bold text-lg text-gray-900">Enviar WhatsApp</h2>
               <p className="text-xs text-gray-400">
                 Para <span className="font-semibold text-gray-600">{nomeDestinatario}</span>
-                {telefone ? ` · ${formatPhone(telefone)}` : ''}
+                {numeroInternacional ? ` · +${numeroInternacional}` : ''}
               </p>
             </div>
           </div>

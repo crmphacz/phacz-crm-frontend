@@ -1629,6 +1629,7 @@ export function CorretorDetailPanel() {
           alvo={{ corretorId: corretor.id }}
           nomeDestinatario={corretor.nomeCorretor}
           telefone={corretor.whatsappCorretor || corretor.telefoneCorretor}
+          pais={corretor.paisTelefone}
           onClose={() => setShowWhatsappModal(false)}
           onSent={() => hydrateCorretorDetail(corretor.id).catch(() => undefined)}
         />
