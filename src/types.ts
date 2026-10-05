@@ -776,4 +776,10 @@ export interface Placar {
   periodo: string;
   semanas: SemanaPlacar[];
   pessoas: PlacarPessoa[];
+  /** Meta geral de vendas do mês e como ficou rateada entre os GVs. */
+  metaVendas: {
+    total: number;
+    gvsAtivos: number;
+    porGv: number;
+  };
 }

@@ -665,6 +665,9 @@ export const placarApi = {
     apiFetch<Placar>('/api/placar/metas', { method: 'PUT', body: { periodo, metas } }),
   copiarMetas: (de: string, para: string) =>
     apiFetch<Placar>('/api/placar/metas/copiar', { method: 'POST', body: { de, para } }),
+  /** Meta geral de vendas do mês — o backend rateia entre os GVs ativos. */
+  salvarMetaVendas: (periodo: string, valorMeta: number) =>
+    apiFetch<Placar>('/api/placar/meta-vendas', { method: 'PUT', body: { periodo, valorMeta } }),
   exportarXlsx: (periodo: string) =>
     downloadFile('/api/placar/export.xlsx', `placar-metas-${periodo}.xlsx`, { periodo }),
   exportarPdf: (periodo: string) =>

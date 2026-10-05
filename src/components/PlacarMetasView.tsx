@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, FileText, Pencil, Check, X, Copy, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, FileText, Pencil, Check, X, Copy, Info, Target } from 'lucide-react';
 import { placarApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { useStore } from '../store';
@@ -35,6 +35,11 @@ function totalDaSemana(valor: ValorMetrica, semana: SemanaPlacar): number {
   return semana.dias.reduce((soma, dia) => soma + (valor.porDia[dia] ?? 0), 0);
 }
 
+/** Mostra a meta rateada sem casas decimais quando a divisão é exata (100/4 = 25, não 25,00). */
+function formatarMeta(valor: number): string {
+  return Number.isInteger(valor) ? String(valor) : valor.toFixed(1).replace('.', ',');
+}
+
 function corDoAtingimento(total: number, meta: number): string {
   if (meta <= 0) return '#9ca3af';
   return total >= meta ? '#16a34a' : '#dc2626';
@@ -56,6 +61,30 @@ export function PlacarMetasView() {
   const [editando, setEditando] = useState(false);
   const [rascunho, setRascunho] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
+
+  // Meta geral de vendas: a Diretoria digita um número para o mês e o servidor rateia entre
+  // os GVs ativos. Rascunho próprio porque grava num endpoint separado das metas de atividade.
+  const [metaVendasDraft, setMetaVendasDraft] = useState('');
+  const [salvandoMetaVendas, setSalvandoMetaVendas] = useState(false);
+
+  async function salvarMetaVendas() {
+    if (!placar) return;
+    const valor = Number(metaVendasDraft);
+    if (!Number.isFinite(valor) || valor < 0) {
+      setErro('Informe um número de vendas válido para a meta do mês.');
+      return;
+    }
+    setSalvandoMetaVendas(true);
+    setErro('');
+    try {
+      setPlacar(await placarApi.salvarMetaVendas(periodo, valor));
+      setMetaVendasDraft('');
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'Não foi possível salvar a meta de vendas.');
+    } finally {
+      setSalvandoMetaVendas(false);
+    }
+  }
 
   useEffect(() => {
     placarApi.metricas().then(setCatalogo).catch(() => undefined);
@@ -211,6 +240,54 @@ export function PlacarMetasView() {
       </div>
 
       {erro && <p className="text-sm text-red-500 px-4 md:px-6 py-2">{erro}</p>}
+
+      {/* Meta de vendas do mês — um número só, rateado entre os GVs ativos. */}
+      {placar && (ehDiretoria || placar.metaVendas.total > 0) && (
+        <div
+          className="flex flex-wrap items-center gap-3 px-4 md:px-6 py-3 border-b"
+          style={{ borderColor: '#e5e7eb', backgroundColor: '#fff7ed' }}
+        >
+          <Target size={15} style={{ color: '#d55006' }} className="flex-shrink-0" />
+          <span className="text-sm font-semibold text-gray-700">Meta de vendas do mês</span>
+
+          {ehDiretoria ? (
+            <>
+              <input
+                type="number"
+                min={0}
+                className="form-input text-sm"
+                style={{ width: 110 }}
+                placeholder={String(placar.metaVendas.total || 0)}
+                value={metaVendasDraft}
+                onChange={(e) => setMetaVendasDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') salvarMetaVendas(); }}
+              />
+              <button
+                onClick={salvarMetaVendas}
+                disabled={salvandoMetaVendas || metaVendasDraft === ''}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#d55006' }}
+              >
+                {salvandoMetaVendas ? 'Salvando…' : 'Salvar'}
+              </button>
+            </>
+          ) : (
+            <span className="text-sm font-bold text-gray-800">{placar.metaVendas.total}</span>
+          )}
+
+          <span className="text-xs text-gray-500">
+            {placar.metaVendas.gvsAtivos > 0 ? (
+              <>
+                dividida entre <strong>{placar.metaVendas.gvsAtivos}</strong>{' '}
+                {placar.metaVendas.gvsAtivos === 1 ? 'GV ativo' : 'GVs ativos'} ={' '}
+                <strong style={{ color: '#d55006' }}>{formatarMeta(placar.metaVendas.porGv)}</strong> para cada
+              </>
+            ) : (
+              'nenhum GV ativo para dividir a meta'
+            )}
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-5" style={{ backgroundColor: '#f6f5f3' }}>
         {pessoas.length === 0 ? (
