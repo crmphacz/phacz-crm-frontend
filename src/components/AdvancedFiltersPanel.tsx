@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal, Bookmark, Trash2, X, Check } from 'lucide-react';
 import { useStore } from '../store';
 import { STAGES } from '../data';
+import { TIPO_INTERACAO_CONFIG } from '../utils';
+import type { TipoInteracao } from '../types';
 import { ApiError } from '../api/client';
 
 export function AdvancedFiltersPanel() {
@@ -14,6 +16,8 @@ export function AdvancedFiltersPanel() {
   const setFilterResponsavel = useStore((s) => s.setFilterResponsavel);
   const filterCanalOrigem = useStore((s) => s.filterCanalOrigem);
   const setFilterCanalOrigem = useStore((s) => s.setFilterCanalOrigem);
+  const filterTipoInteracao = useStore((s) => s.filterTipoInteracao);
+  const setFilterTipoInteracao = useStore((s) => s.setFilterTipoInteracao);
   const clearAdvancedFilters = useStore((s) => s.clearAdvancedFilters);
 
   const users = useStore((s) => s.users);
@@ -30,7 +34,9 @@ export function AdvancedFiltersPanel() {
 
   const responsavelNomes = [...new Set(users.filter((u) => u.ativo).map((u) => u.nome))].sort();
 
-  const activeCount = [filterEtapa !== 'all', filterResponsavel !== 'all', filterCanalOrigem !== 'all'].filter(Boolean).length;
+  const activeCount = [
+    filterEtapa !== 'all', filterResponsavel !== 'all', filterCanalOrigem !== 'all', filterTipoInteracao !== 'all',
+  ].filter(Boolean).length;
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -131,6 +137,24 @@ export function AdvancedFiltersPanel() {
                   <option key={c.id} value={c.nome}>{c.nome}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 block mb-1">Tipo de atividade</label>
+              <select
+                className="form-input"
+                value={filterTipoInteracao}
+                onChange={(e) => setFilterTipoInteracao(e.target.value as TipoInteracao | 'all')}
+              >
+                <option value="all">Todas</option>
+                {(Object.entries(TIPO_INTERACAO_CONFIG) as [TipoInteracao, { label: string; icon: string }][]).map(
+                  ([chave, cfg]) => (
+                    <option key={chave} value={chave}>{cfg.icon} {cfg.label}</option>
+                  )
+                )}
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Mostra quem já teve esse tipo de atividade registrado — não busca no texto dela.
+              </p>
             </div>
           </div>
 

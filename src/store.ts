@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, Temperatura, UserProfile, CanalOrigem,
+  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, TipoInteracao, Proposta, Temperatura, UserProfile, CanalOrigem,
   EmailTemplate, EmailCampaign, ChatMessage, DestinatarioTipo, UserCargo,
   Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, TipoNotificacao, Empreendimento, CreateEmpreendimentoPayload,
   WhatsappTemplate, WhatsappCampaign,
@@ -93,6 +93,8 @@ export interface PipelineFiltros {
   filterEtapa: number | 'all';
   filterResponsavel: string | 'all';
   filterCanalOrigem: CanalOrigem | 'all';
+  /** Filtra os cards que JÁ TIVERAM uma atividade deste tipo registrada. */
+  filterTipoInteracao: TipoInteracao | 'all';
 }
 
 interface StoreState {
@@ -113,6 +115,8 @@ interface StoreState {
   filterEtapa: number | 'all';
   filterResponsavel: string | 'all';
   filterCanalOrigem: CanalOrigem | 'all';
+  /** Filtra os cards que JÁ TIVERAM uma atividade deste tipo registrada. */
+  filterTipoInteracao: TipoInteracao | 'all';
   searchQuery: string;
   /** Aba de funil selecionada no Pipeline — fica aqui pra sobreviver a trocar de menu e voltar. */
   pipelineFunnel: PipelineFunnel;
@@ -204,6 +208,7 @@ interface StoreState {
   setSearchQuery: (q: string) => void;
   setPipelineFunnel: (f: PipelineFunnel) => void;
   setShowNewCorretorModal: (v: boolean, etapa?: number) => void;
+  setFilterTipoInteracao: (t: TipoInteracao | 'all') => void;
   clearAdvancedFilters: () => void;
 
   // Corretor CRUD
@@ -328,6 +333,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   filterEtapa: 'all',
   filterResponsavel: 'all',
   filterCanalOrigem: 'all',
+  filterTipoInteracao: 'all',
   searchQuery: '',
   pipelineFunnel: 'todos',
   savedSearches: [],
@@ -631,10 +637,12 @@ export const useStore = create<StoreState>()((set, get) => ({
   setFilterEtapa: (e) => set({ filterEtapa: e }),
   setFilterResponsavel: (r) => set({ filterResponsavel: r }),
   setFilterCanalOrigem: (c) => set({ filterCanalOrigem: c }),
+  setFilterTipoInteracao: (t) => set({ filterTipoInteracao: t }),
   setSearchQuery: (q) => set({ searchQuery: q }),
   setPipelineFunnel: (f) => set({ pipelineFunnel: f }),
   setShowNewCorretorModal: (v, etapa) => set({ showNewCorretorModal: v, newCorretorEtapa: v ? etapa ?? 1 : 1 }),
-  clearAdvancedFilters: () => set({ filterEtapa: 'all', filterResponsavel: 'all', filterCanalOrigem: 'all' }),
+  clearAdvancedFilters: () =>
+    set({ filterEtapa: 'all', filterResponsavel: 'all', filterCanalOrigem: 'all', filterTipoInteracao: 'all' }),
 
   addCorretor: async (corretorData) => {
     const corretor = await corretoresApi.create(corretorData);
@@ -907,8 +915,10 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   createSavedSearch: async (nome) => {
-    const { searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem } = get();
-    const filtros: PipelineFiltros = { searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem };
+    const { searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem, filterTipoInteracao } = get();
+    const filtros: PipelineFiltros = {
+      searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem, filterTipoInteracao,
+    };
     const saved = await savedSearchesApi.create(nome, filtros as unknown as Record<string, unknown>);
     set((state) => ({ savedSearches: [saved, ...state.savedSearches] }));
     return saved;
@@ -927,6 +937,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       filterEtapa: filtros.filterEtapa ?? 'all',
       filterResponsavel: filtros.filterResponsavel ?? 'all',
       filterCanalOrigem: filtros.filterCanalOrigem ?? 'all',
+      // Busca salva antes deste filtro existir não traz o campo — cai em 'all'.
+      filterTipoInteracao: filtros.filterTipoInteracao ?? 'all',
     });
   },
 
@@ -1043,6 +1055,7 @@ export const useFilteredCorretores = () => {
   const filterEtapa = useStore((s) => s.filterEtapa);
   const filterResponsavel = useStore((s) => s.filterResponsavel);
   const filterCanalOrigem = useStore((s) => s.filterCanalOrigem);
+  const filterTipoInteracao = useStore((s) => s.filterTipoInteracao);
   const searchQuery = useStore((s) => s.searchQuery);
 
   return corretores.filter((l) => {
@@ -1050,6 +1063,8 @@ export const useFilteredCorretores = () => {
     if (filterTemperatura !== 'all' && l.temperatura !== filterTemperatura) return false;
     if (filterEtapa !== 'all' && l.etapa !== filterEtapa) return false;
     if (filterCanalOrigem !== 'all' && l.canalOrigem !== filterCanalOrigem) return false;
+    // Basta ter UMA atividade do tipo — não procura no texto do que foi escrito.
+    if (filterTipoInteracao !== 'all' && !(l.tiposInteracao ?? []).includes(filterTipoInteracao)) return false;
     if (filterResponsavel !== 'all') {
       const match =
         l.responsavelSDR === filterResponsavel ||

@@ -125,6 +125,12 @@ export interface Corretor {
   dataUltimaInteracao: string;
   /** Última interação real (ou movimentação de etapa/distribuição/fechamento); ausente = corretor sem nenhuma atividade registrada. Só vem preenchido na listagem paginada (GET /api/corretores). */
   ultimaAtividadeEm?: string;
+  /**
+   * Tipos de atividade que este card já teve registrados, sem repetição. Alimenta o filtro
+   * "tipo de atividade" — a tela precisa saber que houve uma especulação, não o que foi
+   * escrito nela.
+   */
+  tiposInteracao?: TipoInteracao[];
   dataDistribuicao?: string;
   dataFechamento?: string;
   etapaTimestamps: Record<string, string>;
