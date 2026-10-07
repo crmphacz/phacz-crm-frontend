@@ -107,7 +107,7 @@ export function PipelineView() {
 
   // Busca sem nenhum resultado em qualquer funil: cada coluna oferece "+ Adicionar corretor",
   // já abrindo o cadastro na etapa da coluna clicada.
-  const showAddOnEmpty = canCreate && searchQuery.trim() !== '' && filteredCorretores.length === 0;
+  const showAddOnEmpty = canCreate && searchQuery.trim() !== '' && emAndamento.length === 0;
 
   const visibleColumns = ALL_STAGE_COLUMNS.filter((group) =>
     group.some((id) => visibleStageIds.includes(id))
@@ -255,9 +255,11 @@ export function PipelineView() {
             .filter(([, cfg]) => cfg.stages.some((id) => !hiddenStageIds.includes(id)))
             .map(([key, cfg]) => {
             const isActive = funnelFilter === key;
+            // `emAndamento` (perdido fora) e sempre descontando as etapas ocultas: a aba tem
+            // que contar exatamente os cards que a pessoa vai ver ao clicar nela.
             const count = key === 'todos'
-              ? filteredCorretores.filter((l) => !hiddenStageIds.includes(l.etapa)).length
-              : filteredCorretores.filter((l) => cfg.stages.includes(l.etapa)).length;
+              ? emAndamento.filter((l) => !hiddenStageIds.includes(l.etapa)).length
+              : emAndamento.filter((l) => cfg.stages.includes(l.etapa) && !hiddenStageIds.includes(l.etapa)).length;
             return (
               <button
                 key={key}

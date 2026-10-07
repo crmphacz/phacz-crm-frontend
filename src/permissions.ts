@@ -194,9 +194,23 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
   }
 }
 
-/** Etapa 10 (Pós-venda/Fidelização) não é responsabilidade do SDR — some das colunas e do funil dele. */
+/**
+ * Colunas que somem do pipeline conforme o perfil — cada um vê a parte do funil que trabalha.
+ *
+ * - SDR: sem a etapa 10 (Pós-venda/Fidelização), que não é responsabilidade dele.
+ * - GR e GV: sem as etapas 1 a 4 (pré-atendimento), que são trabalho do SDR. O card só chega
+ *   a eles na Distribuição (etapa 5) — antes disso, as colunas só poluíam o quadro com mais de
+ *   mil cards que eles não atuam.
+ *
+ * Diretoria, Administrativo e Recepção continuam vendo o funil inteiro: é leitura de gestão.
+ *
+ * Isto é recorte de TELA, não de permissão — quem decide o que cada um pode escrever é
+ * `canWriteCorretor`, no servidor.
+ */
 export function getHiddenPipelineStages(user: UserProfile | null): number[] {
-  return user?.cargo === 'SDR' ? [10] : [];
+  if (user?.cargo === 'SDR') return [10];
+  if (user?.cargo === 'GR' || user?.cargo === 'GV') return [1, 2, 3, 4];
+  return [];
 }
 
 /** Primeira tela segura para o perfil logado, usada no login/bootstrap. */
