@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, FileText, Pencil, Check, X, Copy, Info, Target } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, Download, FileText, Pencil, Check, X, Copy, Info, Target, Loader2,
+} from 'lucide-react';
 import { placarApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { useStore } from '../store';
@@ -159,16 +161,23 @@ export function PlacarMetasView() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setPeriodo((p) => deslocaPeriodo(p, -1))}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 border"
+            disabled={carregando}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 border disabled:opacity-40"
             style={{ borderColor: '#e5e7eb' }}
             title="Mês anterior"
           >
             <ChevronLeft size={15} />
           </button>
-          <span className="font-questrial text-base text-gray-800 min-w-[150px] text-center">{nomeDoPeriodo(periodo)}</span>
+          <span className="font-questrial text-base text-gray-800 min-w-[150px] text-center flex items-center justify-center gap-2">
+            {nomeDoPeriodo(periodo)}
+            {/* Enquanto carrega, o mês novo já aparece no cabeçalho — o spinner aqui diz que
+                os números abaixo ainda são do mês anterior. */}
+            {carregando && <Loader2 size={14} className="animate-spin" style={{ color: '#d55006' }} />}
+          </span>
           <button
             onClick={() => setPeriodo((p) => deslocaPeriodo(p, 1))}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 border"
+            disabled={carregando}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 border disabled:opacity-40"
             style={{ borderColor: '#e5e7eb' }}
             title="Próximo mês"
           >
@@ -289,7 +298,26 @@ export function PlacarMetasView() {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-5" style={{ backgroundColor: '#f6f5f3' }}>
+      {/* `relative` ancora o véu de carregamento abaixo. */}
+      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-5 relative" style={{ backgroundColor: '#f6f5f3' }}>
+        {carregando && placar && (
+          // Véu sobre os dados do mês ANTERIOR enquanto o novo não chega: sem ele a tela
+          // mostrava números velhos, sem aviso, como se já fossem do mês escolhido.
+          <div
+            className="absolute inset-0 z-10 flex items-start justify-center pt-16"
+            style={{ backgroundColor: 'rgba(246,245,243,0.72)' }}
+          >
+            <div
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border shadow-sm"
+              style={{ borderColor: '#e5e7eb' }}
+            >
+              <Loader2 size={15} className="animate-spin" style={{ color: '#d55006' }} />
+              <span className="text-sm font-semibold text-gray-600">
+                Carregando {nomeDoPeriodo(periodo).toLowerCase()}…
+              </span>
+            </div>
+          </div>
+        )}
         {pessoas.length === 0 ? (
           <div className="bg-white rounded-2xl border py-16 text-center" style={{ borderColor: '#e5e7eb' }}>
             <p className="text-sm font-semibold text-gray-700">Nenhum placar para {nomeDoPeriodo(periodo)}</p>
