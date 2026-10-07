@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, X, Zap, GripVertical } from 'lucide-react';
+import { Plus, Search, X, Zap, GripVertical, XCircle } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -38,6 +38,15 @@ const ALL_STAGE_COLUMNS = [
   [1], [2], [3], [4], [5], [6, 7], [8], [9], [10],
 ];
 
+/**
+ * Identificador da coluna "Perdidos" no arrastar-e-soltar.
+ *
+ * Perdido é STATUS do card, não etapa: o corretor guarda a etapa em que parou, e `motivoPerda`
+ * registra por quê. Fazer disso uma etapa 11 criaria uma segunda fonte de verdade para "este
+ * lead morreu" e os indicadores, que já contam por status, passariam a divergir do quadro.
+ */
+const COLUNA_PERDIDOS = 'coluna-perdidos';
+
 export function PipelineView() {
   const setShowNewCorretorModal = useStore((s) => s.setShowNewCorretorModal);
   const filterTemperatura = useStore((s) => s.filterTemperatura);
@@ -46,6 +55,7 @@ export function PipelineView() {
   const setSearchQuery = useStore((s) => s.setSearchQuery);
   const filteredCorretores = useFilteredCorretores();
   const moveCorretor = useStore((s) => s.moveCorretor);
+  const markAsLost = useStore((s) => s.markAsLost);
   const addInteracao = useStore((s) => s.addInteracao);
   const corretores = useStore((s) => s.corretores);
   const setCorretores = useStore((s) => s.setCorretores);
@@ -79,12 +89,20 @@ export function PipelineView() {
   const hiddenStageIds = getHiddenPipelineStages(currentUser);
   const visibleStageIds = FUNNEL_CONFIG[funnelFilter].stages.filter((id) => !hiddenStageIds.includes(id));
 
+  /**
+   * Perdido sai das colunas de etapa e vai só para a coluna "Perdidos". O card guarda a etapa
+   * em que estava — é o `status` que o move, não a etapa — então, sem este recorte, ele
+   * apareceria duas vezes no quadro.
+   */
+  const emAndamento = filteredCorretores.filter((l) => l.status !== 'perdido');
+  const corretoresPerdidos = filteredCorretores.filter((l) => l.status === 'perdido');
+
   const corretoresByStage = STAGES.reduce<Record<number, Corretor[]>>((acc, stage) => {
-    acc[stage.id] = filteredCorretores.filter((l) => l.etapa === stage.id);
+    acc[stage.id] = emAndamento.filter((l) => l.etapa === stage.id);
     return acc;
   }, {});
 
-  const visibleCorretores = filteredCorretores.filter((l) => visibleStageIds.includes(l.etapa));
+  const visibleCorretores = emAndamento.filter((l) => visibleStageIds.includes(l.etapa));
   const totalActive = visibleCorretores.length;
 
   // Busca sem nenhum resultado em qualquer funil: cada coluna oferece "+ Adicionar corretor",
@@ -95,6 +113,9 @@ export function PipelineView() {
     group.some((id) => visibleStageIds.includes(id))
   );
 
+  /** Card sendo marcado como perdido — guarda o nome só para o texto do modal. */
+  const [marcandoPerdido, setMarcandoPerdido] = useState<{ id: string; nome: string } | null>(null);
+
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
   }
@@ -104,6 +125,17 @@ export function PipelineView() {
     const { active, over } = event;
     if (!over) return;
     const overId = String(over.id);
+
+    // Perdidos não é uma etapa: é o status do card, e exige motivo. Por isso abre o modal em
+    // vez de mover — e vem antes da checagem de etapa, que não saberia o que fazer com ele.
+    if (overId === COLUNA_PERDIDOS) {
+      const alvo = corretores.find((l) => l.id === active.id);
+      if (!alvo || alvo.status === 'perdido') return;
+      if (!canWriteCorretor(currentUser, alvo)) return;
+      setMarcandoPerdido({ id: alvo.id, nome: alvo.nomeCorretor });
+      return;
+    }
+
     if (!overId.startsWith('stage-')) return;
     const toEtapa = Number(overId.replace('stage-', ''));
     const corretor = corretores.find((l) => l.id === active.id);
@@ -314,6 +346,9 @@ export function PipelineView() {
                 </div>
               );
             })}
+
+            {/* Sempre visível, em qualquer funil e para qualquer perfil. */}
+            <ColunaPerdidos corretores={corretoresPerdidos} />
           </div>
         </div>
 
@@ -325,6 +360,17 @@ export function PipelineView() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {marcandoPerdido && (
+        <MotivoPerdaModal
+          nome={marcandoPerdido.nome}
+          onClose={() => setMarcandoPerdido(null)}
+          onConfirm={async (motivo) => {
+            await markAsLost(marcandoPerdido.id, motivo);
+            setMarcandoPerdido(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -451,6 +497,153 @@ function DraggableCorretorCard({ corretor, stage }: { corretor: Corretor; stage:
         </button>
       )}
       <CorretorCard corretor={corretor} stage={stage} />
+    </div>
+  );
+}
+
+/**
+ * Coluna "Perdidos": leads que saíram do funil, com o motivo registrado.
+ *
+ * Fica fora do filtro de funil e do recorte por perfil de propósito — todo mundo vê, porque
+ * saber o que se perdeu é tão importante quanto ver o que está em andamento.
+ */
+function ColunaPerdidos({ corretores }: { corretores: Corretor[] }) {
+  const { setNodeRef, isOver } = useDroppable({ id: COLUNA_PERDIDOS });
+  const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
+
+  return (
+    <div ref={setNodeRef} className="flex-shrink-0 flex flex-col mr-3" style={{ width: 300 }}>
+      <div
+        className="rounded-t-xl px-3 py-2.5 border border-b-0"
+        style={{ borderColor: isOver ? '#dc2626' : '#e5e7eb', backgroundColor: isOver ? '#fef2f2' : '#fff' }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#dc2626' }} />
+            <h3 className="text-sm font-semibold text-gray-800 truncate">Perdidos</h3>
+          </div>
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}
+          >
+            {corretores.length}
+          </span>
+        </div>
+        <p className="text-xs text-gray-400 mt-1">Arraste um card aqui para registrar a perda</p>
+      </div>
+
+      <div
+        className="flex-1 overflow-y-auto rounded-b-xl border p-2 space-y-2"
+        style={{
+          borderColor: isOver ? '#dc2626' : '#e5e7eb',
+          backgroundColor: isOver ? '#fef2f2' : '#fafafa',
+          minHeight: 180,
+        }}
+      >
+        {corretores.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-10">Nenhum corretor perdido</p>
+        ) : (
+          corretores.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCorretor(c.id)}
+              className="w-full text-left bg-white rounded-xl border p-2.5 hover:shadow-sm transition-shadow"
+              style={{ borderColor: '#e5e7eb' }}
+            >
+              <p className="text-sm font-semibold text-gray-700 truncate">{c.nomeCorretor}</p>
+              <p className="text-xs text-gray-400 truncate">{c.imobiliaria || 'Sem imobiliária'}</p>
+              {c.motivoPerda && (
+                <p className="text-xs mt-1.5 line-clamp-2" style={{ color: '#b91c1c' }} title={c.motivoPerda}>
+                  {c.motivoPerda}
+                </p>
+              )}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Pede o motivo antes de marcar o card como perdido — o backend também exige. */
+function MotivoPerdaModal({ nome, onConfirm, onClose }: {
+  nome: string;
+  onConfirm: (motivo: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [motivo, setMotivo] = useState('');
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+
+  async function confirmar() {
+    if (!motivo.trim()) {
+      setErro('Informe o motivo da perda.');
+      return;
+    }
+    setSalvando(true);
+    setErro('');
+    try {
+      await onConfirm(motivo.trim());
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'Não foi possível marcar como perdido.');
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center modal-backdrop"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-2 sm:mx-4 flex flex-col">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b" style={{ borderColor: '#e5e7eb' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#fef2f2' }}>
+              <XCircle size={18} style={{ color: '#dc2626' }} />
+            </div>
+            <div>
+              <h2 className="font-questrial font-bold text-lg text-gray-900">Marcar como perdido</h2>
+              <p className="text-xs text-gray-400 truncate">{nome}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-4 sm:px-6 py-4 space-y-3">
+          <label className="text-xs font-semibold text-gray-600 block">
+            Motivo da perda<span className="text-red-400 ml-0.5">*</span>
+          </label>
+          <textarea
+            autoFocus
+            className={`form-input resize-none ${erro ? 'border-red-400' : ''}`}
+            style={{ minHeight: 90 }}
+            placeholder="Ex.: não respondeu aos contatos, optou por outra construtora, saiu do mercado..."
+            value={motivo}
+            onChange={(e) => { setMotivo(e.target.value); setErro(''); }}
+          />
+          {erro && <p className="text-xs text-red-500">{erro}</p>}
+          <p className="text-xs text-gray-400">
+            O card sai do funil e passa a aparecer na coluna Perdidos, com este motivo.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl" style={{ borderColor: '#e5e7eb' }}>
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200">
+            Cancelar
+          </button>
+          <button
+            onClick={confirmar}
+            disabled={salvando}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            style={{ backgroundColor: '#dc2626' }}
+          >
+            {salvando ? 'Salvando...' : 'Confirmar perda'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

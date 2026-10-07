@@ -1062,7 +1062,9 @@ export const useFilteredCorretores = () => {
   const searchQuery = useStore((s) => s.searchQuery);
 
   return corretores.filter((l) => {
-    if (l.status === 'arquivado' || l.status === 'perdido') return false;
+    // Perdido CONTINUA na lista: ele alimenta a coluna "Perdidos" do pipeline. Quem tira o
+    // card das colunas de etapa é o próprio Pipeline, pelo status. Arquivado some mesmo.
+    if (l.status === 'arquivado') return false;
     if (filterTemperatura !== 'all' && l.temperatura !== filterTemperatura) return false;
     if (filterEtapa !== 'all' && l.etapa !== filterEtapa) return false;
     if (filterCanalOrigem !== 'all' && l.canalOrigem !== filterCanalOrigem) return false;
