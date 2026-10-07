@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, User, Search, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
 import type { ClienteFinalComContexto } from '../store';
@@ -7,6 +7,7 @@ import { mensagemDeErro } from '../api/client';
 import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
 import { PAIS_PADRAO, maskTelefone } from '../lib/paises';
 import { TelefoneInput } from './TelefoneInput';
+import { RodadaPickerModal, rotuloDaRodada } from './RodadaPickerModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { Combobox } from './Combobox';
 
@@ -60,6 +61,32 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
   const cidadesOptions = useCidadesPorUf(uf);
   const [interesse, setInteresse] = useState(cliente?.interesse ?? '');
   const [canalOrigem, setCanalOrigem] = useState<CanalOrigem>(cliente?.canalOrigem ?? '');
+  const [rodadaId, setRodadaId] = useState<string>(cliente?.rodadaId ?? '');
+  const [rodadaRotulo, setRodadaRotulo] = useState('');
+  const [mostrarRodadas, setMostrarRodadas] = useState(false);
+
+  /**
+   * O canal "Rodada" é uma linha da tabela de canais, editável em Configurações — então a
+   * comparação é pelo nome, sem diferenciar maiúscula/acento, em vez de um id fixo que a
+   * Diretoria poderia renomear e quebrar silenciosamente.
+   */
+  const canalEhRodada = canalOrigem
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .includes('rodada');
+
+  /** Ao abrir um cliente já vinculado, mostra qual é a rodada em vez de só o id. */
+  const rodadasCarregadas = useStore((s) => s.rodadas);
+  useEffect(() => {
+    if (!rodadaId) { setRodadaRotulo(''); return; }
+    const r = rodadasCarregadas.find((x) => x.id === rodadaId);
+    if (r) setRodadaRotulo(rotuloDaRodada(r));
+  }, [rodadaId, rodadasCarregadas]);
+
+  // Trocar para um canal que não é rodada não pode deixar o vínculo velho para trás.
+  useEffect(() => {
+    if (!canalEhRodada && rodadaId) setRodadaId('');
+  }, [canalEhRodada, rodadaId]);
   const [orcamento, setOrcamento] = useState(cliente?.orcamento ? formatCurrencyBRL(cliente.orcamento) : '');
   const [observacoes, setObservacoes] = useState(cliente?.observacoes ?? '');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -114,6 +141,7 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
       orcamento: orcamento ? parseCurrencyBRL(orcamento) : undefined,
       observacoes: observacoes.trim() || undefined,
       canalOrigem: canalOrigem || undefined,
+      rodadaId: canalEhRodada && rodadaId ? rodadaId : null,
     };
     try {
       if (cliente) {
@@ -316,6 +344,27 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
                   {canalOptions.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
                 </select>
               </div>
+
+              {/* Canal "Rodada" pede a rodada: é o que liga o cliente captado à ação que o gerou. */}
+              {canalEhRodada && (
+                <div className="sm:col-span-2">
+                  <FormLabel>Rodada de origem</FormLabel>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarRodadas(true)}
+                    className="form-input text-left flex items-center justify-between gap-2"
+                    style={{ color: rodadaId ? '#111827' : '#9ca3af' }}
+                  >
+                    <span className="truncate">
+                      {rodadaId ? (rodadaRotulo || 'Rodada selecionada') : 'Escolher a rodada...'}
+                    </span>
+                    <ChevronRight size={14} className="flex-shrink-0 text-gray-400" />
+                  </button>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Só rodadas aprovadas aparecem na lista.
+                  </p>
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <FormLabel>Observações</FormLabel>
                 <textarea
@@ -363,6 +412,14 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
           )}
         </div>
       </div>
+
+      {mostrarRodadas && (
+        <RodadaPickerModal
+          selecionadaId={rodadaId || null}
+          onSelect={({ id, rotulo }) => { setRodadaId(id); setRodadaRotulo(rotulo); setMostrarRodadas(false); }}
+          onClose={() => setMostrarRodadas(false)}
+        />
+      )}
     </div>
   );
 }

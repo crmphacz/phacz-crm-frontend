@@ -41,6 +41,8 @@ export interface ClienteFinal {
   empreendimentoInteresse?: string;
   /** Mesma lista do canal de origem do corretor. Vazio nos clientes cadastrados antes do campo existir. */
   canalOrigem?: CanalOrigem;
+  /** Rodada em que o cliente foi captado, quando o canal de origem é "Rodada". */
+  rodadaId?: string | null;
 }
 
 export interface Interacao {

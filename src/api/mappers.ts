@@ -136,6 +136,7 @@ export interface ApiClienteFinal {
   observacoes: string | null;
   empreendimentoInteresse: string | null;
   canalOrigem: string | null;
+  rodadaId: string | null;
   dataAdicionado: string;
   negocioGerado: boolean;
   negocioCorretorId: string | null;
@@ -241,6 +242,7 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
     negocioCorretorId: cf.negocioCorretorId ?? undefined,
     empreendimentoInteresse: cf.empreendimentoInteresse ?? undefined,
     canalOrigem: cf.canalOrigem || undefined,
+    rodadaId: cf.rodadaId ?? null,
   };
 }
 
