@@ -189,6 +189,7 @@ export interface ApiCorretor {
   possuiInvestidores: boolean;
   potencialParceria: boolean;
   treinamento: boolean;
+  naoDesejaTreinamento?: boolean | null;
   dataAgendamentoTreinamento: string | null;
   dataRealizacaoTreinamento: string | null;
   horaInicioTreinamento: string | null;
@@ -345,6 +346,7 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     possuiInvestidores: l.possuiInvestidores,
     potencialParceria: l.potencialParceria,
     treinamento: l.treinamento,
+    naoDesejaTreinamento: l.naoDesejaTreinamento ?? false,
     dataAgendamentoTreinamento: l.dataAgendamentoTreinamento ?? undefined,
     dataRealizacaoTreinamento: l.dataRealizacaoTreinamento ?? undefined,
     horaInicioTreinamento: l.horaInicioTreinamento ?? undefined,
@@ -398,6 +400,7 @@ export interface CreateCorretorPayload {
   possuiInvestidores?: boolean;
   potencialParceria?: boolean;
   treinamento?: boolean;
+  naoDesejaTreinamento?: boolean;
   canalOrigem: string;
   responsavelSDRId?: string;
   observacoes?: string;

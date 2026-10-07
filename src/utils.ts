@@ -108,7 +108,9 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
   const fields: Record<number, string[]> = {
     1: ['nomeCorretor', 'telefoneCorretor', 'canalOrigem'],
     2: [],
-    3: ['tiposInteresse', 'treinamento'],
+    // `treinamento` saiu daqui: muitos corretores não querem treinamento, e exigir o campo
+    // travava o card na qualificação. Quem recusa é marcado em `naoDesejaTreinamento`.
+    3: ['tiposInteresse'],
     4: [],
     5: ['responsavelGR', 'responsavelGV'],
     6: [],
@@ -126,7 +128,10 @@ export function validateForStageMove(corretor: Corretor, toEtapa: number): strin
 
   for (const field of required) {
     const val = corretor[field as keyof Corretor];
-    if (!val || (Array.isArray(val) && val.length === 0) || val === '') {
+    // `false` é um valor PREENCHIDO, não um campo em branco. Com `!val` puro, qualquer campo
+    // booleano obrigatório travava a etapa justamente quando a resposta era "não".
+    const vazio = val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0);
+    if (vazio) {
       const labels: Record<string, string> = {
         nomeCorretor: 'Nome do corretor',
         telefoneCorretor: 'Telefone',

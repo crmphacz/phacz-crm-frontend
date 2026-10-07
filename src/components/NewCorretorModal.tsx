@@ -61,6 +61,7 @@ export function NewCorretorModal() {
   const [possuiInvestidores, setPossuiInvestidores] = useState(false);
   const [potencialParceria, setPotencialParceria] = useState(false);
   const [treinamento, setTreinamento] = useState(false);
+  const [naoDesejaTreinamento, setNaoDesejaTreinamento] = useState(false);
   const [observacoes, setObservacoes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -129,6 +130,7 @@ export function NewCorretorModal() {
         possuiInvestidores,
         potencialParceria,
         treinamento,
+        naoDesejaTreinamento,
         observacoes: observacoes.trim(),
       });
 
@@ -365,11 +367,21 @@ export function NewCorretorModal() {
             </div>
 
             {/* Qualificação booleans */}
-            <div className="grid grid-cols-3 gap-3 mt-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
               {[
                 { label: 'Possui investidores', value: possuiInvestidores, set: setPossuiInvestidores },
                 { label: 'Potencial +2.5M', value: potencialParceria, set: setPotencialParceria },
-                { label: 'No treinamento', value: treinamento, set: setTreinamento },
+                // Respostas opostas à mesma pergunta: marcar uma desmarca a outra.
+                {
+                  label: 'No treinamento',
+                  value: treinamento,
+                  set: (v: boolean) => { setTreinamento(v); if (v) setNaoDesejaTreinamento(false); },
+                },
+                {
+                  label: 'Não deseja treinamento',
+                  value: naoDesejaTreinamento,
+                  set: (v: boolean) => { setNaoDesejaTreinamento(v); if (v) setTreinamento(false); },
+                },
               ].map(({ label, value, set }) => (
                 <button
                   key={label}

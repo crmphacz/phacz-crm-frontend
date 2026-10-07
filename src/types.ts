@@ -95,7 +95,10 @@ export interface Corretor {
   tiposInteresse: TipoInteresse[];
   possuiInvestidores: boolean;
   potencialParceria: boolean;
+  /** Quer treinamento. */
   treinamento: boolean;
+  /** Foi perguntado e recusou. Diferente de `treinamento: false`, que é "não informado". */
+  naoDesejaTreinamento?: boolean;
 
   // Treinamento — datas e horários
   dataAgendamentoTreinamento?: string;

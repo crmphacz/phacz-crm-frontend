@@ -119,6 +119,17 @@ export function CorretorDetailPanel() {
     setDraft((d) => ({ ...d, ...updates }));
   }
 
+  /**
+   * "No treinamento" e "Não deseja treinamento" são respostas opostas à mesma pergunta: ligar
+   * uma desliga a outra. Sem isso dava para marcar as duas e o card ficaria contando como
+   * interessado e recusado ao mesmo tempo — o backend recusa esse estado.
+   */
+  function alternarQualificacao(field: keyof Corretor, valor: boolean): Partial<Corretor> {
+    if (field === 'treinamento' && valor) return { treinamento: true, naoDesejaTreinamento: false };
+    if (field === 'naoDesejaTreinamento' && valor) return { naoDesejaTreinamento: true, treinamento: false };
+    return { [field]: valor } as Partial<Corretor>;
+  }
+
   const paisDoCorretor = paisPorIso(shown('paisTelefone'));
 
   /** Troca o país e reformata os dois números com a máscara nova, sem perder os dígitos. */
@@ -839,17 +850,18 @@ export function CorretorDetailPanel() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                       { field: 'possuiInvestidores' as const, label: 'Tem investidores' },
                       { field: 'potencialParceria' as const, label: '+2.5M potencial' },
                       { field: 'treinamento' as const, label: 'No treinamento' },
+                      { field: 'naoDesejaTreinamento' as const, label: 'Não deseja treinamento' },
                     ].map(({ field, label }) => {
                       const active = Boolean(shown(field));
                       return (
                         <button
                           key={field}
-                          onClick={() => patchDraft({ [field]: !active } as Partial<Corretor>)}
+                          onClick={() => patchDraft(alternarQualificacao(field, !active))}
                           className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold border-2 transition-all disabled:opacity-60"
                           style={
                             active
