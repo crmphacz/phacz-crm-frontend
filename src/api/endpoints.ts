@@ -165,7 +165,7 @@ export const corretoresApi = {
   update: (
     id: string,
     updates: Partial<Corretor>,
-    responsavelIds?: { responsavelSDRId?: string; responsavelGVId?: string; responsavelGRId?: string }
+    responsavelIds?: { responsavelSDRId?: string | null; responsavelGVId?: string | null; responsavelGRId?: string | null }
   ): Promise<Corretor> =>
     apiFetch<ApiCorretor>(`/api/corretores/${id}`, {
       method: 'PATCH',

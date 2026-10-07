@@ -652,17 +652,20 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   updateCorretor: async (id, updates) => {
     const { users } = get();
-    const responsavelIds: { responsavelSDRId?: string; responsavelGVId?: string; responsavelGRId?: string } = {};
+    const responsavelIds: {
+      responsavelSDRId?: string | null; responsavelGVId?: string | null; responsavelGRId?: string | null;
+    } = {};
 
-    if (updates.responsavelSDR !== undefined) {
-      responsavelIds.responsavelSDRId = updates.responsavelSDR ? findUserIdByName(users, updates.responsavelSDR) : undefined;
-    }
-    if (updates.responsavelGV !== undefined) {
-      responsavelIds.responsavelGVId = updates.responsavelGV ? findUserIdByName(users, updates.responsavelGV) : undefined;
-    }
-    if (updates.responsavelGR !== undefined) {
-      responsavelIds.responsavelGRId = updates.responsavelGR ? findUserIdByName(users, updates.responsavelGR) : undefined;
-    }
+    /**
+     * `null` para desvincular, nunca `undefined`: o JSON.stringify do corpo APAGA chaves com
+     * undefined, então escolher "— Não atribuído —" não mandava nada e o servidor mantinha o
+     * responsável antigo. Era por isso que o GV voltava depois de salvar.
+     */
+    const paraId = (nome: string) => (nome ? findUserIdByName(users, nome) ?? null : null);
+
+    if (updates.responsavelSDR !== undefined) responsavelIds.responsavelSDRId = paraId(updates.responsavelSDR);
+    if (updates.responsavelGV !== undefined) responsavelIds.responsavelGVId = paraId(updates.responsavelGV);
+    if (updates.responsavelGR !== undefined) responsavelIds.responsavelGRId = paraId(updates.responsavelGR);
 
     const updated = await corretoresApi.update(id, updates, responsavelIds);
     set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? updated : l)) }));
