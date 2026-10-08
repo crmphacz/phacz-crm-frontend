@@ -14,7 +14,9 @@ import {
   TIPO_INTERACAO_CONFIG, getInitials, nowForDatetimeLocal, datetimeLocalToISO,
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
   camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
-  MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO,
+  MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO, PEDE_PERIODO, PERMITE_VARIOS_DIAS,
+  diaDeDatetimeLocal, horaDeDatetimeLocal, juntarDiaEHora, somarHorasDatetimeLocal,
+  formatPeriodoAtividade,
 } from '../utils';
 import { PAISES, paisPorIso, maskTelefone, exemploTelefone, paraFormatoInternacional } from '../lib/paises';
 import { ApiError } from '../api/client';
@@ -185,6 +187,9 @@ export function CorretorDetailPanel() {
   // metas, e nome se repete e muda.
   const [actResponsavelId, setActResponsavelId] = useState(currentUser?.id ?? '');
   const [actData, setActData] = useState(() => nowForDatetimeLocal());
+  // Término, só nos tipos com duração (PEDE_PERIODO). Sugerido como 1h depois do início e
+  // ajustável — quem registra uma visita ou um almoço quase nunca quer digitar as duas pontas.
+  const [actDataFim, setActDataFim] = useState('');
   const [actPropostaId, setActPropostaId] = useState('');
   // Alimentam o placar de metas. Só aparecem nos tipos em que a planilha faz a distinção —
   // pedir modalidade numa nota interna só atrapalharia quem registra.
@@ -309,12 +314,42 @@ export function CorretorDetailPanel() {
 
   const handleMoveToStage = (targetEtapa: number) => moverParaEtapa(targetEtapa, 'Movido');
 
+  // ── Data/hora do compromisso ──────────────────────────────────────
+  // Nos tipos com duração o formulário mostra data e horas em campos separados, mas o estado
+  // continua sendo dois `datetime-local` (início e fim) — é o que a API recebe. Comparar os
+  // dois como texto funciona porque o formato tem largura fixa ("YYYY-MM-DDTHH:mm").
+  const pedePeriodo = PEDE_PERIODO.has(actType);
+  const variosDias = PERMITE_VARIOS_DIAS.has(actType);
+  const periodoInvalido = pedePeriodo && (!actData || !actDataFim || actDataFim <= actData);
+
+  /** Troca o dia mantendo as horas — e leva o fim para o mesmo dia, nos tipos de um só dia. */
+  function trocarDiaDoCompromisso(dia: string) {
+    const inicio = juntarDiaEHora(dia, horaDeDatetimeLocal(actData) || '09:00');
+    setActData(inicio);
+    const horaFim = horaDeDatetimeLocal(actDataFim) || horaDeDatetimeLocal(somarHorasDatetimeLocal(inicio, 1));
+    setActDataFim(juntarDiaEHora(dia, horaFim));
+  }
+
+  function trocarHoraInicio(hora: string) {
+    const inicio = juntarDiaEHora(diaDeDatetimeLocal(actData), hora);
+    setActData(inicio);
+    // Fim que ficou para trás do novo início é empurrado: evita salvar um período impossível.
+    if (!actDataFim || actDataFim <= inicio) setActDataFim(somarHorasDatetimeLocal(inicio, 1));
+  }
+
+  function trocarTipoAtividade(novo: TipoInteracao) {
+    setActType(novo);
+    // Ao escolher um tipo com duração, já sugere 1h de compromisso a partir do início.
+    if (PEDE_PERIODO.has(novo) && !actDataFim) setActDataFim(somarHorasDatetimeLocal(actData, 1));
+  }
+
   async function handleSaveActivity() {
-    if (!actResumo.trim() || savingActivity) return;
+    if (!actResumo.trim() || savingActivity || periodoInvalido) return;
     setSavingActivity(true);
     try {
       await addInteracao(corretor.id, {
         data: actData ? datetimeLocalToISO(actData) : new Date().toISOString(),
+        dataFim: pedePeriodo && actDataFim ? datetimeLocalToISO(actDataFim) : undefined,
         tipo: actType,
         resumo: actResumo.trim(),
         responsavel: users.find((u) => u.id === actResponsavelId)?.nome ?? currentUser?.nome ?? 'Não informado',
@@ -325,7 +360,7 @@ export function CorretorDetailPanel() {
         empreendimento: PEDE_EMPREENDIMENTO.has(actType) && actEmpreendimento ? actEmpreendimento : undefined,
       });
       setActResumo(''); setActType('nota'); setActResponsavelId(currentUser?.id ?? ''); setActData(nowForDatetimeLocal()); setActPropostaId('');
-      setActModalidade(''); setActEmpreendimento('');
+      setActModalidade(''); setActEmpreendimento(''); setActDataFim('');
       setShowActivityForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a atividade.');
@@ -1152,7 +1187,7 @@ export function CorretorDetailPanel() {
                       <select
                         className="form-input text-sm"
                         value={actType}
-                        onChange={(e) => setActType(e.target.value as TipoInteracao)}
+                        onChange={(e) => trocarTipoAtividade(e.target.value as TipoInteracao)}
                       >
                         {Object.entries(TIPO_INTERACAO_CONFIG).map(([k, v]) => (
                           <option key={k} value={k}>{v.icon} {v.label}</option>
@@ -1160,13 +1195,30 @@ export function CorretorDetailPanel() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-gray-500 block mb-1">Data e hora</label>
-                      <input
-                        type="datetime-local"
-                        className="form-input text-sm"
-                        value={actData}
-                        onChange={(e) => setActData(e.target.value)}
-                      />
+                      <label className="text-xs font-semibold text-gray-500 block mb-1">
+                        {!pedePeriodo ? 'Data e hora' : variosDias ? 'Início (data e hora)' : 'Data'}
+                      </label>
+                      {pedePeriodo && !variosDias ? (
+                        <input
+                          type="date"
+                          className="form-input text-sm"
+                          value={diaDeDatetimeLocal(actData)}
+                          onChange={(e) => trocarDiaDoCompromisso(e.target.value)}
+                        />
+                      ) : (
+                        <input
+                          type="datetime-local"
+                          className="form-input text-sm"
+                          value={actData}
+                          onChange={(e) => {
+                            setActData(e.target.value);
+                            // No evento, término antes do novo início é empurrado pra frente.
+                            if (variosDias && (!actDataFim || actDataFim <= e.target.value)) {
+                              setActDataFim(somarHorasDatetimeLocal(e.target.value, 1));
+                            }
+                          }}
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Quem realizou</label>
@@ -1186,6 +1238,53 @@ export function CorretorDetailPanel() {
                       <p className="text-[11px] text-gray-400 mt-1">A atividade conta no placar de metas de quem for escolhido aqui.</p>
                     </div>
                   </div>
+                  {pedePeriodo && (
+                    <div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {variosDias ? (
+                          <div className="sm:col-span-2">
+                            <label className="text-xs font-semibold text-gray-500 block mb-1">Término (data e hora)</label>
+                            <input
+                              type="datetime-local"
+                              className="form-input text-sm"
+                              min={actData || undefined}
+                              value={actDataFim}
+                              onChange={(e) => setActDataFim(e.target.value)}
+                            />
+                            <p className="text-[11px] text-gray-400 mt-1">
+                              O evento pode durar vários dias — escolha o dia e a hora em que ele termina.
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            <div>
+                              <label className="text-xs font-semibold text-gray-500 block mb-1">Hora de início</label>
+                              <input
+                                type="time"
+                                className="form-input text-sm"
+                                value={horaDeDatetimeLocal(actData)}
+                                onChange={(e) => trocarHoraInicio(e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-gray-500 block mb-1">Hora de término</label>
+                              <input
+                                type="time"
+                                className="form-input text-sm"
+                                value={horaDeDatetimeLocal(actDataFim)}
+                                onChange={(e) => setActDataFim(juntarDiaEHora(diaDeDatetimeLocal(actData), e.target.value))}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {periodoInvalido && (
+                        <p className="text-[11px] mt-1 font-semibold" style={{ color: '#b91c1c' }}>
+                          Informe um término depois do início.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {(PEDE_MODALIDADE.has(actType) || PEDE_EMPREENDIMENTO.has(actType)) && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {PEDE_MODALIDADE.has(actType) && (
@@ -1258,7 +1357,7 @@ export function CorretorDetailPanel() {
                   <div className="flex gap-2">
                     <button
                       onClick={handleSaveActivity}
-                      disabled={savingActivity}
+                      disabled={savingActivity || periodoInvalido}
                       className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-70"
                       style={{ backgroundColor: '#d55006' }}
                     >
@@ -1299,6 +1398,14 @@ export function CorretorDetailPanel() {
                           )}
                           <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(inter.data)}</span>
                         </div>
+                        {/* Compromissos com duração mostram o período explícito: "há 2 dias"
+                            não diz de que hora até que hora a visita ou o evento foi. */}
+                        {formatPeriodoAtividade(inter.data, inter.dataFim) && (
+                          <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                            <Clock size={11} />
+                            {formatPeriodoAtividade(inter.data, inter.dataFim)}
+                          </p>
+                        )}
                         <p className="text-sm text-gray-700 mt-0.5 leading-relaxed">{inter.resumo}</p>
                         {inter.propostaId && (() => {
                           const proposta = corretor.propostas.find((p) => p.id === inter.propostaId);

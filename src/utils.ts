@@ -21,6 +21,53 @@ export function datetimeLocalToISO(value: string): string {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
+// Os três helpers abaixo partem e remontam o valor de um `datetime-local` como texto, sem
+// passar por `Date`: nos compromissos com duração o formulário mostra a data e as horas em
+// campos separados, e converter pra Date no meio só criaria chance de escorregar de fuso.
+
+/** "2026-10-08T14:30" → "2026-10-08" */
+export function diaDeDatetimeLocal(valor: string): string {
+  return valor.split('T')[0] ?? '';
+}
+
+/** "2026-10-08T14:30" → "14:30" */
+export function horaDeDatetimeLocal(valor: string): string {
+  return (valor.split('T')[1] ?? '').slice(0, 5);
+}
+
+/** ("2026-10-08", "14:30") → "2026-10-08T14:30"; vazio se faltar alguma das duas partes. */
+export function juntarDiaEHora(dia: string, hora: string): string {
+  return dia && hora ? `${dia}T${hora}` : '';
+}
+
+/**
+ * Período de um compromisso em uma linha: "08/10/2026, 14:00 – 16:00" quando começa e termina
+ * no mesmo dia, e "08/10/2026, 14:00 → 10/10/2026, 18:00" quando atravessa dias (evento).
+ * Devolve null quando não há término — todo o histórico antigo e os tipos instantâneos.
+ */
+export function formatPeriodoAtividade(data: string, dataFim?: string | null): string | null {
+  if (!dataFim) return null;
+  const inicio = new Date(data);
+  const fim = new Date(dataFim);
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) return null;
+
+  const dia = (d: Date) => d.toLocaleDateString('pt-BR');
+  const hora = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  return dia(inicio) === dia(fim)
+    ? `${dia(inicio)}, ${hora(inicio)} – ${hora(fim)}`
+    : `${dia(inicio)}, ${hora(inicio)} → ${dia(fim)}, ${hora(fim)}`;
+}
+
+/** Soma horas a um valor de `datetime-local`, devolvendo no mesmo formato. */
+export function somarHorasDatetimeLocal(valor: string, horas: number): string {
+  const d = new Date(valor);
+  if (Number.isNaN(d.getTime())) return '';
+  d.setHours(d.getHours() + horas);
+  const localMs = d.getTime() - d.getTimezoneOffset() * 60000;
+  return new Date(localMs).toISOString().slice(0, 16);
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
 }
@@ -83,6 +130,7 @@ export const TIPO_INTERACAO_CONFIG = {
   visita: { label: 'Visita em clientes', icon: '🏢' },
   visita_obra: { label: 'Visita na obra', icon: '🏗️' },
   visita_imobiliaria: { label: 'Visita nas imobiliárias', icon: '🏬' },
+  almoco: { label: 'Almoço', icon: '🍽️' },
   evento: { label: 'Evento', icon: '🎉' },
   reuniao: { label: 'Reunião', icon: '🤝' },
   nota: { label: 'Nota', icon: '📝' },
@@ -290,6 +338,19 @@ export const MODALIDADE_LABEL: Record<ModalidadeAtividade, string> = {
 export const PEDE_MODALIDADE = new Set<TipoInteracao>([
   'visita', 'visita_obra', 'visita_imobiliaria', 'reuniao', 'treinamento',
 ]);
+
+/**
+ * Compromissos com duração: o formulário pede data, hora de início e hora de fim em vez de um
+ * instante só. Espelha TIPOS_COM_PERIODO no backend (src/lib/tiposAtividade.ts), que é quem
+ * valida de verdade.
+ */
+export const PEDE_PERIODO = new Set<TipoInteracao>(['visita_obra', 'visita_imobiliaria', 'almoco', 'evento']);
+
+/**
+ * Pode atravessar dias — só o evento, que o formulário mostra com data de início e data de
+ * término separadas. Nos outros o fim é no mesmo dia do início.
+ */
+export const PERMITE_VARIOS_DIAS = new Set<TipoInteracao>(['evento']);
 
 /** Tipos de atividade que o placar quebra por empreendimento. */
 export const PEDE_EMPREENDIMENTO = new Set<TipoInteracao>(['especulacao', 'proposta']);

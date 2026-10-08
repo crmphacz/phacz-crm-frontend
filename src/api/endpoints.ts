@@ -211,6 +211,9 @@ export const corretoresApi = {
         resumo: data.resumo,
         etapa: data.etapa,
         data: data.data,
+        // Fim do compromisso, nos tipos com duração (visitas na obra/imobiliária, almoço e
+        // evento). O backend exige este campo nesses tipos e recusa fim antes do início.
+        dataFim: data.dataFim,
         propostaId: data.propostaId,
         // Sem estes três o placar de metas não recebe nada: modalidade e empreendimento
         // alimentam as linhas da planilha, e responsavelId credita a atividade a quem de

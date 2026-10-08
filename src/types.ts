@@ -3,7 +3,7 @@ export type StatusCorretor = 'ativo' | 'nutricao' | 'arquivado' | 'ganho' | 'per
 export type TipoInteracao =
   | 'ligacao' | 'whatsapp' | 'email'
   // 'visita' é a "Visita em clientes" — o valor não mudou, só o rótulo (ver TIPO_INTERACAO_CONFIG).
-  | 'visita' | 'visita_obra' | 'visita_imobiliaria' | 'evento'
+  | 'visita' | 'visita_obra' | 'visita_imobiliaria' | 'almoco' | 'evento'
   | 'reuniao' | 'nota' | 'proposta' | 'especulacao' | 'treinamento';
 export type TipoInteresse = string;
 export type CanalOrigem = string;
@@ -52,6 +52,12 @@ export interface ClienteFinal {
 export interface Interacao {
   id: string;
   data: string;
+  /**
+   * Término do compromisso, nos tipos com duração (ver PEDE_PERIODO em utils.ts). `data` é o
+   * início; aqui vai o fim, que no evento pode cair em outro dia. Ausente nos tipos sem
+   * duração e em todo o histórico registrado antes deste campo existir.
+   */
+  dataFim?: string;
   tipo: TipoInteracao;
   resumo: string;
   /** Como aconteceu — alimenta as linhas "presencial" × "vídeo chamada" do placar de metas. */
@@ -569,6 +575,8 @@ export interface AniversarioAgenda {
 export interface AtividadeAgenda {
   id: string;
   data: string; // ISO
+  /** Término, nos compromissos com duração. Null nos instantâneos e no histórico antigo. */
+  dataFim?: string | null;
   tipo: TipoInteracao;
   resumo: string;
   etapa: number;

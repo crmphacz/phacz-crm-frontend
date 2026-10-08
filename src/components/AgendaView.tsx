@@ -11,7 +11,7 @@ import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { AniversarioModal } from './AniversarioModal';
-import { TIPO_INTERACAO_CONFIG } from '../utils';
+import { TIPO_INTERACAO_CONFIG, formatPeriodoAtividade } from '../utils';
 import { getViewCache, setViewCache } from '../lib/viewCache';
 import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda, TipoInteracao } from '../types';
 
@@ -23,7 +23,7 @@ import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda, TipoInter
  */
 const TIPOS_NA_AGENDA = new Set<TipoInteracao>([
   'ligacao', 'whatsapp', 'reuniao', 'treinamento',
-  'visita', 'visita_obra', 'visita_imobiliaria', 'evento',
+  'visita', 'visita_obra', 'visita_imobiliaria', 'almoco', 'evento',
 ]);
 
 // Mês aberto e agenda já carregada sobrevivem a trocar de menu e voltar (ver lib/viewCache).
@@ -114,22 +114,38 @@ export function AgendaView() {
   // Compromisso é só o que ainda vai acontecer: um registro feito "agora" já nasce no passado e
   // não entra; um horário mais tarde no mesmo dia entra. O backend já aplica a mesma regra — a
   // repetição aqui cobre o cache da tela e o tempo passando com a agenda aberta.
+  // Quem tem duração é medido pelo TÉRMINO: um evento de três dias que começou ontem ainda
+  // está acontecendo e precisa continuar no calendário. Quem não tem `dataFim` segue pelo
+  // próprio início, como antes.
   const compromissos = useMemo(
-    () => atividades.filter((a) => TIPOS_NA_AGENDA.has(a.tipo) && new Date(a.data).getTime() > Date.now()),
+    () => atividades.filter((a) =>
+      TIPOS_NA_AGENDA.has(a.tipo) && new Date(a.dataFim ?? a.data).getTime() > Date.now()
+    ),
     [atividades]
   );
 
   // A API traz uma folga de ±1 dia (por fuso); aqui descartamos o que sobrar de mês adjacente
   // e agrupamos pelo dia exato, lido em horário local do navegador (mesmo horário que o usuário digitou).
+  // Um compromisso que dura vários dias (evento) entra em TODOS os dias que ocupa, e não só
+  // no de início: quem abre o calendário no segundo dia do evento precisa vê-lo lá.
   const porDiaAtividades = useMemo(() => {
     const map = new Map<number, AtividadeAgenda[]>();
     for (const a of compromissos) {
-      const quando = new Date(a.data);
-      if (!isSameMonth(quando, currentMonth)) continue;
-      const dia = quando.getDate();
-      const list = map.get(dia) ?? [];
-      list.push(a);
-      map.set(dia, list);
+      const inicio = new Date(a.data);
+      const fim = a.dataFim ? new Date(a.dataFim) : inicio;
+      // Percorre dia a dia, zerando a hora pra não pular o último dia quando ele termina de
+      // manhã (ex.: 08/10 14h → 10/10 09h tem que marcar 8, 9 e 10).
+      const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+      const ultimo = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate());
+      while (cursor <= ultimo) {
+        if (isSameMonth(cursor, currentMonth)) {
+          const dia = cursor.getDate();
+          const list = map.get(dia) ?? [];
+          list.push(a);
+          map.set(dia, list);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
     }
     return map;
   }, [compromissos, currentMonth]);
@@ -284,7 +300,7 @@ export function AgendaView() {
                         <button
                           key={at.id}
                           onClick={() => setSelectedCorretor(at.corretorId)}
-                          title={`${format(new Date(at.data), 'HH:mm')} · ${config.label} · ${at.corretorNome}${dono} — ${at.resumo}`}
+                          title={`${formatPeriodoAtividade(at.data, at.dataFim) ?? format(new Date(at.data), 'HH:mm')} · ${config.label} · ${at.corretorNome}${dono} — ${at.resumo}`}
                           className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate transition-colors hover:brightness-95"
                           style={{ backgroundColor: '#dbeafe', color: '#1d4ed8' }}
                         >

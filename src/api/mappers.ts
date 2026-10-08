@@ -30,7 +30,8 @@ const statusCorretorMap = makeEnumMap<string, StatusCorretor>([
 
 const tipoInteracaoMap = makeEnumMap<string, TipoInteracao>([
   ['LIGACAO', 'ligacao'], ['WHATSAPP', 'whatsapp'], ['EMAIL', 'email'], ['VISITA', 'visita'],
-  ['VISITA_OBRA', 'visita_obra'], ['VISITA_IMOBILIARIA', 'visita_imobiliaria'], ['EVENTO', 'evento'],
+  ['VISITA_OBRA', 'visita_obra'], ['VISITA_IMOBILIARIA', 'visita_imobiliaria'],
+  ['ALMOCO', 'almoco'], ['EVENTO', 'evento'],
   ['REUNIAO', 'reuniao'], ['NOTA', 'nota'], ['PROPOSTA', 'proposta'], ['ESPECULACAO', 'especulacao'],
   ['TREINAMENTO', 'treinamento'],
 ]);
@@ -147,6 +148,7 @@ export interface ApiInteracao {
   id: string;
   corretorId: string;
   data: string;
+  dataFim: string | null;
   tipo: string;
   resumo: string;
   responsavelId: string | null;
@@ -275,6 +277,7 @@ function mapInteracaoFromApi(i: ApiInteracao): Interacao {
   return {
     id: i.id,
     data: i.data,
+    dataFim: i.dataFim ?? undefined,
     tipo: tipoInteracaoMap.toApp(i.tipo),
     resumo: i.resumo,
     modalidade: (i.modalidade as Interacao['modalidade']) ?? undefined,
@@ -288,6 +291,7 @@ function mapInteracaoFromApi(i: ApiInteracao): Interacao {
 export interface ApiAtividadeAgenda {
   id: string;
   data: string;
+  dataFim: string | null;
   tipo: string;
   resumo: string;
   etapa: number;
@@ -302,6 +306,7 @@ export function mapAtividadeAgendaFromApi(a: ApiAtividadeAgenda): AtividadeAgend
   return {
     id: a.id,
     data: a.data,
+    dataFim: a.dataFim,
     tipo: tipoInteracaoMap.toApp(a.tipo),
     resumo: a.resumo,
     etapa: a.etapa,
