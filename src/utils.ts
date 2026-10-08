@@ -80,7 +80,10 @@ export const TIPO_INTERACAO_CONFIG = {
   ligacao: { label: 'Ligação', icon: '📞' },
   whatsapp: { label: 'WhatsApp', icon: '💬' },
   email: { label: 'E-mail', icon: '📧' },
-  visita: { label: 'Visita', icon: '🏢' },
+  visita: { label: 'Visita em clientes', icon: '🏢' },
+  visita_obra: { label: 'Visita na obra', icon: '🏗️' },
+  visita_imobiliaria: { label: 'Visita nas imobiliárias', icon: '🏬' },
+  evento: { label: 'Evento', icon: '🎉' },
   reuniao: { label: 'Reunião', icon: '🤝' },
   nota: { label: 'Nota', icon: '📝' },
   proposta: { label: 'Proposta', icon: '📄' },
@@ -284,7 +287,9 @@ export const MODALIDADE_LABEL: Record<ModalidadeAtividade, string> = {
 };
 
 /** Tipos de atividade em que perguntar "como aconteceu" faz diferença no placar. */
-export const PEDE_MODALIDADE = new Set<TipoInteracao>(['visita', 'reuniao', 'treinamento']);
+export const PEDE_MODALIDADE = new Set<TipoInteracao>([
+  'visita', 'visita_obra', 'visita_imobiliaria', 'reuniao', 'treinamento',
+]);
 
 /** Tipos de atividade que o placar quebra por empreendimento. */
 export const PEDE_EMPREENDIMENTO = new Set<TipoInteracao>(['especulacao', 'proposta']);

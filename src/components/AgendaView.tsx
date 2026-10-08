@@ -21,7 +21,10 @@ import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda, TipoInter
  * TIPOS_NA_AGENDA no backend, que já filtra na consulta; aqui é só para não exibir o que
  * estiver no cache de uma versão anterior da tela.
  */
-const TIPOS_NA_AGENDA = new Set<TipoInteracao>(['ligacao', 'whatsapp', 'reuniao', 'treinamento', 'visita']);
+const TIPOS_NA_AGENDA = new Set<TipoInteracao>([
+  'ligacao', 'whatsapp', 'reuniao', 'treinamento',
+  'visita', 'visita_obra', 'visita_imobiliaria', 'evento',
+]);
 
 // Mês aberto e agenda já carregada sobrevivem a trocar de menu e voltar (ver lib/viewCache).
 const CACHE_KEY = 'agenda';
@@ -216,7 +219,7 @@ export function AgendaView() {
             <Cake size={12} style={{ color: '#c2410c' }} /> Aniversário
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#dbeafe' }} /> Compromisso agendado (ligação, WhatsApp, reunião, treinamento ou visita)
+            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#dbeafe' }} /> Compromisso agendado (ligação, WhatsApp, reunião, treinamento, visitas ou evento)
           </span>
           {mostrandoVariasAgendas && (
             <span className="flex items-center gap-1.5">

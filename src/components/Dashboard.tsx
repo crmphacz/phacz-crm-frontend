@@ -9,7 +9,7 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { PlacarMetasView } from './PlacarMetasView';
 import { STAGES } from '../data';
-import { formatCurrency, formatRelativeTime } from '../utils';
+import { formatCurrency, formatRelativeTime, TIPO_INTERACAO_CONFIG } from '../utils';
 import { ApiError } from '../api/client';
 import { dashboardApi, type AtividadeRecente } from '../api/endpoints';
 import type { Corretor } from '../types';
@@ -492,13 +492,12 @@ function DashGR({ corretores, currentUser, onNavigate }: { corretores: Corretor[
             {recentActivities.length === 0 ? (
               <p className="text-xs text-gray-400">Nenhuma atividade registrada</p>
             ) : recentActivities.map((a) => {
-              const tipoEmoji: Record<string, string> = {
-                ligacao: '📞', whatsapp: '💬', email: '📧',
-                visita: '🏢', reuniao: '🤝', nota: '📝', proposta: '📄',
-              };
+              // Ícone vem do catálogo único de tipos; um mapa local aqui já tinha ficado
+              // defasado quando novos tipos de atividade foram criados.
+              const icone = TIPO_INTERACAO_CONFIG[a.tipo]?.icon ?? '📝';
               return (
                 <div key={a.id} className="flex items-start gap-2 p-2 rounded-lg" style={{ backgroundColor: '#f8f9fa' }}>
-                  <span className="text-base flex-shrink-0">{tipoEmoji[a.tipo] ?? '📝'}</span>
+                  <span className="text-base flex-shrink-0">{icone}</span>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-gray-700 truncate">{a.corretorNome}</p>
                     <p className="text-xs text-gray-500 truncate">{a.resumo}</p>
