@@ -567,7 +567,7 @@ interface ApiRodadaCorretorConvidado {
 }
 interface ApiRodadaOrcamentoItem {
   categoria: string; descricao: string; valor: number; fornecedor: string; contato: string; cnpj: string; pago: boolean;
-  periodoInicio: string | null; periodoFim: string | null; nomeReserva: string; numeroQuartos: number | null; anexoUrl: string;
+  periodoInicio: string | null; periodoFim: string | null; nomeReserva: string; numeroQuartos: number | null; anexosUrls: string[] | null;
 }
 interface ApiRodadaEntrega {
   descricao: string; responsavel: string; prazo: string | null; status: string;
@@ -774,7 +774,7 @@ export function mapRodadaFromApi(r: ApiRodada): Rodada {
       periodoFim: apiDateToKey(o.periodoFim),
       nomeReserva: o.nomeReserva,
       numeroQuartos: o.numeroQuartos ?? undefined,
-      anexoUrl: o.anexoUrl,
+      anexosUrls: o.anexosUrls ?? [],
     })),
     orcamentoReservaContingenciaPercentual: r.orcamentoReservaContingenciaPercentual ?? undefined,
 

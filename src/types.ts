@@ -331,7 +331,8 @@ export interface RodadaOrcamentoItem {
   periodoFim?: string;
   nomeReserva: string;
   numeroQuartos?: number;
-  anexoUrl: string;
+  /** Anexos do item: nota, orçamento, cardápio, comprovante. Vários por item. */
+  anexosUrls: string[];
 }
 
 export interface RodadaEntrega {

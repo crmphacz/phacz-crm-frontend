@@ -146,7 +146,7 @@ interface CorretorRow { _key: string; nome: string; creci: string; cargo: string
 interface OrcamentoItemRow {
   _key: string; categoria: CategoriaOrcamento; descricao: string; valor: string; fornecedor: string; contato: string;
   cnpj: string; pago: boolean; periodoInicio: string; periodoFim: string; nomeReserva: string; numeroQuartos: string;
-  anexoUrl: string; uploading: boolean;
+  anexosUrls: string[]; uploading: boolean;
 }
 interface EntregaRow { _key: string; descricao: string; responsavel: ResponsavelEntrega; prazo: string; status: StatusEntrega; }
 interface ConvidadoRow { _key: string; nome: string; perfil: string; jaConheceLitoral: boolean; possuiOutrosImoveis: boolean; investimentoOuMoradia: InvestimentoOuMoradia | ''; }
@@ -316,7 +316,7 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
       periodoFim: o.periodoFim ?? '',
       nomeReserva: o.nomeReserva,
       numeroQuartos: o.numeroQuartos != null ? String(o.numeroQuartos) : '',
-      anexoUrl: o.anexoUrl,
+      anexosUrls: o.anexosUrls ?? [],
       uploading: false,
     })),
     orcamentoReservaContingenciaPercentual: rodada.orcamentoReservaContingenciaPercentual != null ? String(rodada.orcamentoReservaContingenciaPercentual) : '',
@@ -910,7 +910,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                 ...f,
                 orcamentoItens: [...f.orcamentoItens, {
                   _key: uuid(), categoria: 'deslocamento', descricao: '', valor: '', fornecedor: '', contato: '', cnpj: '',
-                  pago: false, periodoInicio: '', periodoFim: '', nomeReserva: '', numeroQuartos: '', anexoUrl: '', uploading: false,
+                  pago: false, periodoInicio: '', periodoFim: '', nomeReserva: '', numeroQuartos: '', anexosUrls: [], uploading: false,
                 }],
               }))}
             />
@@ -1252,17 +1252,24 @@ function OrcamentoItemEditor({ row, onUpdate, onRemove }: {
 }) {
   const [erroUpload, setErroUpload] = useState('');
 
-  async function handleUploadAnexo(file: File) {
+  /** Sobe os arquivos escolhidos e ACRESCENTA ao que o item já tem, em vez de substituir. */
+  async function handleUploadAnexos(files: File[]) {
     setErroUpload('');
     onUpdate({ uploading: true });
     try {
-      const { url } = await rodadasApi.uploadAsset(file);
-      onUpdate({ anexoUrl: url, uploading: false });
+      // Em série, e não em paralelo: o upload concorrente de vários arquivos grandes é o tipo
+      // de coisa que derruba a requisição inteira e faz a pessoa perder todos de uma vez.
+      const novas: string[] = [];
+      for (const file of files) {
+        const { url } = await rodadasApi.uploadAsset(file);
+        novas.push(url);
+      }
+      onUpdate({ anexosUrls: [...row.anexosUrls, ...novas], uploading: false });
     } catch (err) {
       // Antes a falha era engolida: o "Enviando..." sumia e nada aparecia, então dava pra
       // salvar a rodada achando que o arquivo tinha subido.
       onUpdate({ uploading: false });
-      setErroUpload(err instanceof ApiError ? err.message : 'Não foi possível enviar o arquivo. Tente novamente.');
+      setErroUpload(err instanceof ApiError ? err.message : 'Não foi possível enviar o(s) arquivo(s). Tente novamente.');
     }
   }
 
@@ -1295,58 +1302,69 @@ function OrcamentoItemEditor({ row, onUpdate, onRemove }: {
           tinham onde anexar nada. */}
       <div>
         <FormLabel>
-          {row.categoria === 'evento_estrutura' ? 'Anexo do cardápio selecionado' : 'Anexo (orçamento, nota, comprovante)'}
+          {row.categoria === 'evento_estrutura' ? 'Anexos do cardápio selecionado' : 'Anexos (orçamento, nota, comprovante)'}
         </FormLabel>
 
-        {row.anexoUrl ? (
-          // Com arquivo enviado: dá para abrir, trocar ou remover só o anexo — antes o único
-          // botão era o "Remover item", que apagava a linha inteira do orçamento.
-          <div className="flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg border" style={{ borderColor: '#e5e7eb', backgroundColor: '#fff' }}>
-            <Paperclip size={13} style={{ color: '#d55006' }} className="flex-shrink-0" />
-            <a
-              href={row.anexoUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs underline flex-1 min-w-0 truncate"
-              style={{ color: '#d55006' }}
-            >
-              {nomeDoArquivo(row.anexoUrl)}
-            </a>
-            <label
-              htmlFor={`orcamento-anexo-${row._key}`}
-              className="text-xs font-semibold cursor-pointer text-gray-500 hover:text-orange-600 transition-colors flex-shrink-0"
-            >
-              {row.uploading ? 'Enviando...' : 'Trocar'}
-            </label>
-            <button
-              type="button"
-              onClick={() => onUpdate({ anexoUrl: '' })}
-              className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-              title="Remover apenas o anexo"
-            >
-              <Trash2 size={12} /> Remover anexo
-            </button>
+        {/* Um arquivo por linha, cada um com seu próprio "remover" — o botão "Remover item"
+            continua existindo para apagar a linha inteira do orçamento. */}
+        {row.anexosUrls.length > 0 && (
+          <div className="space-y-1.5 mb-2">
+            {row.anexosUrls.map((url, i) => (
+              <div
+                key={`${url}-${i}`}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+                style={{ borderColor: '#e5e7eb', backgroundColor: '#fff' }}
+              >
+                <Paperclip size={13} style={{ color: '#d55006' }} className="flex-shrink-0" />
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs underline flex-1 min-w-0 truncate"
+                  style={{ color: '#d55006' }}
+                >
+                  {nomeDoArquivo(url)}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ anexosUrls: row.anexosUrls.filter((_, j) => j !== i) })}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                  title="Remover este anexo"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
           </div>
-        ) : (
-          <label
-            htmlFor={`orcamento-anexo-${row._key}`}
-            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed text-xs font-semibold cursor-pointer transition-colors hover:border-orange-300 hover:text-orange-600"
-            style={{ borderColor: '#d1d5db', color: '#6b7280' }}
-          >
-            {row.uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-            {row.uploading ? 'Enviando...' : 'Anexar arquivo (PDF/imagem)'}
-          </label>
         )}
+
+        <label
+          htmlFor={`orcamento-anexo-${row._key}`}
+          className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed text-xs font-semibold cursor-pointer transition-colors hover:border-orange-300 hover:text-orange-600"
+          style={{ borderColor: '#d1d5db', color: '#6b7280' }}
+        >
+          {row.uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+          {row.uploading
+            ? 'Enviando...'
+            : row.anexosUrls.length > 0
+              ? 'Anexar mais arquivos'
+              : 'Anexar arquivos (PDF/imagem)'}
+        </label>
 
         {erroUpload && <p className="text-xs text-red-500 mt-1">{erroUpload}</p>}
 
         <input
           id={`orcamento-anexo-${row._key}`}
           type="file"
+          multiple
           accept="application/pdf,image/jpeg,image/png,image/webp"
           className="hidden"
           disabled={row.uploading}
-          onChange={(ev) => { const file = ev.target.files?.[0]; if (file) handleUploadAnexo(file); ev.target.value = ''; }}
+          onChange={(ev) => {
+            const files = Array.from(ev.target.files ?? []);
+            if (files.length > 0) handleUploadAnexos(files);
+            ev.target.value = '';
+          }}
         />
       </div>
 
