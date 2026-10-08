@@ -59,6 +59,44 @@ export function formatPeriodoAtividade(data: string, dataFim?: string | null): s
     : `${dia(inicio)}, ${hora(inicio)} → ${dia(fim)}, ${hora(fim)}`;
 }
 
+// ── Anexos de atividade ─────────────────────────────────────────────
+
+/**
+ * Extensões de áudio que o backend aceita (ver ALLOWED_ATIVIDADE_MIME_TYPES em
+ * src/lib/uploads.ts). `opus` e `ogg` cobrem o áudio de WhatsApp; `amr`/`3gp` vêm de gravação
+ * de Android antigo; `m4a` é o que o iPhone gera.
+ */
+const EXTENSOES_AUDIO = new Set(['mp3', 'm4a', 'aac', 'ogg', 'opus', 'wav', 'webm', 'amr', '3gp', '3gpp']);
+
+/** Caminho do anexo sem query string — a URL local assinada carrega `?exp=…&sig=…`. */
+function caminhoDoAnexo(url: string): string {
+  return url.split('?')[0] ?? '';
+}
+
+/** Nome do arquivo de um anexo, para exibir na lista e no link de download. */
+export function nomeDoAnexo(url: string): string {
+  const ultimo = caminhoDoAnexo(url).split('/').pop() ?? '';
+  try {
+    return decodeURIComponent(ultimo) || 'anexo';
+  } catch {
+    // URL com percent-encoding inválido não pode derrubar a renderização do histórico.
+    return ultimo || 'anexo';
+  }
+}
+
+/** Se o anexo é um áudio — nesse caso a tela mostra um player em vez de um link. */
+export function anexoEhAudio(url: string): boolean {
+  const ext = caminhoDoAnexo(url).split('.').pop()?.toLowerCase() ?? '';
+  return EXTENSOES_AUDIO.has(ext);
+}
+
+/** O que o seletor de arquivo da atividade aceita — espelha o filtro do backend. */
+export const ACCEPT_ANEXO_ATIVIDADE = [
+  'application/pdf', '.doc', '.docx', '.xls', '.xlsx', 'text/plain',
+  'image/jpeg', 'image/png', 'image/webp',
+  'audio/*',
+].join(',');
+
 /** Soma horas a um valor de `datetime-local`, devolvendo no mesmo formato. */
 export function somarHorasDatetimeLocal(valor: string, horas: number): string {
   const d = new Date(valor);

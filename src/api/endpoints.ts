@@ -203,6 +203,20 @@ export const corretoresApi = {
   removeCliente: (id: string, cfId: string) =>
     apiFetch<void>(`/api/corretores/${id}/clientes/${cfId}`, { method: 'DELETE' }),
 
+  /**
+   * Sobe UM anexo (arquivo ou áudio) de atividade. Vários anexos são enviados chamando isto
+   * em série, um por arquivo — cada requisição fica abaixo do limite de tamanho do provedor.
+   * Vai sob o corretor porque só quem pode escrever no card pode anexar nele.
+   */
+  uploadAnexoAtividade: (id: string, file: File): Promise<{ url: string; nome: string; tipoMime: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch<{ url: string; nome: string; tipoMime: string }>(
+      `/api/corretores/${id}/interacoes/assets`,
+      { method: 'POST', body: form }
+    );
+  },
+
   addInteracao: (id: string, data: Omit<Interacao, 'id'>) =>
     apiFetch(`/api/corretores/${id}/interacoes`, {
       method: 'POST',
@@ -214,6 +228,8 @@ export const corretoresApi = {
         // Fim do compromisso, nos tipos com duração (visitas na obra/imobiliária, almoço e
         // evento). O backend exige este campo nesses tipos e recusa fim antes do início.
         dataFim: data.dataFim,
+        // URLs dos anexos já subidos por uploadAnexoAtividade — arquivos e/ou áudios.
+        anexosUrls: data.anexosUrls,
         propostaId: data.propostaId,
         // Sem estes três o placar de metas não recebe nada: modalidade e empreendimento
         // alimentam as linhas da planilha, e responsavelId credita a atividade a quem de

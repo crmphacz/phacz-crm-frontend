@@ -60,6 +60,11 @@ export interface Interacao {
   dataFim?: string;
   tipo: TipoInteracao;
   resumo: string;
+  /**
+   * Arquivos e áudios anexados à atividade, na ordem em que foram enviados. Qualquer tipo de
+   * atividade aceita, e os dois tipos de anexo podem conviver na mesma.
+   */
+  anexosUrls?: string[];
   /** Como aconteceu — alimenta as linhas "presencial" × "vídeo chamada" do placar de metas. */
   modalidade?: ModalidadeAtividade;
   /** Empreendimento a que a atividade se refere — quebra a especulação no placar. */

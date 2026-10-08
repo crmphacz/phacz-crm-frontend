@@ -151,6 +151,7 @@ export interface ApiInteracao {
   dataFim: string | null;
   tipo: string;
   resumo: string;
+  anexosUrls: string[] | null;
   responsavelId: string | null;
   responsavel: ApiResponsavel | null;
   etapa: number;
@@ -280,6 +281,7 @@ function mapInteracaoFromApi(i: ApiInteracao): Interacao {
     dataFim: i.dataFim ?? undefined,
     tipo: tipoInteracaoMap.toApp(i.tipo),
     resumo: i.resumo,
+    anexosUrls: i.anexosUrls ?? [],
     modalidade: (i.modalidade as Interacao['modalidade']) ?? undefined,
     empreendimento: i.empreendimento || undefined,
     responsavel: i.responsavel?.nome ?? 'Sistema',

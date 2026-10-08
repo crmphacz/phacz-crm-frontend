@@ -16,11 +16,11 @@ import {
   camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
   MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO, PEDE_PERIODO, PERMITE_VARIOS_DIAS,
   diaDeDatetimeLocal, horaDeDatetimeLocal, juntarDiaEHora, somarHorasDatetimeLocal,
-  formatPeriodoAtividade,
+  formatPeriodoAtividade, nomeDoAnexo, anexoEhAudio, ACCEPT_ANEXO_ATIVIDADE,
 } from '../utils';
 import { PAISES, paisPorIso, maskTelefone, exemploTelefone, paraFormatoInternacional } from '../lib/paises';
 import { ApiError } from '../api/client';
-import { empreendimentosApi } from '../api/endpoints';
+import { empreendimentosApi, corretoresApi } from '../api/endpoints';
 import { Combobox } from './Combobox';
 import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
@@ -191,6 +191,12 @@ export function CorretorDetailPanel() {
   // ajustável — quem registra uma visita ou um almoço quase nunca quer digitar as duas pontas.
   const [actDataFim, setActDataFim] = useState('');
   const [actPropostaId, setActPropostaId] = useState('');
+  // Anexos da atividade: arquivos e/ou áudios, vários, em qualquer tipo de atividade. Guarda
+  // as URLs já subidas — o upload acontece na hora de escolher, não ao salvar, pra quem
+  // registra ver logo que o arquivo chegou (e poder remover antes de salvar).
+  const [actAnexos, setActAnexos] = useState<string[]>([]);
+  const [actUploading, setActUploading] = useState(false);
+  const [actErroUpload, setActErroUpload] = useState('');
   // Alimentam o placar de metas. Só aparecem nos tipos em que a planilha faz a distinção —
   // pedir modalidade numa nota interna só atrapalharia quem registra.
   const [actModalidade, setActModalidade] = useState<ModalidadeAtividade | ''>('');
@@ -343,6 +349,28 @@ export function CorretorDetailPanel() {
     if (PEDE_PERIODO.has(novo) && !actDataFim) setActDataFim(somarHorasDatetimeLocal(actData, 1));
   }
 
+  /** Sobe os arquivos/áudios escolhidos e ACRESCENTA aos que a atividade já tem. */
+  async function handleUploadAnexosAtividade(files: File[]) {
+    setActErroUpload('');
+    setActUploading(true);
+    try {
+      // Em série, e não em paralelo: cada requisição precisa caber no limite de tamanho do
+      // provedor, e subir vários grandes de uma vez derrubaria todos juntos.
+      const novas: string[] = [];
+      for (const file of files) {
+        const { url } = await corretoresApi.uploadAnexoAtividade(corretor.id, file);
+        novas.push(url);
+      }
+      setActAnexos((atuais) => [...atuais, ...novas]);
+    } catch (err) {
+      setActErroUpload(
+        err instanceof ApiError ? err.message : 'Não foi possível enviar o(s) arquivo(s). Tente novamente.'
+      );
+    } finally {
+      setActUploading(false);
+    }
+  }
+
   async function handleSaveActivity() {
     if (!actResumo.trim() || savingActivity || periodoInvalido) return;
     setSavingActivity(true);
@@ -350,6 +378,7 @@ export function CorretorDetailPanel() {
       await addInteracao(corretor.id, {
         data: actData ? datetimeLocalToISO(actData) : new Date().toISOString(),
         dataFim: pedePeriodo && actDataFim ? datetimeLocalToISO(actDataFim) : undefined,
+        anexosUrls: actAnexos.length > 0 ? actAnexos : undefined,
         tipo: actType,
         resumo: actResumo.trim(),
         responsavel: users.find((u) => u.id === actResponsavelId)?.nome ?? currentUser?.nome ?? 'Não informado',
@@ -361,6 +390,7 @@ export function CorretorDetailPanel() {
       });
       setActResumo(''); setActType('nota'); setActResponsavelId(currentUser?.id ?? ''); setActData(nowForDatetimeLocal()); setActPropostaId('');
       setActModalidade(''); setActEmpreendimento(''); setActDataFim('');
+      setActAnexos([]); setActErroUpload('');
       setShowActivityForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a atividade.');
@@ -1344,6 +1374,55 @@ export function CorretorDetailPanel() {
                       )}
                     </div>
                   )}
+                  {/* Anexos — disponíveis em TODO tipo de atividade, inclusive numa nota. */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">Arquivos e áudios</label>
+                    {actAnexos.length > 0 && (
+                      <div className="space-y-1 mb-2">
+                        {actAnexos.map((url) => (
+                          <div
+                            key={url}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded-lg border text-xs"
+                            style={{ borderColor: '#e5e7eb', backgroundColor: '#fff' }}
+                          >
+                            <Paperclip size={12} className="flex-shrink-0 text-gray-400" />
+                            <span className="truncate flex-1 text-gray-600">{nomeDoAnexo(url)}</span>
+                            <button
+                              type="button"
+                              onClick={() => setActAnexos((atuais) => atuais.filter((u) => u !== url))}
+                              className="text-xs font-semibold text-gray-400 hover:text-red-600 transition-colors flex-shrink-0"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <label
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors hover:bg-gray-50"
+                      style={{ borderColor: '#e5e7eb', color: actUploading ? '#9ca3af' : '#6b7280' }}
+                    >
+                      {actUploading ? <Spinner size={12} /> : <Paperclip size={12} />}
+                      {actUploading ? 'Enviando…' : 'Anexar arquivos ou áudios'}
+                      <input
+                        type="file"
+                        multiple
+                        accept={ACCEPT_ANEXO_ATIVIDADE}
+                        className="hidden"
+                        disabled={actUploading}
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files ?? []);
+                          if (files.length > 0) handleUploadAnexosAtividade(files);
+                          // Zera pra que escolher o MESMO arquivo de novo volte a disparar o evento.
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Pode escolher vários de uma vez, e misturar documentos, imagens e áudios. Até 4 MB por arquivo.
+                    </p>
+                    {actErroUpload && <p className="text-[11px] mt-1 font-semibold" style={{ color: '#b91c1c' }}>{actErroUpload}</p>}
+                  </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 block mb-1">Resumo *</label>
                     <textarea
@@ -1407,6 +1486,29 @@ export function CorretorDetailPanel() {
                           </p>
                         )}
                         <p className="text-sm text-gray-700 mt-0.5 leading-relaxed">{inter.resumo}</p>
+                        {/* Áudio toca ali mesmo; o resto vira link de download. Abrir o
+                            histórico pra ouvir a ligação não deveria exigir baixar o arquivo. */}
+                        {(inter.anexosUrls ?? []).length > 0 && (
+                          <div className="mt-2 space-y-1.5">
+                            {(inter.anexosUrls ?? []).map((url) =>
+                              anexoEhAudio(url) ? (
+                                <audio key={url} controls preload="none" src={url} className="w-full max-w-sm h-9" />
+                              ) : (
+                                <a
+                                  key={url}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-xs font-semibold hover:underline"
+                                  style={{ color: '#d55006' }}
+                                >
+                                  <Paperclip size={11} className="flex-shrink-0" />
+                                  <span className="truncate">{nomeDoAnexo(url)}</span>
+                                </a>
+                              )
+                            )}
+                          </div>
+                        )}
                         {inter.propostaId && (() => {
                           const proposta = corretor.propostas.find((p) => p.id === inter.propostaId);
                           return proposta ? (
