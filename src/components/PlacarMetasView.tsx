@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft, ChevronRight, Download, FileText, Pencil, Check, X, Copy, Info, Target, Loader2,
+  Building2,
 } from 'lucide-react';
 import { placarApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
@@ -68,6 +69,9 @@ export function PlacarMetasView() {
   // os GVs ativos. Rascunho próprio porque grava num endpoint separado das metas de atividade.
   const [metaVendasDraft, setMetaVendasDraft] = useState('');
   const [salvandoMetaVendas, setSalvandoMetaVendas] = useState(false);
+
+  // Métrica cuja quebra por empreendimento está aberta no modal (null = fechado).
+  const [metricaDetalhada, setMetricaDetalhada] = useState<ValorMetrica | null>(null);
 
   async function salvarMetaVendas() {
     if (!placar) return;
@@ -347,10 +351,97 @@ export function PlacarMetasView() {
                 editando={editando}
                 rascunho={rascunho}
                 onRascunho={(chave, valor) => setRascunho((r) => ({ ...r, [chave]: valor }))}
+                onVerEmpreendimentos={setMetricaDetalhada}
               />
             )}
           </>
         )}
+      </div>
+
+      {metricaDetalhada && (
+        <ModalEmpreendimentos
+          metrica={metricaDetalhada}
+          definicao={porChave.get(metricaDetalhada.chave)}
+          pessoaNome={pessoa?.nome ?? ''}
+          periodo={nomeDoPeriodo(periodo)}
+          onFechar={() => setMetricaDetalhada(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Detalhamento de uma métrica por empreendimento. Substitui as sublinhas que ficavam dentro
+ * da tabela: com cinco métricas quebradas, elas deixavam o placar alto demais para ser lido
+ * de uma vez — que é justamente o que a planilha original fazia bem.
+ */
+function ModalEmpreendimentos({ metrica, definicao, pessoaNome, periodo, onFechar }: {
+  metrica: ValorMetrica;
+  definicao?: DefinicaoMetrica;
+  pessoaNome: string;
+  periodo: string;
+  onFechar: () => void;
+}) {
+  const linhas = useMemo(
+    () => Object.entries(metrica.porEmpreendimento ?? {}).sort(([, a], [, b]) => b - a),
+    [metrica]
+  );
+
+  // Esc fecha, como nos demais modais da aplicação.
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); };
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, [onFechar]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(17,24,39,0.5)' }}
+      onClick={onFechar}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b" style={{ borderColor: '#f3f4f6' }}>
+          <div className="min-w-0">
+            <h3 className="font-questrial font-bold text-gray-800 truncate">
+              {definicao?.label ?? metrica.chave}
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Por empreendimento{pessoaNome ? ` · ${pessoaNome}` : ''} · {periodo}
+            </p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 flex-shrink-0" aria-label="Fechar">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="max-h-96 overflow-y-auto">
+          {linhas.length === 0 ? (
+            <p className="px-5 py-8 text-sm text-gray-400 text-center">
+              Nenhum registro neste mês — por isso não há empreendimento para mostrar.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <tbody>
+                {linhas.map(([empreendimento, quantidade]) => (
+                  <tr key={empreendimento} className="border-b" style={{ borderColor: '#f9fafb' }}>
+                    <td className="px-5 py-2.5 text-gray-700">{empreendimento}</td>
+                    <td className="px-5 py-2.5 text-right font-bold text-gray-800 whitespace-nowrap">{quantidade}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-3 border-t" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
+          <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Total</span>
+          <span className="font-bold text-gray-800">{metrica.total}</span>
+        </div>
       </div>
     </div>
   );
@@ -400,9 +491,10 @@ interface TabelaProps {
   editando: boolean;
   rascunho: Record<string, string>;
   onRascunho: (chave: string, valor: string) => void;
+  onVerEmpreendimentos: (metrica: ValorMetrica) => void;
 }
 
-function TabelaPlacar({ pessoa, semanas, catalogo, editando, rascunho, onRascunho }: TabelaProps) {
+function TabelaPlacar({ pessoa, semanas, catalogo, editando, rascunho, onRascunho, onVerEmpreendimentos }: TabelaProps) {
   // Agrupa as métricas em blocos, na ordem do catálogo — é a ordem da planilha.
   const blocos = useMemo(() => {
     const mapa = new Map<string, ValorMetrica[]>();
@@ -452,6 +544,7 @@ function TabelaPlacar({ pessoa, semanas, catalogo, editando, rascunho, onRascunh
                 editando={editando}
                 rascunho={rascunho}
                 onRascunho={onRascunho}
+                onVerEmpreendimentos={onVerEmpreendimentos}
               />
             ))}
           </tbody>
@@ -461,9 +554,10 @@ function TabelaPlacar({ pessoa, semanas, catalogo, editando, rascunho, onRascunh
   );
 }
 
-function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando, rascunho, onRascunho }: {
+function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando, rascunho, onRascunho, onVerEmpreendimentos }: {
   grupo: string; metricas: ValorMetrica[]; semanas: SemanaPlacar[]; catalogo: Map<string, DefinicaoMetrica>;
   pessoaId: string; editando: boolean; rascunho: Record<string, string>; onRascunho: (c: string, v: string) => void;
+  onVerEmpreendimentos: (metrica: ValorMetrica) => void;
 }) {
   const colunas = semanas.length + 5;
 
@@ -485,7 +579,23 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando,
             <tr key={m.chave} className="border-b hover:bg-gray-50" style={{ borderColor: '#f3f4f6' }}>
               <td className="px-4 py-2 text-gray-700">
                 <span className="inline-flex items-center gap-1.5">
-                  {def?.label ?? m.chave}
+                  {/* Nas métricas quebradas por empreendimento o rótulo abre o detalhamento.
+                      Antes a quebra vinha como sublinhas fixas na tabela: com cinco métricas
+                      quebradas em vez de duas, isso triplicaria a altura do placar. */}
+                  {def?.porEmpreendimento ? (
+                    <button
+                      type="button"
+                      onClick={() => onVerEmpreendimentos(m)}
+                      className="inline-flex items-center gap-1 font-semibold hover:underline text-left"
+                      style={{ color: '#d55006' }}
+                      title="Ver os empreendimentos que geraram este número"
+                    >
+                      {def.label}
+                      <Building2 size={12} className="flex-shrink-0 opacity-60" />
+                    </button>
+                  ) : (
+                    def?.label ?? m.chave
+                  )}
                   {def?.explicacao && (
                     <span title={def.explicacao} className="text-gray-300 cursor-help">
                       <Info size={12} />
@@ -523,19 +633,6 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando,
                 {m.meta > 0 ? `${Math.round((m.total / m.meta) * 100)}%` : '—'}
               </td>
             </tr>
-
-            {/* Quebra por empreendimento — as linhas BL/HR/VB da planilha. */}
-            {def?.porEmpreendimento && m.porEmpreendimento && Object.keys(m.porEmpreendimento).length > 0 &&
-              Object.entries(m.porEmpreendimento)
-                .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
-                .map(([empreendimento, quantidade]) => (
-                  <tr key={`${m.chave}-${empreendimento}`} className="border-b" style={{ borderColor: '#f9fafb' }}>
-                    <td className="px-4 py-1.5 pl-10 text-xs text-gray-500">{empreendimento}</td>
-                    <td colSpan={semanas.length} />
-                    <td className="px-3 py-1.5 text-center text-xs font-semibold text-gray-600">{quantidade}</td>
-                    <td colSpan={3} />
-                  </tr>
-                ))}
           </>
         );
       })}

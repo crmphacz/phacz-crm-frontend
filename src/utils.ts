@@ -390,5 +390,9 @@ export const PEDE_PERIODO = new Set<TipoInteracao>(['visita_obra', 'visita_imobi
  */
 export const PERMITE_VARIOS_DIAS = new Set<TipoInteracao>(['evento']);
 
-/** Tipos de atividade que o placar quebra por empreendimento. */
-export const PEDE_EMPREENDIMENTO = new Set<TipoInteracao>(['especulacao', 'proposta']);
+/**
+ * Tipos de atividade que o placar quebra por empreendimento. `reuniao` entrou junto com o
+ * modal de empreendimentos nas linhas de Atendimentos: sem perguntar aqui, aquelas linhas
+ * nasceriam todas em "Não informado".
+ */
+export const PEDE_EMPREENDIMENTO = new Set<TipoInteracao>(['especulacao', 'proposta', 'reuniao']);
