@@ -41,6 +41,7 @@ export function UsersManagement() {
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [error, setError] = useState('');
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   if (currentUser?.cargo !== 'Diretora') return null;
 
@@ -72,14 +73,29 @@ export function UsersManagement() {
   }
 
   async function handleToggleAtivo(user: AppUser) {
+    // Confirmação explícita porque desativar derruba a pessoa na hora, inclusive no meio de
+    // um trabalho — antes isto acontecia num clique só, num ícone sem rótulo.
+    const aviso = user.ativo
+      ? `Desativar ${user.nome}?\n\nA pessoa perde o acesso ao sistema imediatamente: a sessão aberta dela é encerrada e ela não consegue mais entrar.\n\nO histórico de corretores e atividades é preservado, e você pode reativar quando quiser.`
+      : `Reativar ${user.nome}?\n\nA pessoa volta a ter acesso ao sistema com o mesmo e-mail e a mesma senha.`;
+    if (!window.confirm(aviso)) return;
+
+    setTogglingId(user.id);
     try {
       if (user.ativo) {
         await deactivateUser(user.id);
+        showToast(`${user.nome} foi desativado e não tem mais acesso ao sistema.`);
       } else {
         await updateUser(user.id, { ativo: true });
+        showToast(`${user.nome} voltou a ter acesso ao sistema.`);
       }
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Não foi possível atualizar o status do usuário.');
+      showToast(
+        err instanceof ApiError ? err.message : 'Não foi possível atualizar o status do usuário.',
+        'error'
+      );
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -121,9 +137,11 @@ export function UsersManagement() {
                 >
                   {user.cargo}
                 </span>
+                {/* "Sem acesso" em vez de "Inativo": diz o que o estado significa na prática,
+                    que é a pessoa não conseguir mais entrar no sistema. */}
                 {!user.ativo && (
-                  <span className="text-xs px-2 py-0.5 rounded-full font-bold flex-shrink-0" style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>
-                    Inativo
+                  <span className="text-xs px-2 py-0.5 rounded-full font-bold flex-shrink-0" style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+                    Sem acesso
                   </span>
                 )}
                 {currentUser.email === user.email && (
@@ -152,16 +170,32 @@ export function UsersManagement() {
                   <KeyRound size={14} className={resettingId === user.id ? 'animate-pulse' : ''} />
                 </button>
               )}
-              {currentUser.email !== user.email && (
+              {/* Rotulado, e não só um ícone: desativar tira o acesso de alguém na hora, e
+                  ninguém devia precisar passar o mouse em cima pra descobrir o que o botão faz. */}
+              {currentUser.email !== user.email ? (
                 <button
                   onClick={() => handleToggleAtivo(user)}
-                  title={user.ativo ? 'Desativar' : 'Reativar'}
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                    user.ativo ? 'text-gray-400 hover:text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                  disabled={togglingId === user.id}
+                  title={
+                    user.ativo
+                      ? 'Desativar: a pessoa perde o acesso ao sistema imediatamente'
+                      : 'Reativar: a pessoa volta a ter acesso ao sistema'
+                  }
+                  className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-xs font-bold transition-colors disabled:opacity-50 ${
+                    user.ativo
+                      ? 'text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200'
+                      : 'text-green-700 border-green-200 bg-green-50 hover:bg-green-100'
                   }`}
+                  style={user.ativo ? { borderColor: '#e5e7eb' } : undefined}
                 >
-                  {user.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
+                  {user.ativo ? <Ban size={13} /> : <RotateCcw size={13} />}
+                  {togglingId === user.id ? '…' : user.ativo ? 'Desativar' : 'Reativar'}
                 </button>
+              ) : (
+                // A Diretora logada não pode se desativar e ficar sem acesso ao próprio sistema.
+                <span className="text-[11px] text-gray-300 px-2.5" title="Você não pode desativar a própria conta">
+                  —
+                </span>
               )}
             </div>
           </div>
