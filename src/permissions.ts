@@ -51,20 +51,23 @@ export function canCreateCorretor(user: UserProfile | null): boolean {
 }
 
 /**
- * Empreendimentos e unidades — editar/excluir o que já existe: só a Diretoria. Espelha os
- * guards do backend (empreendimentos/routes.ts e unidades/routes.ts): Marketing só cria;
+ * Empreendimentos e unidades — criar e editar: Diretoria e Marketing, que é quem cuida do
+ * cadastro. Espelha os guards do backend (empreendimentos/routes.ts e unidades/routes.ts):
  * SDR, GV e GR apenas consultam; Administrativo e Recepção são somente-leitura no sistema todo.
+ *
+ * EXCLUIR não está aqui: continua só com a Diretoria (ver `canDelete` nas telas), porque apagar
+ * um empreendimento leva as unidades junto e não tem volta.
  *
  * Lista de quem PODE, e não de quem não pode: com a regra invertida, todo perfil novo nascia
  * com permissão de editar e só perdia se alguém lembrasse de adicioná-lo à exceção.
  */
 export function canEditEmpreendimento(user: UserProfile | null): boolean {
-  return user?.cargo === 'Diretora';
+  return user?.cargo === 'Diretora' || user?.cargo === 'Marketing';
 }
 
-/** Criar empreendimento/unidade: os que editam, mais o Marketing (que cria sem poder editar). */
+/** Criar empreendimento/unidade: os mesmos que editam. */
 export function canCreateEmpreendimento(user: UserProfile | null): boolean {
-  return canEditEmpreendimento(user) || user?.cargo === 'Marketing';
+  return canEditEmpreendimento(user);
 }
 
 /** Regra global sem exceções: só a Diretoria exclui leads, clientes ou cards de kanban. */
