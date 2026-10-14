@@ -18,6 +18,7 @@ import type {
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
   LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario, CreateWhatsappCampaignPayload,
+  EventoAgenda, EventoAgendaDetalhe,
   TabelaEmpreendimentoResumo, TabelaEmpreendimentoDetalhe, CelulaAlterada,
 } from '../types';
 
@@ -394,7 +395,39 @@ export const agendaApi = {
     apiFetch<ApiAtividadeAgenda[]>('/api/agenda/atividades', {
       query: { ano, mes, ...(responsavelId ? { responsavelId } : {}) },
     }).then((rows) => rows.map(mapAtividadeAgendaFromApi)),
+
+  /**
+   * Eventos criados na agenda. Mesma regra de visibilidade das atividades: a Diretoria vê os
+   * de todo mundo, os demais só os seus — quem decide é o servidor.
+   */
+  eventos: (ano: number, mes: number, responsavelId?: string) =>
+    apiFetch<EventoAgenda[]>('/api/agenda/eventos', {
+      query: { ano, mes, ...(responsavelId ? { responsavelId } : {}) },
+    }),
+
+  /** Todos os eventos, para escolher a origem de um corretor — sem recorte por pessoa. */
+  todosEventos: () => apiFetch<EventoAgenda[]>('/api/agenda/eventos/todos'),
+
+  /** Evento com os corretores captados nele. */
+  evento: (id: string) => apiFetch<EventoAgendaDetalhe>(`/api/agenda/eventos/${id}`),
+
+  criarEvento: (dados: EventoAgendaPayload) =>
+    apiFetch<EventoAgenda>('/api/agenda/eventos', { method: 'POST', body: dados }),
+
+  atualizarEvento: (id: string, dados: EventoAgendaPayload) =>
+    apiFetch<EventoAgenda>(`/api/agenda/eventos/${id}`, { method: 'PATCH', body: dados }),
+
+  excluirEvento: (id: string) =>
+    apiFetch<void>(`/api/agenda/eventos/${id}`, { method: 'DELETE' }),
 };
+
+export interface EventoAgendaPayload {
+  titulo: string;
+  descricao?: string;
+  local?: string;
+  dataInicio: string;
+  dataFim: string;
+}
 
 // ── WhatsApp ───────────────────────────────────────────────────────
 

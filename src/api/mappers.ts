@@ -209,6 +209,7 @@ export interface ApiCorretor {
   responsavelGRId: string | null;
   responsavelGR: ApiResponsavel | null;
   canalOrigem: string;
+  eventoAgendaId: string | null;
   dataEntrada: string;
   dataUltimaInteracao: string;
   // Só vem no GET /api/corretores (listagem paginada) — ver comentário do campo em Corretor (types.ts).
@@ -371,6 +372,7 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     responsavelGVId: l.responsavelGVId ?? undefined,
     responsavelGRId: l.responsavelGRId ?? undefined,
     canalOrigem: l.canalOrigem,
+    eventoAgendaId: l.eventoAgendaId ?? null,
     dataEntrada: l.dataEntrada,
     dataUltimaInteracao: l.dataUltimaInteracao,
     ultimaAtividadeEm: l.ultimaAtividadeEm ?? undefined,
@@ -394,6 +396,8 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
 }
 
 export interface CreateCorretorPayload {
+  /** Evento da agenda em que o corretor foi captado — só quando o canal de origem é "Evento". */
+  eventoAgendaId?: string | null;
   nomeCorretor: string;
   telefoneCorretor: string;
   whatsappCorretor?: string;

@@ -139,6 +139,11 @@ export interface Corretor {
 
   // Origem
   canalOrigem: CanalOrigem;
+  /**
+   * Evento da agenda em que este corretor foi captado. Preenchido quando o canal de origem é
+   * "Evento" — é o que faz o corretor aparecer no modal daquele evento no calendário.
+   */
+  eventoAgendaId?: string | null;
 
   // Timestamps
   dataEntrada: string;
@@ -583,6 +588,38 @@ export interface AniversarioAgenda {
 }
 
 /** Uma interação (ver `Interacao`) do usuário logado, exibida na Agenda como compromisso/ligação. */
+/**
+ * Evento criado direto na agenda de um usuário. Diferente da atividade, não pertence a um
+ * card: existe por si e vários corretores podem apontar para ele como canal de origem.
+ */
+export interface EventoAgenda {
+  id: string;
+  titulo: string;
+  descricao: string;
+  local: string;
+  dataInicio: string; // ISO
+  dataFim: string;    // ISO
+  responsavelId: string;
+  responsavelNome: string;
+  responsavelCor: string;
+  /** Quantos corretores foram captados neste evento. */
+  totalCorretores: number;
+}
+
+/** Evento com a lista de quem veio dele — o que o modal do calendário mostra. */
+export interface EventoAgendaDetalhe extends EventoAgenda {
+  corretores: {
+    id: string;
+    nomeCorretor: string;
+    imobiliaria: string;
+    etapa: number;
+    status: StatusCorretor;
+    telefoneCorretor: string;
+    emailCorretor: string;
+    dataEntrada: string;
+  }[];
+}
+
 export interface AtividadeAgenda {
   id: string;
   data: string; // ISO

@@ -97,6 +97,14 @@ export const ACCEPT_ANEXO_ATIVIDADE = [
   'audio/*',
 ].join(',');
 
+/** ISO vindo da API → valor de `<input type="datetime-local">`, em horário local. */
+export function isoParaDatetimeLocal(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const localMs = d.getTime() - d.getTimezoneOffset() * 60000;
+  return new Date(localMs).toISOString().slice(0, 16);
+}
+
 /** Soma horas a um valor de `datetime-local`, devolvendo no mesmo formato. */
 export function somarHorasDatetimeLocal(valor: string, horas: number): string {
   const d = new Date(valor);

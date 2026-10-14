@@ -4,7 +4,7 @@ import {
   addMonths, subMonths, format, isSameMonth, isToday,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Cake, Check, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Cake, Check, Users, CalendarPlus } from 'lucide-react';
 import { agendaApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { useStore } from '../store';
@@ -12,8 +12,10 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { AniversarioModal } from './AniversarioModal';
 import { TIPO_INTERACAO_CONFIG, formatPeriodoAtividade } from '../utils';
+import { EventoAgendaFormModal } from './EventoAgendaFormModal';
+import { EventoCorretoresModal } from './EventoCorretoresModal';
 import { getViewCache, setViewCache } from '../lib/viewCache';
-import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda, TipoInteracao } from '../types';
+import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda, TipoInteracao, EventoAgenda } from '../types';
 
 /**
  * Únicos tipos de atividade que viram compromisso na agenda — nota, proposta, especulação,
@@ -32,6 +34,7 @@ interface AgendaCache {
   currentMonth: Date;
   aniversarios: AniversarioAgenda[];
   atividades: AtividadeAgenda[];
+  eventos: EventoAgenda[];
   /** Filtro por pessoa da visão da Diretoria; '' = agenda de todos. */
   responsavelId: string;
 }
@@ -58,6 +61,14 @@ export function AgendaView() {
   const [currentMonth, setCurrentMonth] = useState(() => saved?.currentMonth ?? new Date());
   const [aniversarios, setAniversarios] = useState<AniversarioAgenda[]>(saved?.aniversarios ?? []);
   const [atividades, setAtividades] = useState<AtividadeAgenda[]>(saved?.atividades ?? []);
+  const [eventos, setEventos] = useState<EventoAgenda[]>(saved?.eventos ?? []);
+
+  // Evento aberto no modal de corretores captados, e o que está sendo criado/editado.
+  const [eventoAberto, setEventoAberto] = useState<string | null>(null);
+  const [editandoEvento, setEditandoEvento] = useState<EventoAgenda | null>(null);
+  const [criandoEvento, setCriandoEvento] = useState(false);
+  /** Muda a cada salvamento para forçar a recarga do mês sem mexer no mês selecionado. */
+  const [versaoEventos, setVersaoEventos] = useState(0);
   const [responsavelId, setResponsavelId] = useState(saved?.responsavelId ?? '');
 
   const usuariosDoFiltro = useMemo(
@@ -78,8 +89,8 @@ export function AgendaView() {
 
   useEffect(() => {
     if (!primeiraCargaFeita) return;
-    setViewCache<AgendaCache>(CACHE_KEY, { currentMonth, aniversarios, atividades, responsavelId });
-  }, [primeiraCargaFeita, currentMonth, aniversarios, atividades, responsavelId]);
+    setViewCache<AgendaCache>(CACHE_KEY, { currentMonth, aniversarios, atividades, eventos, responsavelId });
+  }, [primeiraCargaFeita, currentMonth, aniversarios, atividades, eventos, responsavelId]);
 
   const ano = currentMonth.getFullYear();
   const mes = currentMonth.getMonth() + 1;
@@ -88,15 +99,19 @@ export function AgendaView() {
     let vivo = true;
     setLoading(true);
     setError('');
+    const doFiltro = ehDiretoria ? responsavelId || undefined : undefined;
     Promise.all([
       agendaApi.aniversarios(ano, mes),
-      agendaApi.atividades(ano, mes, ehDiretoria ? responsavelId || undefined : undefined),
+      agendaApi.atividades(ano, mes, doFiltro),
+      agendaApi.eventos(ano, mes, doFiltro),
     ])
-      .then(([niver, ativ]) => { if (vivo) { setAniversarios(niver); setAtividades(ativ); } })
+      .then(([niver, ativ, evts]) => {
+        if (vivo) { setAniversarios(niver); setAtividades(ativ); setEventos(evts); }
+      })
       .catch((err) => { if (vivo) setError(err instanceof ApiError ? err.message : 'Não foi possível carregar a agenda.'); })
       .finally(() => { if (vivo) { setLoading(false); setPrimeiraCargaFeita(true); } });
     return () => { vivo = false; };
-  }, [ano, mes, ehDiretoria, responsavelId]);
+  }, [ano, mes, ehDiretoria, responsavelId, versaoEventos]);
 
   const diasNoMes = endOfMonth(currentMonth).getDate();
 
@@ -150,6 +165,27 @@ export function AgendaView() {
     return map;
   }, [compromissos, currentMonth]);
 
+  /** Mesma regra dos compromissos: um evento de vários dias entra em todos os dias que ocupa. */
+  const porDiaEventos = useMemo(() => {
+    const map = new Map<number, EventoAgenda[]>();
+    for (const e of eventos) {
+      const inicio = new Date(e.dataInicio);
+      const fim = new Date(e.dataFim);
+      const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+      const ultimo = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate());
+      while (cursor <= ultimo) {
+        if (isSameMonth(cursor, currentMonth)) {
+          const dia = cursor.getDate();
+          const list = map.get(dia) ?? [];
+          list.push(e);
+          map.set(dia, list);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+    return map;
+  }, [eventos, currentMonth]);
+
   const days = useMemo(() => {
     const gridStart = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
     const gridEnd = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 0 });
@@ -175,8 +211,19 @@ export function AgendaView() {
             <p className="text-sm text-gray-500 mt-0.5">
               {loading
                 ? 'Carregando…'
-                : `${aniversarios.length} aniversário(s) e ${compromissos.length} compromisso(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
+                : `${aniversarios.length} aniversário(s), ${compromissos.length} compromisso(s) e ${eventos.length} evento(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
             </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setCriandoEvento(true)}
+              className="flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-white rounded-xl transition-all hover:opacity-90 flex-shrink-0"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              <CalendarPlus size={14} />
+              Novo evento
+            </button>
           </div>
 
           {ehDiretoria && (
@@ -237,6 +284,9 @@ export function AgendaView() {
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#dbeafe' }} /> Compromisso agendado (ligação, WhatsApp, reunião, treinamento, visitas ou evento)
           </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#ede9fe' }} /> Evento da agenda — clique para ver os corretores captados
+          </span>
           {mostrandoVariasAgendas && (
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#9ca3af' }} />
@@ -260,6 +310,7 @@ export function AgendaView() {
               const inMonth = isSameMonth(day, currentMonth);
               const doDia = inMonth ? porDia.get(day.getDate()) ?? [] : [];
               const ativDia = inMonth ? porDiaAtividades.get(day.getDate()) ?? [] : [];
+              const eventosDia = inMonth ? porDiaEventos.get(day.getDate()) ?? [] : [];
               const ativVisiveis = ativDia.slice(0, MAX_ATIVIDADES_POR_DIA);
               const ativOcultas = ativDia.length - ativVisiveis.length;
               return (
@@ -291,6 +342,24 @@ export function AgendaView() {
                       >
                         {a.saudacao ? <Check size={11} className="flex-shrink-0" /> : <Cake size={11} className="flex-shrink-0" />}
                         <span className="truncate">{primeiroNome(a.nomeCorretor)}</span>
+                      </button>
+                    ))}
+                    {/* Eventos primeiro: sao o compromisso que organiza o dia, e clicar neles
+                        abre quem foi captado ali. Cor propria, para nao se confundir com as
+                        atividades de card (azul) nem com os aniversarios (laranja). */}
+                    {eventosDia.map((ev) => (
+                      <button
+                        key={ev.id}
+                        onClick={() => setEventoAberto(ev.id)}
+                        title={`${formatPeriodoAtividade(ev.dataInicio, ev.dataFim)} · ${ev.titulo}${ev.local ? ` · ${ev.local}` : ''} — ${ev.totalCorretores} corretor(es) captados`}
+                        className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate transition-colors hover:brightness-95"
+                        style={{ backgroundColor: '#ede9fe', color: '#6d28d9' }}
+                      >
+                        <CalendarPlus size={11} className="flex-shrink-0" />
+                        <span className="truncate">{ev.titulo}</span>
+                        {ev.totalCorretores > 0 && (
+                          <span className="flex-shrink-0 font-bold">· {ev.totalCorretores}</span>
+                        )}
                       </button>
                     ))}
                     {ativVisiveis.map((at) => {
@@ -340,6 +409,33 @@ export function AgendaView() {
           ano={ano}
           onClose={() => setSelected(null)}
           onRegistered={handleRegistered}
+        />
+      )}
+
+      {/* Clique num evento do calendário: quem foi captado nele. */}
+      {eventoAberto && (
+        <EventoCorretoresModal
+          eventoId={eventoAberto}
+          // Editar o evento é de quem o criou, ou da Diretoria — o backend aplica a mesma regra.
+          podeEditar={
+            ehDiretoria ||
+            eventos.find((e) => e.id === eventoAberto)?.responsavelId === currentUser?.id
+          }
+          onEditar={(ev) => { setEventoAberto(null); setEditandoEvento(ev); }}
+          onAbrirCorretor={(corretorId) => { setEventoAberto(null); setSelectedCorretor(corretorId); }}
+          onClose={() => setEventoAberto(null)}
+        />
+      )}
+
+      {(criandoEvento || editandoEvento) && (
+        <EventoAgendaFormModal
+          evento={editandoEvento}
+          onSalvo={() => {
+            setCriandoEvento(false);
+            setEditandoEvento(null);
+            setVersaoEventos((v) => v + 1);
+          }}
+          onClose={() => { setCriandoEvento(false); setEditandoEvento(null); }}
         />
       )}
     </div>

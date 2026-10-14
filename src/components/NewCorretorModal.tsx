@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { X, Building2, User, Mail, Tag, ChevronRight, AlertTriangle } from 'lucide-react';
+import { X, Building2, User, Mail, Tag, ChevronRight, AlertTriangle, CalendarPlus } from 'lucide-react';
+import { EventoPickerModal } from './EventoPickerModal';
 import { useStore } from '../store';
 import { STAGES } from '../data';
 import { ApiError } from '../api/client';
@@ -56,6 +57,26 @@ export function NewCorretorModal() {
   const [cidade, setCidade] = useState('');
   const cidadesOptions = useCidadesPorUf(uf);
   const [canal, setCanal] = useState<CanalOrigem>('');
+  // Em qual evento da agenda o corretor foi captado. Só vale quando o canal é "Evento" — o
+  // mesmo desenho que o cliente final usa para rodadas.
+  const [eventoAgendaId, setEventoAgendaId] = useState('');
+  const [eventoRotulo, setEventoRotulo] = useState('');
+  const [escolhendoEvento, setEscolhendoEvento] = useState(false);
+
+  /**
+   * A comparação é pelo NOME do canal, sem acento nem caixa — e não por um id fixo, que a
+   * Diretoria poderia renomear na tela de Configurações e quebrar isto em silêncio. Mesmo
+   * critério que o cadastro de cliente final usa para "Rodada".
+   */
+  const canalEhEvento = canal
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .includes('evento');
+
+  // Trocar para um canal que não é evento não pode deixar o vínculo velho para trás.
+  useEffect(() => {
+    if (!canalEhEvento && eventoAgendaId) { setEventoAgendaId(''); setEventoRotulo(''); }
+  }, [canalEhEvento, eventoAgendaId]);
   const [responsavelSDRId, setResponsavelSDRId] = useState(isSdr ? currentUser?.id ?? '' : '');
   const [interesses, setInteresses] = useState<TipoInteresse[]>([]);
   const [possuiInvestidores, setPossuiInvestidores] = useState(false);
@@ -95,6 +116,9 @@ export function NewCorretorModal() {
     if (!nome.trim()) e.nome = 'Nome é obrigatório';
     if (!telefone.trim()) e.telefone = 'Telefone é obrigatório';
     if (!canal) e.canal = 'Canal de origem é obrigatório';
+    // Sem isto o corretor ficaria com o canal "Evento" e nenhum evento — some do retorno de
+    // todos eles e ninguém entende por quê.
+    if (canalEhEvento && !eventoAgendaId) e.evento = 'Escolha em qual evento o corretor foi captado';
     if (!imobiliaria.trim()) e.imobiliaria = 'Imobiliária é obrigatória';
     if (!cpf.trim()) e.cpf = 'CPF é obrigatório';
     if (!creci.trim()) e.creci = 'CRECI é obrigatório';
@@ -125,6 +149,7 @@ export function NewCorretorModal() {
         cidade: cidade.trim() || undefined,
         uf: uf || undefined,
         canalOrigem: canal,
+        eventoAgendaId: canalEhEvento && eventoAgendaId ? eventoAgendaId : null,
         responsavelSDRId: responsavelSDRId || undefined,
         tiposInteresse: interesses,
         possuiInvestidores,
@@ -336,6 +361,23 @@ export function NewCorretorModal() {
                 >
                   {canaisOrigem.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                 </select>
+                {/* Canal "Evento": qual evento. Aparece só aí, para não poluir os outros casos. */}
+                {canalEhEvento && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEscolhendoEvento(true)}
+                      className={`form-input text-left flex items-center gap-2 ${errors.evento ? 'border-red-400' : ''}`}
+                      style={{ color: eventoAgendaId ? '#111827' : '#9ca3af' }}
+                    >
+                      <CalendarPlus size={14} className="flex-shrink-0" style={{ color: '#d55006' }} />
+                      <span className="truncate">
+                        {eventoAgendaId ? (eventoRotulo || 'Evento selecionado') : 'Escolher o evento...'}
+                      </span>
+                    </button>
+                    {errors.evento && <p className="text-xs text-red-500 mt-1">{errors.evento}</p>}
+                  </div>
+                )}
               </div>
               <div>
                 <FormLabel>SDR Responsável</FormLabel>
@@ -429,6 +471,19 @@ export function NewCorretorModal() {
           </button>
         </div>
       </div>
+
+      {escolhendoEvento && (
+        <EventoPickerModal
+          selecionadoId={eventoAgendaId || null}
+          onSelect={({ id, rotulo }) => {
+            setEventoAgendaId(id);
+            setEventoRotulo(rotulo);
+            setEscolhendoEvento(false);
+            setErrors((atuais) => ({ ...atuais, evento: '' }));
+          }}
+          onClose={() => setEscolhendoEvento(false)}
+        />
+      )}
     </div>
   );
 }
