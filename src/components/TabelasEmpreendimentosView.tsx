@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Table2, Trash2, X, ChevronRight } from 'lucide-react';
+import { Plus, Table2, Trash2, X, ChevronRight, Building2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
@@ -137,7 +137,20 @@ export function TabelasEmpreendimentosView() {
                 <Table2 size={16} style={{ color: '#d55006' }} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-800 truncate">{t.nome}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{t.nome}</p>
+                  {/* Distingue a tabela que nasceu com um empreendimento das avulsas. */}
+                  {t.empreendimentoNome && (
+                    <span
+                      className="text-[11px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 flex items-center gap-1"
+                      style={{ backgroundColor: '#fff7ed', color: '#c2410c' }}
+                      title={`Tabela de custos do empreendimento ${t.empreendimentoNome}`}
+                    >
+                      <Building2 size={10} />
+                      {t.empreendimentoNome}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-400 truncate">
                   {t.atualizadoPorNome ? `Atualizada por ${t.atualizadoPorNome} · ` : 'Atualizada '}
                   {formatRelativeTime(t.atualizadoEm)}

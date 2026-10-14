@@ -538,6 +538,12 @@ export interface TabelaEmpreendimentoResumo {
   atualizadoEm: string;
   criadoPorNome: string | null;
   atualizadoPorNome: string | null;
+  /**
+   * Empreendimento dono da tabela, quando ela nasceu junto com um (toda criação de
+   * empreendimento cria a sua). Null nas tabelas avulsas, feitas pelo botão "Nova tabela".
+   */
+  empreendimentoId: string | null;
+  empreendimentoNome: string | null;
 }
 
 export interface TabelaEmpreendimentoDetalhe extends TabelaEmpreendimentoResumo {
