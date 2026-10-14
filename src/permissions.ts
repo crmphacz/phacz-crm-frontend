@@ -200,18 +200,19 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
 /**
  * Colunas que somem do pipeline conforme o perfil — cada um vê a parte do funil que trabalha.
  *
- * - SDR: sem a etapa 10 (Pós-venda/Fidelização), que não é responsabilidade dele.
  * - GR e GV: sem as etapas 1 a 4 (pré-atendimento), que são trabalho do SDR. O card só chega
  *   a eles na Distribuição (etapa 5) — antes disso, as colunas só poluíam o quadro com mais de
  *   mil cards que eles não atuam.
+ * - SDR: funil inteiro. A etapa 10 (Pós-venda) ficava oculta por não ser responsabilidade
+ *   dele, mas o SDR acompanha o card até o fim — é ele quem distribui, e ver onde cada um foi
+ *   parar é parte do trabalho.
  *
- * Diretoria, Administrativo e Recepção continuam vendo o funil inteiro: é leitura de gestão.
+ * Diretoria, Administrativo e Recepção também veem o funil inteiro: é leitura de gestão.
  *
  * Isto é recorte de TELA, não de permissão — quem decide o que cada um pode escrever é
  * `canWriteCorretor`, no servidor.
  */
 export function getHiddenPipelineStages(user: UserProfile | null): number[] {
-  if (user?.cargo === 'SDR') return [10];
   if (user?.cargo === 'GR' || user?.cargo === 'GV') return [1, 2, 3, 4];
   return [];
 }
