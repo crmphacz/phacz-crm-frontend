@@ -1,7 +1,10 @@
-import { Building2, Users, Link } from 'lucide-react';
+import { Building2, Users, Link, AlertCircle } from 'lucide-react';
 import type { Corretor } from '../types';
 import type { StageConfig } from '../types';
-import { TEMPERATURA_CONFIG, getSlaStatus, getSlaLabel, getInitials } from '../utils';
+import {
+  TEMPERATURA_CONFIG, getSlaStatus, getSlaLabel, getInitials,
+  camposFaltandoNoCadastro, ETAPA_EXIGE_CADASTRO_COMPLETO,
+} from '../utils';
 import { useStore } from '../store';
 
 interface Props {
@@ -28,6 +31,10 @@ export function CorretorCard({ corretor, stage }: Props) {
     ? `via ${corretor.nomeCorretor} · ${corretor.imobiliaria}`
     : corretor.imobiliaria || '—';
 
+  // Cadastro incompleto trava o card na etapa 7 (Monitoramento GV). Avisar aqui evita que a
+  // pessoa só descubra ao tentar arrastar — e diz exatamente o que falta.
+  const faltando = corretor.etapa < ETAPA_EXIGE_CADASTRO_COMPLETO ? camposFaltandoNoCadastro(corretor) : [];
+
   return (
     <div
       className="corretor-card bg-white rounded-xl cursor-pointer select-none"
@@ -38,6 +45,17 @@ export function CorretorCard({ corretor, stage }: Props) {
       onClick={() => setSelectedCorretor(corretor.id)}
     >
       <div className="p-3">
+        {faltando.length > 0 && (
+          <div
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold mb-2 w-fit"
+            style={{ backgroundColor: '#fef9c3', color: '#854d0e' }}
+            title={`Cadastro simplificado — falta preencher: ${faltando.join(', ')}. Obrigatório para chegar em Monitoramento GV.`}
+          >
+            <AlertCircle size={10} className="flex-shrink-0" />
+            Faltam {faltando.length} {faltando.length === 1 ? 'dado' : 'dados'}
+          </div>
+        )}
+
         {/* Top row */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0 flex-1">

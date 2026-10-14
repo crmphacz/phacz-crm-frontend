@@ -398,6 +398,11 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
 export interface CreateCorretorPayload {
   /** Evento da agenda em que o corretor foi captado — só quando o canal de origem é "Evento". */
   eventoAgendaId?: string | null;
+  /**
+   * Cadastro pelo caminho curto: imobiliária, CPF, CRECI e data de nascimento ficam para
+   * depois. Eles voltam a ser exigidos ao mover o card para Monitoramento GV (etapa 7).
+   */
+  cadastroSimplificado?: boolean;
   nomeCorretor: string;
   telefoneCorretor: string;
   whatsappCorretor?: string;

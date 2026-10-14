@@ -144,6 +144,8 @@ export interface Corretor {
    * "Evento" — é o que faz o corretor aparecer no modal daquele evento no calendário.
    */
   eventoAgendaId?: string | null;
+  /** Nasceu como cadastro simplificado — registro de como o card entrou, não muda depois. */
+  cadastroSimplificado?: boolean;
 
   // Timestamps
   dataEntrada: string;

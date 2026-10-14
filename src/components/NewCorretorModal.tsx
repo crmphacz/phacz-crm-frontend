@@ -62,6 +62,12 @@ export function NewCorretorModal() {
   const [eventoAgendaId, setEventoAgendaId] = useState('');
   const [eventoRotulo, setEventoRotulo] = useState('');
   const [escolhendoEvento, setEscolhendoEvento] = useState(false);
+  /**
+   * Cadastro pelo caminho curto: só nome, telefone e canal de origem. Muito corretor chega com
+   * pouca informação, e exigir tudo na entrada fazia o lead não ser cadastrado. Os campos que
+   * ficam para depois voltam a ser obrigatórios ao mover o card para Monitoramento GV.
+   */
+  const [cadastroSimplificado, setCadastroSimplificado] = useState(false);
 
   /**
    * A comparação é pelo NOME do canal, sem acento nem caixa — e não por um id fixo, que a
@@ -119,10 +125,13 @@ export function NewCorretorModal() {
     // Sem isto o corretor ficaria com o canal "Evento" e nenhum evento — some do retorno de
     // todos eles e ninguém entende por quê.
     if (canalEhEvento && !eventoAgendaId) e.evento = 'Escolha em qual evento o corretor foi captado';
-    if (!imobiliaria.trim()) e.imobiliaria = 'Imobiliária é obrigatória';
-    if (!cpf.trim()) e.cpf = 'CPF é obrigatório';
-    if (!creci.trim()) e.creci = 'CRECI é obrigatório';
-    if (!dataNascimento) e.dataNascimento = 'Data de nascimento é obrigatória';
+    // No cadastro simplificado estes quatro ficam para depois — o backend aplica a mesma regra.
+    if (!cadastroSimplificado) {
+      if (!imobiliaria.trim()) e.imobiliaria = 'Imobiliária é obrigatória';
+      if (!cpf.trim()) e.cpf = 'CPF é obrigatório';
+      if (!creci.trim()) e.creci = 'CRECI é obrigatório';
+      if (!dataNascimento) e.dataNascimento = 'Data de nascimento é obrigatória';
+    }
     return e;
   }
 
@@ -149,6 +158,7 @@ export function NewCorretorModal() {
         cidade: cidade.trim() || undefined,
         uf: uf || undefined,
         canalOrigem: canal,
+        cadastroSimplificado,
         eventoAgendaId: canalEhEvento && eventoAgendaId ? eventoAgendaId : null,
         responsavelSDRId: responsavelSDRId || undefined,
         tiposInteresse: interesses,
@@ -204,7 +214,9 @@ export function NewCorretorModal() {
               <p className="text-xs text-gray-400">
                 {etapaInicial !== 1 && etapaInicialNome
                   ? <>Será adicionado em <strong className="text-gray-600">{etapaInicialNome}</strong></>
-                  : 'Preencha os dados do corretor'}
+                  : cadastroSimplificado
+                    ? 'Só o essencial — o resto fica para depois'
+                    : 'Preencha os dados do corretor'}
               </p>
             </div>
           </div>
@@ -215,6 +227,39 @@ export function NewCorretorModal() {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-5">
+          {/* A flag fica no topo porque muda o que o resto do formulário exige — descobrir isso
+              só ao tentar salvar seria trabalho perdido. */}
+          <label
+            className="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors"
+            style={{
+              borderColor: cadastroSimplificado ? '#d55006' : '#e5e7eb',
+              backgroundColor: cadastroSimplificado ? '#fff7ed' : '#fafafa',
+            }}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 flex-shrink-0"
+              checked={cadastroSimplificado}
+              onChange={(e) => {
+                setCadastroSimplificado(e.target.checked);
+                // Limpa os erros dos campos que acabaram de deixar de ser obrigatórios.
+                if (e.target.checked) {
+                  setErrors((atuais) => ({
+                    ...atuais, imobiliaria: '', cpf: '', creci: '', dataNascimento: '',
+                  }));
+                }
+              }}
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-gray-800">Cadastro simplificado</span>
+              <span className="block text-xs text-gray-500 mt-0.5 leading-relaxed">
+                Cadastra com o que você tem agora: nome, telefone e canal de origem.
+                Imobiliária, CPF, CRECI e data de nascimento ficam para depois — mas passam a
+                ser obrigatórios para mover o card até <strong>Monitoramento GV</strong>.
+              </span>
+            </span>
+          </label>
+
           {/* Corretor */}
           <FormSection title="Dados do Corretor" icon={<Building2 size={14} style={{ color: '#d55006' }} />}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -254,7 +299,7 @@ export function NewCorretorModal() {
                 />
               </div>
               <div>
-                <FormLabel required>Imobiliária</FormLabel>
+                <FormLabel required={!cadastroSimplificado}>Imobiliária</FormLabel>
                 <select
                   className={`form-input ${errors.imobiliaria ? 'border-red-400' : ''}`}
                   value={imobiliaria}
@@ -294,7 +339,7 @@ export function NewCorretorModal() {
                 />
               </div>
               <div>
-                <FormLabel required>CPF</FormLabel>
+                <FormLabel required={!cadastroSimplificado}>CPF</FormLabel>
                 <input
                   className={`form-input ${errors.cpf ? 'border-red-400' : ''}`}
                   placeholder="000.000.000-00"
@@ -306,7 +351,7 @@ export function NewCorretorModal() {
                 {errors.cpf && <p className="text-xs text-red-500 mt-1">{errors.cpf}</p>}
               </div>
               <div>
-                <FormLabel required>CRECI</FormLabel>
+                <FormLabel required={!cadastroSimplificado}>CRECI</FormLabel>
                 <input
                   className={`form-input ${errors.creci ? 'border-red-400' : ''}`}
                   placeholder="Ex: 123456-F"
@@ -316,7 +361,7 @@ export function NewCorretorModal() {
                 {errors.creci && <p className="text-xs text-red-500 mt-1">{errors.creci}</p>}
               </div>
               <div>
-                <FormLabel required>Data de nascimento</FormLabel>
+                <FormLabel required={!cadastroSimplificado}>Data de nascimento</FormLabel>
                 <input
                   type="date"
                   className={`form-input ${errors.dataNascimento ? 'border-red-400' : ''}`}

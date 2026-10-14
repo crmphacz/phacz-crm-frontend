@@ -219,9 +219,32 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
   return fields[etapa] ?? [];
 }
 
+/**
+ * Da etapa 7 (Monitoramento GV) em diante o cadastro tem que estar completo — são os campos
+ * que o cadastro simplificado deixa em branco na entrada. Espelha ETAPA_EXIGE_CADASTRO_COMPLETO
+ * no backend (modules/corretores/validation.ts), que é quem de fato barra.
+ *
+ * Vale da 7 em DIANTE, e não só na 7: arrastar de 6 direto para 8 pularia a cobrança.
+ */
+export const ETAPA_EXIGE_CADASTRO_COMPLETO = 7;
+export const CAMPOS_DO_CADASTRO_COMPLETO = ['imobiliaria', 'cpf', 'creci', 'dataNascimento'];
+
+/** Campos do cadastro completo que ainda estão em branco neste corretor. */
+export function camposFaltandoNoCadastro(corretor: Corretor): string[] {
+  const labels: Record<string, string> = {
+    imobiliaria: 'Imobiliária', cpf: 'CPF', creci: 'CRECI', dataNascimento: 'Data de nascimento',
+  };
+  return CAMPOS_DO_CADASTRO_COMPLETO
+    .filter((campo) => !corretor[campo as keyof Corretor])
+    .map((campo) => labels[campo] ?? campo);
+}
+
 export function validateForStageMove(corretor: Corretor, toEtapa: number): string[] {
   const errors: string[] = [];
-  const required = getMandatoryFieldsForStage(toEtapa);
+  const required = [
+    ...getMandatoryFieldsForStage(toEtapa),
+    ...(toEtapa >= ETAPA_EXIGE_CADASTRO_COMPLETO ? CAMPOS_DO_CADASTRO_COMPLETO : []),
+  ];
 
   for (const field of required) {
     const val = corretor[field as keyof Corretor];
@@ -237,6 +260,10 @@ export function validateForStageMove(corretor: Corretor, toEtapa: number): strin
         treinamento: 'Status de treinamento',
         responsavelGR: 'Responsável GR',
         responsavelGV: 'Responsável GV',
+        imobiliaria: 'Imobiliária',
+        cpf: 'CPF',
+        creci: 'CRECI',
+        dataNascimento: 'Data de nascimento',
       };
       errors.push(labels[field] ?? field);
     }
