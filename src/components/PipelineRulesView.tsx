@@ -4,14 +4,20 @@ import { useStore } from '../store';
 import { STAGES } from '../data';
 import { SettingsCard } from './SettingsCard';
 
+/**
+ * O que a tela ANUNCIA como exigido em cada etapa. Precisa acompanhar o que o sistema de fato
+ * cobra (getMandatoryFieldsForStage em utils.ts e validation.ts no backend) — anunciar uma
+ * exigência que não existe mais faz a equipe procurar um bloqueio que não está lá.
+ */
 const REQUIRED_FIELDS_BY_STAGE: Record<number, string[]> = {
   1: ['Nome do corretor', 'Telefone', 'Canal de origem'],
   2: ['Primeiro contato registrado (interação)'],
   3: ['Tipo de interesse', 'Status de participação no treinamento'],
   4: ['Observação de acompanhamento / motivo de nutrição'],
-  5: ['Responsável GR atribuído', 'Responsável GV atribuído'],
+  // O GR não é exigido: atribuir é possível, mas não trava a passagem do card.
+  5: ['Responsável GV atribuído'],
   6: ['Registro de atividade semanal (GR)', 'Ao menos 1 cliente final cadastrado'],
-  7: ['Monitoramento registrado (GV)', 'Atividade de acompanhamento'],
+  7: ['Cadastro completo (imobiliária, CPF, CRECI e nascimento)', 'Monitoramento registrado (GV)'],
   8: ['Proposta formal registrada', 'Unidade e valor preenchidos'],
   9: ['Proposta aceita', 'Documentação em coleta'],
   10: ['Fechamento registrado como Ganho', 'Valor de fechamento confirmado'],

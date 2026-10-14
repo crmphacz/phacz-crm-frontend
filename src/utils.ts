@@ -209,7 +209,10 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
     // travava o card na qualificação. Quem recusa é marcado em `naoDesejaTreinamento`.
     3: ['tiposInteresse'],
     4: [],
-    5: ['responsavelGR', 'responsavelGV'],
+    // O GR saiu daqui: nem todo corretor tem Gerente de Relacionamento atribuído, e exigir o
+    // vínculo travava o card na Distribuição. Só o GV continua obrigatório. Espelha
+    // validation.ts no backend, que é quem de fato barra.
+    5: ['responsavelGV'],
     6: [],
     7: [],
     8: [],
