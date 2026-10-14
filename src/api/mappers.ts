@@ -956,6 +956,8 @@ interface ApiEmpreendimentoBase {
   condicoesPagamento: string[];
   hotsiteUrl: string;
   catalogoUrl: string;
+  catalogoArquivoUrl: string;
+  catalogoArquivoNome: string;
   telefoneContato: string;
   updatedAt: string;
 }
@@ -997,6 +999,8 @@ function mapEmpreendimentoBaseFromApi(e: ApiEmpreendimentoBase) {
     condicoesPagamento: e.condicoesPagamento,
     hotsiteUrl: e.hotsiteUrl,
     catalogoUrl: e.catalogoUrl,
+    catalogoArquivoUrl: e.catalogoArquivoUrl ?? '',
+    catalogoArquivoNome: e.catalogoArquivoNome ?? '',
     telefoneContato: e.telefoneContato,
     updatedAt: e.updatedAt,
   };

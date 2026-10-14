@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, Building2, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { X, Building2, ChevronRight, Plus, Trash2, FileText, Upload } from 'lucide-react';
+import { Spinner } from './Spinner';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
 import { empreendimentosApi } from '../api/endpoints';
@@ -47,6 +48,11 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
   const [novaCondicaoPagamento, setNovaCondicaoPagamento] = useState('');
   const [hotsiteUrl, setHotsiteUrl] = useState(empreendimento?.hotsiteUrl ?? '');
   const [catalogoUrl, setCatalogoUrl] = useState(empreendimento?.catalogoUrl ?? '');
+  // Catálogo como arquivo: alternativa ao link, para quem não tem o PDF publicado em lugar
+  // nenhum. Os dois convivem — na tela o arquivo tem preferência.
+  const [catalogoArquivoUrl, setCatalogoArquivoUrl] = useState(empreendimento?.catalogoArquivoUrl ?? '');
+  const [catalogoArquivoNome, setCatalogoArquivoNome] = useState(empreendimento?.catalogoArquivoNome ?? '');
+  const [enviandoCatalogo, setEnviandoCatalogo] = useState(false);
   const [telefoneContato, setTelefoneContato] = useState(empreendimento?.telefoneContato ?? '');
 
   const [uploadingCapa, setUploadingCapa] = useState(false);
@@ -111,6 +117,20 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
     }
   }
 
+  async function handleUploadCatalogo(file: File) {
+    setEnviandoCatalogo(true);
+    setSubmitError('');
+    try {
+      const { url, nome: nomeArquivo } = await empreendimentosApi.uploadCatalogo(file);
+      setCatalogoArquivoUrl(url);
+      setCatalogoArquivoNome(nomeArquivo);
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : 'Não foi possível enviar o catálogo.');
+    } finally {
+      setEnviandoCatalogo(false);
+    }
+  }
+
   function validate() {
     const e: Record<string, string> = {};
     if (!nome.trim()) e.nome = 'Informe o nome do empreendimento';
@@ -151,6 +171,8 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
         condicoesPagamento,
         hotsiteUrl: hotsiteUrl.trim(),
         catalogoUrl: catalogoUrl.trim(),
+        catalogoArquivoUrl,
+        catalogoArquivoNome,
         telefoneContato: telefoneContato.trim(),
       };
       const saved = empreendimento
@@ -459,6 +481,58 @@ export function EmpreendimentoFormModal({ empreendimento, onClose, onSaved }: Em
                 <FormLabel>Link do catálogo</FormLabel>
                 <input className="form-input" placeholder="https://..." value={catalogoUrl} onChange={(e) => setCatalogoUrl(e.target.value)} />
               </div>
+            </div>
+
+            {/* Catálogo como arquivo — a outra metade do pedido. Fica logo abaixo do link, e
+                não num campo "ou" exclusivo: quem tem as duas coisas pode guardar as duas. */}
+            <div className="mt-4">
+              <FormLabel>Ou envie o arquivo do catálogo</FormLabel>
+              {catalogoArquivoUrl ? (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm"
+                  style={{ borderColor: '#e5e7eb', backgroundColor: '#fff' }}
+                >
+                  <FileText size={14} className="flex-shrink-0" style={{ color: '#d55006' }} />
+                  <a
+                    href={catalogoArquivoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate flex-1 text-gray-700 hover:underline"
+                    title="Abrir o arquivo enviado"
+                  >
+                    {catalogoArquivoNome || 'Catálogo enviado'}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => { setCatalogoArquivoUrl(''); setCatalogoArquivoNome(''); }}
+                    className="text-xs font-semibold text-gray-400 hover:text-red-600 transition-colors flex-shrink-0"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ) : (
+                <label
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold cursor-pointer transition-colors hover:bg-gray-50"
+                  style={{ borderColor: '#e5e7eb', color: enviandoCatalogo ? '#9ca3af' : '#6b7280' }}
+                >
+                  {enviandoCatalogo ? <Spinner size={13} /> : <Upload size={13} />}
+                  {enviandoCatalogo ? 'Enviando…' : 'Escolher arquivo'}
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    disabled={enviandoCatalogo}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadCatalogo(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              )}
+              <p className="text-[11px] text-gray-400 mt-1">
+                PDF ou imagem, até 4 MB. Se você preencher os dois, o botão "Catálogo" abre o arquivo.
+              </p>
             </div>
           </FormSection>
 

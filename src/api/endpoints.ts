@@ -662,6 +662,15 @@ export const empreendimentosApi = {
     form.append('file', file);
     return apiFetch<{ url: string }>('/api/empreendimentos/assets', { method: 'POST', body: form });
   },
+  /**
+   * Catálogo como arquivo (PDF ou imagem). Rota separada da de imagens porque o filtro de
+   * tipos é outro — a de capa/logo não aceita PDF.
+   */
+  uploadCatalogo: (file: File): Promise<{ url: string; nome: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch<{ url: string; nome: string }>('/api/empreendimentos/catalogo', { method: 'POST', body: form });
+  },
   unidades: {
     create: (empreendimentoId: string, data: CreateUnidadePayload): Promise<Unidade> =>
       apiFetch<ApiUnidade>(`/api/empreendimentos/${empreendimentoId}/unidades`, {

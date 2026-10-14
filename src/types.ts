@@ -679,6 +679,10 @@ export interface Empreendimento {
   condicoesPagamento: string[];
   hotsiteUrl: string;
   catalogoUrl: string;
+  /** Catálogo enviado como arquivo — alternativa ao link. Vazio quando não há arquivo. */
+  catalogoArquivoUrl: string;
+  /** Nome original do arquivo, para exibir na tela. */
+  catalogoArquivoNome: string;
   telefoneContato: string;
   totalUnidades: number;
   unidadesDisponiveis: number;

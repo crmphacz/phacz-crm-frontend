@@ -181,7 +181,19 @@ export function EmpreendimentoDetailView({ id, onClose }: { id: string; onClose:
               <div className="grid grid-cols-3 gap-2">
                 <LeftIconButton icon={<Images size={15} />} label="Galeria" onClick={() => detail.imagemCapaUrl && window.open(detail.imagemCapaUrl, '_blank')} disabled={!detail.imagemCapaUrl} />
                 <LeftIconButton icon={<ExternalLink size={15} />} label="Hotsite" onClick={() => detail.hotsiteUrl && window.open(detail.hotsiteUrl, '_blank')} disabled={!detail.hotsiteUrl} />
-                <LeftIconButton icon={<FileText size={15} />} label="Catálogo" onClick={() => detail.catalogoUrl && window.open(detail.catalogoUrl, '_blank')} disabled={!detail.catalogoUrl} />
+                {/* O arquivo enviado tem preferência sobre o link: quem subiu o PDF aqui
+                    quis que fosse ele que abrisse. Sem arquivo, cai no link de sempre. */}
+                {(() => {
+                  const catalogo = detail.catalogoArquivoUrl || detail.catalogoUrl;
+                  return (
+                    <LeftIconButton
+                      icon={<FileText size={15} />}
+                      label="Catálogo"
+                      onClick={() => catalogo && window.open(catalogo, '_blank')}
+                      disabled={!catalogo}
+                    />
+                  );
+                })()}
               </div>
 
               {(detail.rua || detail.cidade) && (
