@@ -774,6 +774,11 @@ export interface DefinicaoMetrica {
   grupo: string;
   cargo: CargoPlacar;
   porEmpreendimento: boolean;
+  /**
+   * Como ler o número. Ausente = contagem de ocorrências; 'moeda' = total, meta e quebra por
+   * empreendimento estão em reais. Hoje só a linha de vendas fechadas.
+   */
+  formato?: 'moeda';
   /** Frase curta explicando de onde vem o número — mostrada como dica na tela. */
   explicacao: string;
 }

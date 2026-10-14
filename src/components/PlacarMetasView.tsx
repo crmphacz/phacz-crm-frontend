@@ -6,6 +6,7 @@ import {
 import { placarApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { useStore } from '../store';
+import { formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
 import { ViewLoader } from './ViewLoader';
 import type { Placar, PlacarPessoa, DefinicaoMetrica, SemanaPlacar, ValorMetrica } from '../types';
 
@@ -38,9 +39,12 @@ function totalDaSemana(valor: ValorMetrica, semana: SemanaPlacar): number {
   return semana.dias.reduce((soma, dia) => soma + (valor.porDia[dia] ?? 0), 0);
 }
 
-/** Mostra a meta rateada sem casas decimais quando a divisão é exata (100/4 = 25, não 25,00). */
-function formatarMeta(valor: number): string {
-  return Number.isInteger(valor) ? String(valor) : valor.toFixed(1).replace('.', ',');
+/**
+ * Como escrever o número de uma métrica. A linha de vendas é em reais (a meta que a Diretoria
+ * define é em dinheiro); as demais são contagem de ocorrências.
+ */
+function formatarValor(valor: number, def?: DefinicaoMetrica): string {
+  return def?.formato === 'moeda' ? formatCurrencyBRL(valor) : String(valor);
 }
 
 function corDoAtingimento(total: number, meta: number): string {
@@ -75,9 +79,10 @@ export function PlacarMetasView() {
 
   async function salvarMetaVendas() {
     if (!placar) return;
-    const valor = Number(metaVendasDraft);
-    if (!Number.isFinite(valor) || valor < 0) {
-      setErro('Informe um número de vendas válido para a meta do mês.');
+    // O campo é mascarado em reais (R$ 5.000.000,00); aqui volta a ser número puro.
+    const valor = parseCurrencyBRL(metaVendasDraft);
+    if (valor === undefined || valor < 0) {
+      setErro('Informe um valor em reais válido para a meta de vendas do mês.');
       return;
     }
     setSalvandoMetaVendas(true);
@@ -266,13 +271,13 @@ export function PlacarMetasView() {
           {ehDiretoria ? (
             <>
               <input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="numeric"
                 className="form-input text-sm"
-                style={{ width: 110 }}
-                placeholder={String(placar.metaVendas.total || 0)}
+                style={{ width: 160 }}
+                placeholder={formatCurrencyBRL(placar.metaVendas.total || 0)}
                 value={metaVendasDraft}
-                onChange={(e) => setMetaVendasDraft(e.target.value)}
+                onChange={(e) => setMetaVendasDraft(maskCurrencyBRLInput(e.target.value))}
                 onKeyDown={(e) => { if (e.key === 'Enter') salvarMetaVendas(); }}
               />
               <button
@@ -285,7 +290,7 @@ export function PlacarMetasView() {
               </button>
             </>
           ) : (
-            <span className="text-sm font-bold text-gray-800">{placar.metaVendas.total}</span>
+            <span className="text-sm font-bold text-gray-800">{formatCurrencyBRL(placar.metaVendas.total)}</span>
           )}
 
           <span className="text-xs text-gray-500">
@@ -293,7 +298,7 @@ export function PlacarMetasView() {
               <>
                 dividida entre <strong>{placar.metaVendas.gvsAtivos}</strong>{' '}
                 {placar.metaVendas.gvsAtivos === 1 ? 'GV ativo' : 'GVs ativos'} ={' '}
-                <strong style={{ color: '#d55006' }}>{formatarMeta(placar.metaVendas.porGv)}</strong> para cada
+                <strong style={{ color: '#d55006' }}>{formatCurrencyBRL(placar.metaVendas.porGv)}</strong> para cada
               </>
             ) : (
               'nenhum GV ativo para dividir a meta'
@@ -430,7 +435,9 @@ function ModalEmpreendimentos({ metrica, definicao, pessoaNome, periodo, onFecha
                 {linhas.map(([empreendimento, quantidade]) => (
                   <tr key={empreendimento} className="border-b" style={{ borderColor: '#f9fafb' }}>
                     <td className="px-5 py-2.5 text-gray-700">{empreendimento}</td>
-                    <td className="px-5 py-2.5 text-right font-bold text-gray-800 whitespace-nowrap">{quantidade}</td>
+                    <td className="px-5 py-2.5 text-right font-bold text-gray-800 whitespace-nowrap">
+                      {formatarValor(quantidade, definicao)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -440,7 +447,7 @@ function ModalEmpreendimentos({ metrica, definicao, pessoaNome, periodo, onFecha
 
         <div className="flex items-center justify-between px-5 py-3 border-t" style={{ borderColor: '#f3f4f6', backgroundColor: '#fafafa' }}>
           <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Total</span>
-          <span className="font-bold text-gray-800">{metrica.total}</span>
+          <span className="font-bold text-gray-800">{formatarValor(metrica.total, definicao)}</span>
         </div>
       </div>
     </div>
@@ -606,13 +613,15 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando,
               {semanas.map((s) => {
                 const v = totalDaSemana(m, s);
                 return (
-                  <td key={s.numero} className="px-3 py-2 text-center text-gray-600">
-                    {v || <span className="text-gray-300">—</span>}
+                  <td key={s.numero} className="px-3 py-2 text-center text-gray-600 whitespace-nowrap">
+                    {v ? formatarValor(v, def) : <span className="text-gray-300">—</span>}
                   </td>
                 );
               })}
-              <td className="px-3 py-2 text-center font-bold text-gray-800">{m.total}</td>
-              <td className="px-3 py-2 text-center">
+              <td className="px-3 py-2 text-center font-bold text-gray-800 whitespace-nowrap">
+                {formatarValor(m.total, def)}
+              </td>
+              <td className="px-3 py-2 text-center whitespace-nowrap">
                 {editando ? (
                   <input
                     type="number"
@@ -623,11 +632,13 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando,
                     onChange={(e) => onRascunho(idRascunho, e.target.value)}
                   />
                 ) : (
-                  <span className="text-gray-500">{m.meta || '—'}</span>
+                  // A meta de vendas não é editada aqui (vem do rateio da meta geral do mês),
+                  // então não há caso de digitar reais nesta coluna.
+                  <span className="text-gray-500">{m.meta ? formatarValor(m.meta, def) : '—'}</span>
                 )}
               </td>
-              <td className="px-3 py-2 text-center font-semibold" style={{ color: cor }}>
-                {m.meta > 0 ? faltam : '—'}
+              <td className="px-3 py-2 text-center font-semibold whitespace-nowrap" style={{ color: cor }}>
+                {m.meta > 0 ? formatarValor(faltam, def) : '—'}
               </td>
               <td className="px-3 py-2 text-center font-bold" style={{ color: cor }}>
                 {m.meta > 0 ? `${Math.round((m.total / m.meta) * 100)}%` : '—'}
