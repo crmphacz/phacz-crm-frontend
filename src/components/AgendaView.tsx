@@ -4,14 +4,16 @@ import {
   addMonths, subMonths, format, isSameMonth, isToday,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Cake, Check, Users, CalendarPlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Cake, Check, Users, CalendarPlus, CalendarX, RotateCcw } from 'lucide-react';
 import { agendaApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { AniversarioModal } from './AniversarioModal';
-import { TIPO_INTERACAO_CONFIG, formatPeriodoAtividade } from '../utils';
+import { TIPO_INTERACAO_CONFIG, formatPeriodoAtividade, PODE_CANCELAR } from '../utils';
+import { canWriteCorretoresModule } from '../permissions';
+import { CancelarTreinamentoModal } from './CancelarTreinamentoModal';
 import { EventoAgendaFormModal } from './EventoAgendaFormModal';
 import { EventoCorretoresModal } from './EventoCorretoresModal';
 import { getViewCache, setViewCache } from '../lib/viewCache';
@@ -52,6 +54,16 @@ export function AgendaView() {
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const currentUser = useStore((s) => s.currentUser);
   const users = useStore((s) => s.users);
+  const reverterCancelamentoAtividade = useStore((s) => s.reverterCancelamentoAtividade);
+  const showToast = useStore((s) => s.showToast);
+
+  /**
+   * Cancelar o treinamento daqui é o caminho natural: é olhando a semana que se descobre que
+   * ele caiu. O backend deixa cancelar quem é dono do compromisso ou do card — como cada um só
+   * enxerga a própria agenda (e a Diretoria, todas), basta barrar os perfis que não escrevem
+   * em corretor nenhum.
+   */
+  const podeCancelarCompromisso = canWriteCorretoresModule(currentUser);
 
   // A Diretoria enxerga a agenda da equipe inteira e pode filtrar por pessoa; os demais cargos
   // veem só a própria — quem decide isso de fato é o backend, aqui é só a interface.
@@ -70,6 +82,9 @@ export function AgendaView() {
   /** Muda a cada salvamento para forçar a recarga do mês sem mexer no mês selecionado. */
   const [versaoEventos, setVersaoEventos] = useState(0);
   const [responsavelId, setResponsavelId] = useState(saved?.responsavelId ?? '');
+  /** Compromisso com o modal de motivo aberto, e o que está voltando atrás. */
+  const [cancelando, setCancelando] = useState<AtividadeAgenda | null>(null);
+  const [revertendoId, setRevertendoId] = useState<string | null>(null);
 
   const usuariosDoFiltro = useMemo(
     () => users.filter((u) => u.ativo).sort((a, b) => a.nome.localeCompare(b.nome)),
@@ -132,12 +147,17 @@ export function AgendaView() {
   // Quem tem duração é medido pelo TÉRMINO: um evento de três dias que começou ontem ainda
   // está acontecendo e precisa continuar no calendário. Quem não tem `dataFim` segue pelo
   // próprio início, como antes.
+  // O compromisso CANCELADO continua aqui, riscado: quem olha a semana precisa ver que aquele
+  // horário caiu, e é daqui que se desfaz um cancelamento feito por engano.
   const compromissos = useMemo(
     () => atividades.filter((a) =>
       TIPOS_NA_AGENDA.has(a.tipo) && new Date(a.dataFim ?? a.data).getTime() > Date.now()
     ),
     [atividades]
   );
+
+  /** O que o cabeçalho conta: um compromisso cancelado não é mais compromisso a cumprir. */
+  const compromissosAtivos = useMemo(() => compromissos.filter((a) => !a.canceladoEm), [compromissos]);
 
   // A API traz uma folga de ±1 dia (por fuso); aqui descartamos o que sobrar de mês adjacente
   // e agrupamos pelo dia exato, lido em horário local do navegador (mesmo horário que o usuário digitou).
@@ -192,6 +212,27 @@ export function AgendaView() {
     return eachDayOfInterval({ start: gridStart, end: gridEnd });
   }, [currentMonth]);
 
+  /**
+   * Atualiza o compromisso na grade sem recarregar o mês inteiro. A agenda guarda as
+   * atividades em estado próprio (e em cache de tela), então ela não "ouve" o store — quem
+   * cancelou precisa ver o risco aparecer na hora.
+   */
+  function marcaNaGrade(interacaoId: string, mudanca: Partial<AtividadeAgenda>) {
+    setAtividades((prev) => prev.map((a) => (a.id === interacaoId ? { ...a, ...mudanca } : a)));
+  }
+
+  async function handleReverterCancelamento(at: AtividadeAgenda) {
+    setRevertendoId(at.id);
+    try {
+      await reverterCancelamentoAtividade(at.corretorId, at.id);
+      marcaNaGrade(at.id, { canceladoEm: undefined, motivoCancelamento: undefined });
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Não foi possível reativar o treinamento.', 'error');
+    } finally {
+      setRevertendoId(null);
+    }
+  }
+
   function handleRegistered(corretorId: string, saudacao: SaudacaoAniversario) {
     setAniversarios((prev) => prev.map((a) => (a.corretorId === corretorId ? { ...a, saudacao } : a)));
     setSelected((cur) => (cur && cur.corretorId === corretorId ? { ...cur, saudacao } : cur));
@@ -211,7 +252,7 @@ export function AgendaView() {
             <p className="text-sm text-gray-500 mt-0.5">
               {loading
                 ? 'Carregando…'
-                : `${aniversarios.length} aniversário(s), ${compromissos.length} compromisso(s) e ${eventos.length} evento(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
+                : `${aniversarios.length} aniversário(s), ${compromissosAtivos.length} compromisso(s) e ${eventos.length} evento(s) em ${format(currentMonth, 'MMMM', { locale: ptBR })}`}
             </p>
           </div>
 
@@ -286,6 +327,10 @@ export function AgendaView() {
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#ede9fe' }} /> Evento da agenda — clique para ver os corretores captados
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#f3f4f6', border: '1px solid #e5e7eb' }} />
+            Cancelado — use o <CalendarX size={11} className="inline flex-shrink-0" style={{ color: '#b91c1c' }} /> para registrar um treinamento que não aconteceu
           </span>
           {mostrandoVariasAgendas && (
             <span className="flex items-center gap-1.5">
@@ -365,25 +410,54 @@ export function AgendaView() {
                     {ativVisiveis.map((at) => {
                       const config = TIPO_INTERACAO_CONFIG[at.tipo];
                       const dono = at.responsavelNome ? ` · agenda de ${at.responsavelNome}` : '';
+                      const quando = formatPeriodoAtividade(at.data, at.dataFim) ?? format(new Date(at.data), 'HH:mm');
+                      const cancelado = Boolean(at.canceladoEm);
+                      // Só o treinamento se cancela (ver PODE_CANCELAR) — é o compromisso que
+                      // de fato cai com frequência e o único que vira indicador.
+                      const ofereceCancelar = podeCancelarCompromisso && PODE_CANCELAR.has(at.tipo);
+                      const revertendo = revertendoId === at.id;
                       return (
-                        <button
+                        <div
                           key={at.id}
-                          onClick={() => setSelectedCorretor(at.corretorId)}
-                          title={`${formatPeriodoAtividade(at.data, at.dataFim) ?? format(new Date(at.data), 'HH:mm')} · ${config.label} · ${at.corretorNome}${dono} — ${at.resumo}`}
-                          className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate transition-colors hover:brightness-95"
-                          style={{ backgroundColor: '#dbeafe', color: '#1d4ed8' }}
+                          className="flex items-center rounded-md min-w-0 transition-colors hover:brightness-95"
+                          style={cancelado
+                            ? { backgroundColor: '#f3f4f6', color: '#9ca3af' }
+                            : { backgroundColor: '#dbeafe', color: '#1d4ed8' }}
                         >
-                          {/* Na visão "todos" um compromisso azul sozinho não diz de quem é —
-                              a bolinha na cor do usuário resolve isso sem ocupar espaço. */}
-                          {mostrandoVariasAgendas && at.responsavelNome && (
-                            <span
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: at.responsavelCor || '#1d4ed8' }}
-                            />
+                          <button
+                            onClick={() => setSelectedCorretor(at.corretorId)}
+                            title={
+                              cancelado
+                                ? `CANCELADO · ${quando} · ${config.label} · ${at.corretorNome}${dono} — motivo: ${at.motivoCancelamento || 'não informado'}`
+                                : `${quando} · ${config.label} · ${at.corretorNome}${dono} — ${at.resumo}`
+                            }
+                            className="flex items-center gap-1 px-1.5 py-1 text-[11px] font-semibold text-left truncate flex-1 min-w-0"
+                          >
+                            {/* Na visão "todos" um compromisso azul sozinho não diz de quem é —
+                                a bolinha na cor do usuário resolve isso sem ocupar espaço. */}
+                            {mostrandoVariasAgendas && at.responsavelNome && (
+                              <span
+                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: cancelado ? '#9ca3af' : at.responsavelCor || '#1d4ed8' }}
+                              />
+                            )}
+                            <span className="flex-shrink-0" style={cancelado ? { opacity: 0.5 } : undefined}>{config.icon}</span>
+                            <span className="truncate" style={cancelado ? { textDecoration: 'line-through' } : undefined}>
+                              {primeiroNome(at.corretorNome)}
+                            </span>
+                          </button>
+                          {ofereceCancelar && (
+                            <button
+                              onClick={() => (cancelado ? handleReverterCancelamento(at) : setCancelando(at))}
+                              disabled={revertendo}
+                              title={cancelado ? 'Reativar este treinamento' : 'Treinamento cancelado? Registre o motivo'}
+                              className="px-1 py-1 flex-shrink-0 hover:opacity-70 disabled:opacity-40"
+                              style={{ color: cancelado ? '#059669' : '#b91c1c' }}
+                            >
+                              {cancelado ? <RotateCcw size={11} /> : <CalendarX size={11} />}
+                            </button>
                           )}
-                          <span className="flex-shrink-0">{config.icon}</span>
-                          <span className="truncate">{primeiroNome(at.corretorNome)}</span>
-                        </button>
+                        </div>
                       );
                     })}
                     {ativOcultas > 0 && (
@@ -424,6 +498,23 @@ export function AgendaView() {
           onEditar={(ev) => { setEventoAberto(null); setEditandoEvento(ev); }}
           onAbrirCorretor={(corretorId) => { setEventoAberto(null); setSelectedCorretor(corretorId); }}
           onClose={() => setEventoAberto(null)}
+        />
+      )}
+
+      {/* Treinamento que caiu: o motivo é registrado aqui mesmo, sem sair da agenda. */}
+      {cancelando && (
+        <CancelarTreinamentoModal
+          corretorId={cancelando.corretorId}
+          interacaoId={cancelando.id}
+          corretorNome={cancelando.corretorNome}
+          quando={
+            formatPeriodoAtividade(cancelando.data, cancelando.dataFim)
+            ?? format(new Date(cancelando.data), "dd/MM/yyyy', às 'HH:mm")
+          }
+          motivoAtual={cancelando.canceladoEm ? cancelando.motivoCancelamento : undefined}
+          onCancelado={(motivo) =>
+            marcaNaGrade(cancelando.id, { canceladoEm: new Date().toISOString(), motivoCancelamento: motivo })}
+          onClose={() => setCancelando(null)}
         />
       )}
 

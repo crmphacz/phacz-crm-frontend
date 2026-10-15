@@ -461,6 +461,14 @@ export const PEDE_PERIODO = new Set<TipoInteracao>(['visita_obra', 'visita_imobi
 export const PERMITE_VARIOS_DIAS = new Set<TipoInteracao>(['evento']);
 
 /**
+ * Compromissos que podem ser marcados como CANCELADOS, com o motivo. Só o treinamento: é o que
+ * de fato se perde com frequência (o corretor não aparece, ou aparece outro compromisso em
+ * cima) e o único cuja desistência vira indicador — a taxa de churn de treinamentos na Visão
+ * Geral do Dashboard. Espelha TIPOS_CANCELAVEIS no backend, que é quem valida de verdade.
+ */
+export const PODE_CANCELAR = new Set<TipoInteracao>(['treinamento']);
+
+/**
  * Tipos de atividade que o placar quebra por empreendimento. `reuniao` entrou junto com o
  * modal de empreendimentos nas linhas de Atendimentos: sem perguntar aqui, aquelas linhas
  * nasceriam todas em "Não informado".

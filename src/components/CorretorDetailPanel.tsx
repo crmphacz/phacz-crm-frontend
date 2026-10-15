@@ -15,6 +15,7 @@ import {
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
   camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
   MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO, PEDE_PERIODO, PERMITE_VARIOS_DIAS,
+  PODE_CANCELAR,
   diaDeDatetimeLocal, horaDeDatetimeLocal, juntarDiaEHora, somarHorasDatetimeLocal,
   formatPeriodoAtividade, nomeDoAnexo, anexoEhAudio, ACCEPT_ANEXO_ATIVIDADE,
   ehCardDeCliente, nomeExibidoNoCard,
@@ -27,6 +28,7 @@ import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
 import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor } from '../permissions';
 import { WhatsappSendModal } from './WhatsappSendModal';
+import { CancelarTreinamentoModal } from './CancelarTreinamentoModal';
 import { WhatsappIcon } from './WhatsappIcon';
 import { Spinner, InlineLoader } from './Spinner';
 import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade } from '../types';
@@ -63,6 +65,7 @@ export function CorretorDetailPanel() {
   const updateCorretor = useStore((s) => s.updateCorretor);
   const moveCorretor = useStore((s) => s.moveCorretor);
   const addInteracao = useStore((s) => s.addInteracao);
+  const reverterCancelamentoAtividade = useStore((s) => s.reverterCancelamentoAtividade);
   const removeClienteFinal = useStore((s) => s.removeClienteFinal);
   const addProposta = useStore((s) => s.addProposta);
   const updateProposta = useStore((s) => s.updateProposta);
@@ -202,6 +205,10 @@ export function CorretorDetailPanel() {
   // pedir modalidade numa nota interna só atrapalharia quem registra.
   const [actModalidade, setActModalidade] = useState<ModalidadeAtividade | ''>('');
   const [actEmpreendimento, setActEmpreendimento] = useState('');
+  // Cancelamento de treinamento: qual atividade está com o modal de motivo aberto, e qual está
+  // voltando atrás (o botão fica em "Reativando…" enquanto o servidor responde).
+  const [cancelandoInteracaoId, setCancelandoInteracaoId] = useState<string | null>(null);
+  const [revertendoInteracaoId, setRevertendoInteracaoId] = useState<string | null>(null);
   useEffect(() => {
     if (showActivityForm) {
       setActResponsavelId(currentUser?.id ?? '');
@@ -397,6 +404,18 @@ export function CorretorDetailPanel() {
       alertError(err, 'Não foi possível registrar a atividade.');
     } finally {
       setSavingActivity(false);
+    }
+  }
+
+  /** Desfaz o cancelamento de um treinamento — ele volta a valer e a contar no placar. */
+  async function handleReverterCancelamento(interacaoId: string) {
+    setRevertendoInteracaoId(interacaoId);
+    try {
+      await reverterCancelamentoAtividade(corretor.id, interacaoId);
+    } catch (err) {
+      alertError(err, 'Não foi possível reativar o treinamento.');
+    } finally {
+      setRevertendoInteracaoId(null);
     }
   }
 
@@ -1490,14 +1509,41 @@ export function CorretorDetailPanel() {
                 {corretor.interacoes.map((inter) => {
                   const config = TIPO_INTERACAO_CONFIG[inter.tipo];
                   const stageInfo = STAGES.find((s) => s.id === inter.etapa);
+                  // Treinamento que foi marcado e não aconteceu. O registro fica — riscado e
+                  // com o motivo — porque é dele que sai a taxa de churn de treinamentos.
+                  const cancelado = Boolean(inter.canceladoEm);
+                  const podeCancelar = PODE_CANCELAR.has(inter.tipo);
+                  const revertendo = revertendoInteracaoId === inter.id;
                   return (
-                    <div key={inter.id} className="flex gap-3 p-3 rounded-xl" style={{ backgroundColor: '#f8f9fa' }}>
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base" style={{ backgroundColor: '#fff' }}>
+                    <div
+                      key={inter.id}
+                      className="flex gap-3 p-3 rounded-xl"
+                      style={cancelado
+                        ? { backgroundColor: '#fff7f7', border: '1px solid #fecaca' }
+                        : { backgroundColor: '#f8f9fa' }}
+                    >
+                      <div
+                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
+                        style={{ backgroundColor: '#fff', opacity: cancelado ? 0.45 : 1 }}
+                      >
                         {config.icon}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-gray-700">{config.label}</span>
+                          <span
+                            className="text-xs font-bold text-gray-700"
+                            style={cancelado ? { textDecoration: 'line-through', color: '#9ca3af' } : undefined}
+                          >
+                            {config.label}
+                          </span>
+                          {cancelado && (
+                            <span
+                              className="text-xs px-1.5 py-0.5 rounded-md font-bold"
+                              style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}
+                            >
+                              Cancelado
+                            </span>
+                          )}
                           {stageInfo && (
                             <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ backgroundColor: stageInfo.corBg, color: stageInfo.cor }}>
                               E{stageInfo.id}
@@ -1550,7 +1596,54 @@ export function CorretorDetailPanel() {
                             </button>
                           ) : null;
                         })()}
+                        {cancelado && (
+                          <div
+                            className="mt-2 px-2.5 py-2 rounded-lg text-xs"
+                            style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}
+                          >
+                            <span className="font-bold">Motivo do cancelamento: </span>
+                            {inter.motivoCancelamento || 'não informado'}
+                            <span className="block text-[11px] mt-0.5" style={{ color: '#b91c1c' }}>
+                              Cancelado {formatRelativeTime(inter.canceladoEm!)} · não conta no placar de metas
+                            </span>
+                          </div>
+                        )}
                         <p className="text-xs text-gray-400 mt-0.5">por {inter.responsavel}</p>
+                        {/* Treinamento marcado que não aconteceu: registrar o motivo aqui é o
+                            que alimenta a taxa de churn. Sem isto só restava apagar a
+                            atividade — e aí o treinamento perdido some da conta. */}
+                        {podeCancelar && !isReadOnly && (
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {cancelado ? (
+                              <>
+                                <button
+                                  onClick={() => setCancelandoInteracaoId(inter.id)}
+                                  className="text-xs font-semibold text-gray-500 hover:underline"
+                                >
+                                  Editar motivo
+                                </button>
+                                <button
+                                  onClick={() => handleReverterCancelamento(inter.id)}
+                                  disabled={revertendo}
+                                  className="flex items-center gap-1 text-xs font-semibold hover:underline disabled:opacity-60"
+                                  style={{ color: '#059669' }}
+                                >
+                                  {revertendo && <Spinner size={11} />}
+                                  {revertendo ? 'Reativando…' : 'Reativar treinamento'}
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => setCancelandoInteracaoId(inter.id)}
+                                className="flex items-center gap-1 text-xs font-semibold hover:underline"
+                                style={{ color: '#dc2626' }}
+                              >
+                                <XCircle size={11} />
+                                Cancelar treinamento
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1883,6 +1976,24 @@ export function CorretorDetailPanel() {
           onSent={() => hydrateCorretorDetail(corretor.id).catch(() => undefined)}
         />
       )}
+
+      {/* Cancelar um treinamento marcado (ou corrigir o motivo de um já cancelado) */}
+      {cancelandoInteracaoId && (() => {
+        const alvo = corretor.interacoes.find((i) => i.id === cancelandoInteracaoId);
+        if (!alvo) return null;
+        return (
+          <CancelarTreinamentoModal
+            corretorId={corretor.id}
+            interacaoId={alvo.id}
+            corretorNome={nomeExibidoNoCard(corretor)}
+            quando={formatPeriodoAtividade(alvo.data, alvo.dataFim) ?? new Date(alvo.data).toLocaleString('pt-BR')}
+            motivoAtual={alvo.canceladoEm ? alvo.motivoCancelamento : undefined}
+            // O store já recarregou o corretor; aqui só fecha.
+            onCancelado={() => undefined}
+            onClose={() => setCancelandoInteracaoId(null)}
+          />
+        );
+      })()}
 
       {/* Confirm modals */}
       {showArchiveConfirm && (

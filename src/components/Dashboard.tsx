@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   TrendingUp, Users, Trophy, Clock, Target, BarChart3,
   Flame, Thermometer, Phone, MessageSquare, CalendarCheck,
-  Handshake, FileText, CheckCircle2,
+  Handshake, FileText, CheckCircle2, CalendarX,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
@@ -11,7 +11,7 @@ import { PlacarMetasView } from './PlacarMetasView';
 import { STAGES } from '../data';
 import { formatCurrency, formatRelativeTime, TIPO_INTERACAO_CONFIG } from '../utils';
 import { ApiError } from '../api/client';
-import { dashboardApi, type AtividadeRecente } from '../api/endpoints';
+import { dashboardApi, type AtividadeRecente, type ChurnTreinamentos } from '../api/endpoints';
 import type { Corretor } from '../types';
 
 type DashTab = 'metas' | 'geral' | 'sdr' | 'gr' | 'gv';
@@ -178,6 +178,8 @@ function DashGeral({ corretores, onNavigate }: { corretores: Corretor[]; onNavig
         ))}
       </div>
 
+      <ChurnDeTreinamentos />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pipeline chart */}
         <div className="lg:col-span-2 bg-white rounded-2xl border p-5" style={{ borderColor: '#e5e7eb' }}>
@@ -278,6 +280,119 @@ function DashGeral({ corretores, onNavigate }: { corretores: Corretor[]; onNavig
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Churn de treinamentos (Visão Geral) ──────────────────────────────────────
+//
+// Treinamento marcado que não acontece era um vazamento invisível: o corretor não comparece
+// (ou cai por outro compromisso), o indicador de "realizados" simplesmente não sobe e nada
+// explica por quê. Aqui o número aparece com nome: quantos foram marcados, quantos caíram e,
+// principalmente, os motivos — que é o que dá o que consertar.
+//
+// Vem do backend porque conta ATIVIDADES de treinamento da base inteira, e a listagem leve de
+// corretores não traz as interações (ver corretorListInclude).
+
+/** Acima disto o churn vira alerta vermelho; abaixo, segue em laranja de atenção. */
+const CHURN_PREOCUPANTE = 25;
+
+function ChurnDeTreinamentos() {
+  const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
+  const setView = useStore((s) => s.setView);
+
+  const [dados, setDados] = useState<ChurnTreinamentos | null>(null);
+  const [falhou, setFalhou] = useState(false);
+  useEffect(() => {
+    dashboardApi.treinamentos().then(setDados).catch(() => setFalhou(true));
+  }, []);
+
+  // Enquanto carrega (ou se a busca falhou) o bloco não aparece: um "0%" de churn seria lido
+  // como "nenhum treinamento cai", que é o oposto do que esta seção existe para mostrar.
+  if (falhou || !dados) return null;
+
+  const { agendados, cancelados, realizados, taxaChurn, recentes } = dados;
+  const cor = taxaChurn >= CHURN_PREOCUPANTE ? '#dc2626' : taxaChurn > 0 ? '#d97706' : '#059669';
+
+  function abrirCorretor(corretorId: string) {
+    setView('pipeline');
+    setSelectedCorretor(corretorId);
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="bg-white rounded-2xl border p-5" style={{ borderColor: '#e5e7eb' }}>
+        <div className="flex items-center gap-2 mb-4">
+          <CalendarX size={16} style={{ color: cor }} />
+          <h2 className="font-questrial font-bold text-base text-gray-800">Churn de treinamentos</h2>
+        </div>
+
+        {agendados === 0 ? (
+          <p className="text-xs text-gray-400">
+            Nenhum treinamento marcado ainda. A taxa aparece assim que o primeiro for registrado como atividade.
+          </p>
+        ) : (
+          <>
+            <p className="font-questrial font-bold text-4xl" style={{ color: cor }}>{taxaChurn}%</p>
+            <p className="text-xs text-gray-500 mt-1">
+              dos treinamentos marcados foram cancelados
+            </p>
+            <div className="h-2 rounded-full overflow-hidden mt-3" style={{ backgroundColor: '#f1f5f9' }}>
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${taxaChurn}%`, backgroundColor: cor }} />
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              {[
+                { label: 'Marcados', value: agendados, cor: '#475569' },
+                { label: 'Realizados', value: realizados, cor: '#059669' },
+                { label: 'Cancelados', value: cancelados, cor: '#dc2626' },
+              ].map((item) => (
+                <div key={item.label} className="p-3 rounded-xl text-center" style={{ backgroundColor: '#f8f9fa' }}>
+                  <p className="text-xl font-bold" style={{ color: item.cor, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{item.value}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 leading-tight">{item.label}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+              Conta as atividades de Treinamento registradas nos cards — o compromisso que aparece na agenda,
+              não o corretor que apenas demonstrou interesse.
+            </p>
+          </>
+        )}
+      </div>
+
+      <div className="lg:col-span-2 bg-white rounded-2xl border p-5" style={{ borderColor: '#e5e7eb' }}>
+        <h2 className="font-questrial font-bold text-base text-gray-800 mb-4">Últimos cancelamentos</h2>
+        {recentes.length === 0 ? (
+          <p className="text-xs text-gray-400">
+            Nenhum treinamento cancelado. Quando um cair, o motivo registrado aparece aqui.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {recentes.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => abrirCorretor(c.corretorId)}
+                className="w-full text-left flex items-start gap-3 p-3 rounded-xl border hover:bg-gray-50 transition-colors"
+                style={{ borderColor: '#f1f5f9' }}
+              >
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#fee2e2' }}>
+                  <CalendarX size={13} style={{ color: '#b91c1c' }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-gray-800 truncate">{c.corretorNome}</p>
+                  {/* O motivo é a informação principal da linha: é o que diz o que consertar. */}
+                  <p className="text-xs text-gray-600 mt-0.5">{c.motivo || 'Motivo não informado'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Marcado para {new Date(c.data).toLocaleDateString('pt-BR')}
+                    {c.responsavelNome ? ` · com ${c.responsavelNome}` : ''}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-400 flex-shrink-0">{formatRelativeTime(c.canceladoEm)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

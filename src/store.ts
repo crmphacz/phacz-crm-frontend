@@ -232,6 +232,12 @@ interface StoreState {
 
   // Interação
   addInteracao: (corretorId: string, interacao: Omit<Interacao, 'id'>) => Promise<void>;
+  /**
+   * Marca um compromisso como cancelado, com o motivo (hoje só o treinamento). A atividade
+   * continua no histórico, riscada — é dela que sai a taxa de churn de treinamentos.
+   */
+  cancelarAtividade: (corretorId: string, interacaoId: string, motivo: string) => Promise<void>;
+  reverterCancelamentoAtividade: (corretorId: string, interacaoId: string) => Promise<void>;
 
   // Proposta
   addProposta: (corretorId: string, proposta: Omit<Proposta, 'id'>, arquivo?: File) => Promise<void>;
@@ -727,6 +733,18 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   addInteracao: async (corretorId, interacaoData) => {
     await corretoresApi.addInteracao(corretorId, interacaoData);
+    const refreshed = await corretoresApi.get(corretorId);
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+  },
+
+  cancelarAtividade: async (corretorId, interacaoId, motivo) => {
+    await corretoresApi.cancelarAtividade(corretorId, interacaoId, motivo);
+    const refreshed = await corretoresApi.get(corretorId);
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+  },
+
+  reverterCancelamentoAtividade: async (corretorId, interacaoId) => {
+    await corretoresApi.reverterCancelamentoAtividade(corretorId, interacaoId);
     const refreshed = await corretoresApi.get(corretorId);
     set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
   },

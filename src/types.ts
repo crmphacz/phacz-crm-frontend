@@ -72,6 +72,14 @@ export interface Interacao {
   /** Quem REALIZOU a atividade. Nem sempre é quem registrou: a Diretoria lança pelos outros. */
   responsavelId?: string;
   responsavel: string;
+  /**
+   * Preenchido quando o compromisso foi marcado e NÃO aconteceu (ver PODE_CANCELAR em
+   * utils.ts — hoje, só o treinamento). A atividade continua no histórico, riscada: é dela que
+   * sai a taxa de churn de treinamentos. Ausente = o compromisso continua valendo.
+   */
+  canceladoEm?: string;
+  /** Por que não aconteceu. Só tem conteúdo junto com `canceladoEm`. */
+  motivoCancelamento?: string;
   etapa: number;
   /** Preenchido quando `tipo === 'proposta'` e a atividade foi vinculada a uma proposta específica. */
   propostaId?: string;
@@ -632,6 +640,12 @@ export interface AtividadeAgenda {
   etapa: number;
   corretorId: string;
   corretorNome: string;
+  /**
+   * Compromisso cancelado — continua ocupando o dia no calendário, riscado. Some seria pior:
+   * quem olha a semana precisa ver que aquele horário caiu, e por quê.
+   */
+  canceladoEm?: string;
+  motivoCancelamento?: string;
   /** Dono do compromisso. Só varia na visão da Diretoria, que vê a agenda de todos. */
   responsavelId?: string;
   responsavelNome?: string;

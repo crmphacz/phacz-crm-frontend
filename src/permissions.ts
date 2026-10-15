@@ -44,6 +44,18 @@ export function canWriteCorretor(user: UserProfile | null, corretor: Corretor): 
   }
 }
 
+/**
+ * Escreve ALGUMA coisa no módulo de corretores — sem olhar posse de card. Espelha o
+ * `blockWrites('MARKETING')` do router de corretores no backend, que barra Marketing,
+ * Administrativo e Recepção em qualquer escrita, antes mesmo de `canWriteCorretor` rodar.
+ *
+ * Serve às telas que agem sobre um card sem ter o card em mãos — a agenda, que lista
+ * compromissos e não corretores, e por isso não consegue chamar `canWriteCorretor`.
+ */
+export function canWriteCorretoresModule(user: UserProfile | null): boolean {
+  return !!user && !isGlobalReadOnly(user) && user.cargo !== 'Marketing';
+}
+
 /** Criar leads: Diretoria, SDR, GR e GV. Marketing, Administrativo e Recepção não criam. */
 export function canCreateCorretor(user: UserProfile | null): boolean {
   if (!user) return false;

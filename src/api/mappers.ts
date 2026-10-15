@@ -152,6 +152,8 @@ export interface ApiInteracao {
   tipo: string;
   resumo: string;
   anexosUrls: string[] | null;
+  canceladoEm: string | null;
+  motivoCancelamento: string | null;
   responsavelId: string | null;
   responsavel: ApiResponsavel | null;
   etapa: number;
@@ -285,6 +287,8 @@ function mapInteracaoFromApi(i: ApiInteracao): Interacao {
     anexosUrls: i.anexosUrls ?? [],
     modalidade: (i.modalidade as Interacao['modalidade']) ?? undefined,
     empreendimento: i.empreendimento || undefined,
+    canceladoEm: i.canceladoEm ?? undefined,
+    motivoCancelamento: i.motivoCancelamento || undefined,
     responsavel: i.responsavel?.nome ?? 'Sistema',
     etapa: i.etapa,
     propostaId: i.propostaId ?? undefined,
@@ -300,6 +304,8 @@ export interface ApiAtividadeAgenda {
   etapa: number;
   corretorId: string;
   corretorNome: string;
+  canceladoEm?: string | null;
+  motivoCancelamento?: string | null;
   responsavelId?: string | null;
   responsavelNome?: string | null;
   responsavelCor?: string | null;
@@ -315,6 +321,8 @@ export function mapAtividadeAgendaFromApi(a: ApiAtividadeAgenda): AtividadeAgend
     etapa: a.etapa,
     corretorId: a.corretorId,
     corretorNome: a.corretorNome,
+    canceladoEm: a.canceladoEm ?? undefined,
+    motivoCancelamento: a.motivoCancelamento || undefined,
     responsavelId: a.responsavelId ?? undefined,
     responsavelNome: a.responsavelNome ?? undefined,
     responsavelCor: a.responsavelCor ?? undefined,

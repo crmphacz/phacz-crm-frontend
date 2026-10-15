@@ -241,6 +241,21 @@ export const corretoresApi = {
       },
     }),
 
+  /**
+   * Marca um compromisso como cancelado, com o motivo (hoje só o treinamento — ver
+   * PODE_CANCELAR em utils.ts). A atividade NÃO é apagada: o treinamento que foi marcado e não
+   * aconteceu é exatamente o dado que alimenta a taxa de churn no Dashboard.
+   */
+  cancelarAtividade: (id: string, interacaoId: string, motivo: string) =>
+    apiFetch<void>(`/api/corretores/${id}/interacoes/${interacaoId}/cancelamento`, {
+      method: 'PATCH',
+      body: { motivo },
+    }),
+
+  /** Desfaz o cancelamento — cancelar por engano é fácil demais pra não ter volta. */
+  reverterCancelamentoAtividade: (id: string, interacaoId: string) =>
+    apiFetch<void>(`/api/corretores/${id}/interacoes/${interacaoId}/cancelamento`, { method: 'DELETE' }),
+
   addProposta: (id: string, data: Omit<Proposta, 'id'>, arquivo?: File) => {
     if (!arquivo) {
       return apiFetch(`/api/corretores/${id}/propostas`, { method: 'POST', body: data });
@@ -273,8 +288,35 @@ export interface AtividadeRecente {
   corretorEtapa: number;
 }
 
+/** Um treinamento que foi marcado e não aconteceu, com o motivo que quem cancelou escreveu. */
+export interface TreinamentoCancelado {
+  id: string;
+  corretorId: string;
+  corretorNome: string;
+  /** Quando o treinamento estava marcado. */
+  data: string;
+  canceladoEm: string;
+  motivo: string;
+  responsavelNome: string | null;
+}
+
+export interface ChurnTreinamentos {
+  agendados: number;
+  cancelados: number;
+  realizados: number;
+  /** Percentual inteiro de treinamentos marcados que foram cancelados. */
+  taxaChurn: number;
+  recentes: TreinamentoCancelado[];
+}
+
 export const dashboardApi = {
   overview: () => apiFetch('/api/dashboard/overview'),
+
+  /**
+   * Churn de treinamentos da Visão Geral. Vem do backend porque conta ATIVIDADES de
+   * treinamento da base inteira, e a listagem leve de corretores não traz interações.
+   */
+  treinamentos: () => apiFetch<ChurnTreinamentos>('/api/dashboard/treinamentos'),
   metas: (periodo: string) => apiFetch<unknown[]>('/api/dashboard/metas', { query: { periodo } }),
   upsertMeta: (data: { userId: string; periodo: string; tipo: 'VOLUME' | 'VALOR' | 'CONVERSAO'; valorMeta: number }) =>
     apiFetch('/api/dashboard/metas', { method: 'POST', body: data }),
