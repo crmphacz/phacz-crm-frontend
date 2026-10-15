@@ -25,10 +25,12 @@ function faixaDormSuite(min: number, max: number): string {
 
 export function EmpreendimentoDetailView({ id, onClose }: { id: string; onClose: () => void }) {
   const currentUser = useStore((s) => s.currentUser);
-  // Marketing cria (empreendimento e unidade), mas não edita nem exclui o que já existe.
+  // Marketing cuida do cadastro: cria e edita empreendimento e unidade, e também EXCLUI
+  // unidade (os botões da linha saem daqui).
   const canEdit = canEditEmpreendimento(currentUser);
-  // Marketing cria unidade sem poder editar as já existentes — por isso as duas permissões.
   const canCreate = canCreateEmpreendimento(currentUser);
+  // Apagar o EMPREENDIMENTO é outra conversa: leva todas as unidades junto por cascade e não
+  // tem volta, então continua só com a Diretoria — mesma regra do backend.
   const canDelete = currentUser?.cargo === 'Diretora';
   const removeEmpreendimento = useStore((s) => s.removeEmpreendimento);
   const refreshEmpreendimentoSummary = useStore((s) => s.refreshEmpreendimentoSummary);
