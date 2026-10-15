@@ -225,7 +225,22 @@ export function CompanyProfileView() {
           icon={<Landmark size={18} style={{ color: '#d55006' }} />}
           title="Imobiliárias"
           subtitle="Gerencie as imobiliárias disponíveis para associar aos corretores"
+          // No cabeçalho, e não no rodapé: a lista já passa de 150 imobiliárias, e cadastrar
+          // a próxima exigia rolar o cartão inteiro até o fim.
+          action={
+            <button
+              onClick={openNewImobiliaria}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              <Plus size={14} /> Adicionar imobiliária
+            </button>
+          }
         >
+          {/* Antes da lista: o erro vem de excluir uma imobiliária, e no rodapé de uma lista
+              de 150+ itens ele aparecia fora da tela de quem acabou de clicar. */}
+          {imobiliariaError && <p className="text-xs mb-3" style={{ color: '#dc2626' }}>{imobiliariaError}</p>}
+
           <div className="space-y-2">
             {imobiliariasOptions.map((item) => (
               <div
@@ -259,17 +274,6 @@ export function CompanyProfileView() {
             )}
           </div>
 
-          {imobiliariaError && <p className="text-xs mt-3" style={{ color: '#dc2626' }}>{imobiliariaError}</p>}
-
-          <div className="mt-4 pt-4 border-t" style={{ borderColor: '#e6e3de' }}>
-            <button
-              onClick={openNewImobiliaria}
-              className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
-              style={{ backgroundColor: '#d55006' }}
-            >
-              <Plus size={14} /> Adicionar imobiliária
-            </button>
-          </div>
         </SettingsCard>
       </div>
 
