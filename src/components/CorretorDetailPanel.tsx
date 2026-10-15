@@ -823,6 +823,10 @@ export function CorretorDetailPanel() {
                     type="email"
                     disabled={isReadOnly || !editingGeral}
                   />
+                  {/* Imobiliaria, ticket medio e CRECI sao dados de CORRETOR. Num card de
+                      cliente eles nao se aplicam: ou ficam vazios, ou (no negocio gerado a
+                      partir de um corretor) repetem o que o cabecalho ja diz em "via X". */}
+                  {!isNegocio && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Imobiliária</p>
@@ -852,6 +856,8 @@ export function CorretorDetailPanel() {
                       disabled={isReadOnly || !editingGeral}
                     />
                   </div>
+                  )}
+                  {/* O CPF continua: e do titular do card, corretor ou cliente. */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <EditField
                       label="CPF"
@@ -860,13 +866,15 @@ export function CorretorDetailPanel() {
                       placeholder="000.000.000-00"
                       disabled={isReadOnly || !editingGeral}
                     />
-                    <EditField
-                      label="CRECI"
-                      value={shown('creci') ?? ''}
-                      onChange={(v) => patchDraft({ creci: v })}
-                      placeholder="Ex: 123456-F"
-                      disabled={isReadOnly || !editingGeral}
-                    />
+                    {!isNegocio && (
+                      <EditField
+                        label="CRECI"
+                        value={shown('creci') ?? ''}
+                        onChange={(v) => patchDraft({ creci: v })}
+                        placeholder="Ex: 123456-F"
+                        disabled={isReadOnly || !editingGeral}
+                      />
+                    )}
                   </div>
                   <EditField
                     label="Data de nascimento"
@@ -902,7 +910,10 @@ export function CorretorDetailPanel() {
                 </div>
               </Section>
 
-              {/* Qualificação */}
+              {/* Qualificação — some no card de cliente: tipo de interesse, potencial de
+                  investimento e treinamento sao perguntas que se faz a um CORRETOR parceiro,
+                  nao a um comprador. */}
+              {!isNegocio && (
               <Section title="Perfil de Qualificação" icon={<Tag size={14} style={{ color: '#d55006' }} />}>
                 <div className="space-y-3">
                   <div>
@@ -1005,6 +1016,7 @@ export function CorretorDetailPanel() {
                   )}
                 </div>
               </Section>
+              )}
 
               {/* Pipeline */}
               <Section title="Pipeline & Origem" icon={<Clock size={14} style={{ color: '#d55006' }} />}>
