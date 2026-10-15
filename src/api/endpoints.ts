@@ -14,7 +14,7 @@ import {
 } from './mappers.js';
 import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, EmailTemplate, EmailCampaign,
-  Placar, DefinicaoMetrica,
+  Placar, CatalogoPlacar,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
   LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario, CreateWhatsappCampaignPayload,
@@ -762,7 +762,8 @@ export const logAcaoApi = {
 };
 
 export const placarApi = {
-  metricas: () => apiFetch<DefinicaoMetrica[]>('/api/placar/metricas'),
+  /** Catálogo: as linhas do placar e os grupos que dividem uma meta entre várias delas. */
+  catalogo: () => apiFetch<CatalogoPlacar>('/api/placar/metricas'),
   get: (periodo: string) => apiFetch<Placar>('/api/placar', { query: { periodo } }),
   salvarMetas: (periodo: string, metas: { userId: string; metrica: string; valorMeta: number }[]) =>
     apiFetch<Placar>('/api/placar/metas', { method: 'PUT', body: { periodo, metas } }),

@@ -844,6 +844,31 @@ export interface DefinicaoMetrica {
   formato?: 'moeda';
   /** Frase curta explicando de onde vem o número — mostrada como dica na tela. */
   explicacao: string;
+  /**
+   * Id do grupo de meta a que a linha pertence. A linha mostra o total próprio (é a quebra que
+   * a Diretoria quer ver) mas não tem meta própria: a meta é do grupo, e quem a persegue é a
+   * linha de soma, logo abaixo.
+   */
+  metaGrupo?: string;
+  /** A meta desta linha é o total de outra, no mesmo mês — hoje só "Leads atendidos". */
+  metaDerivadaDe?: string;
+  /** A Diretoria digita a meta desta linha. Falso nas de grupo, nas derivadas e em vendas. */
+  metaDigitada: boolean;
+}
+
+/** Conjunto de linhas que dividem uma meta — ver `metaGrupo` em DefinicaoMetrica. */
+export interface GrupoDeMeta {
+  id: string;
+  label: string;
+  cargo: CargoPlacar;
+  grupo: string;
+  explicacao: string;
+}
+
+/** O catálogo que a tela usa para montar os blocos: as linhas e os grupos de meta. */
+export interface CatalogoPlacar {
+  metricas: DefinicaoMetrica[];
+  gruposMeta: GrupoDeMeta[];
 }
 
 export interface SemanaPlacar {
@@ -861,12 +886,26 @@ export interface ValorMetrica {
   meta: number;
 }
 
+/**
+ * Soma das linhas que dividem uma meta. Vira uma linha de total na tabela, logo abaixo das
+ * linhas somadas: é nela que a meta é digitada e é ela que mostra Faltam e %.
+ */
+export interface ValorGrupoMeta {
+  id: string;
+  /** Chaves somadas, na ordem do catálogo — a última diz onde a linha de soma entra. */
+  chaves: string[];
+  porDia: Record<string, number>;
+  total: number;
+  meta: number;
+}
+
 export interface PlacarPessoa {
   userId: string;
   nome: string;
   cargo: CargoPlacar;
   cor: string;
   metricas: ValorMetrica[];
+  gruposMeta: ValorGrupoMeta[];
 }
 
 export interface Placar {

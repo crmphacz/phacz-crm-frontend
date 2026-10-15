@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft, ChevronRight, Download, FileText, Pencil, Check, X, Copy, Info, Target, Loader2,
   Building2,
@@ -8,7 +8,9 @@ import { ApiError } from '../api/client';
 import { useStore } from '../store';
 import { formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
 import { ViewLoader } from './ViewLoader';
-import type { Placar, PlacarPessoa, DefinicaoMetrica, SemanaPlacar, ValorMetrica } from '../types';
+import type {
+  Placar, PlacarPessoa, DefinicaoMetrica, GrupoDeMeta, SemanaPlacar, ValorMetrica, ValorGrupoMeta,
+} from '../types';
 
 /**
  * Placar de metas — a tela que substitui a planilha "ACOMPANHAMENTO".
@@ -34,8 +36,8 @@ function nomeDoPeriodo(periodo: string): string {
     .replace(/^./, (c) => c.toUpperCase());
 }
 
-/** Soma o que a pessoa fez numa métrica dentro de uma semana. */
-function totalDaSemana(valor: ValorMetrica, semana: SemanaPlacar): number {
+/** Soma o que a pessoa fez numa linha (métrica ou linha de soma de grupo) dentro de uma semana. */
+function totalDaSemana(valor: Pick<ValorMetrica, 'porDia'>, semana: SemanaPlacar): number {
   return semana.dias.reduce((soma, dia) => soma + (valor.porDia[dia] ?? 0), 0);
 }
 
@@ -59,6 +61,7 @@ export function PlacarMetasView() {
   const [periodo, setPeriodo] = useState(PERIODO_ATUAL);
   const [placar, setPlacar] = useState<Placar | null>(null);
   const [catalogo, setCatalogo] = useState<DefinicaoMetrica[]>([]);
+  const [gruposMeta, setGruposMeta] = useState<GrupoDeMeta[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [pessoaId, setPessoaId] = useState<string | null>(null);
@@ -98,7 +101,9 @@ export function PlacarMetasView() {
   }
 
   useEffect(() => {
-    placarApi.metricas().then(setCatalogo).catch(() => undefined);
+    placarApi.catalogo()
+      .then((c) => { setCatalogo(c.metricas); setGruposMeta(c.gruposMeta); })
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -119,12 +124,21 @@ export function PlacarMetasView() {
   );
 
   const porChave = useMemo(() => new Map(catalogo.map((m) => [m.chave, m])), [catalogo]);
+  const grupoPorId = useMemo(() => new Map(gruposMeta.map((g) => [g.id, g])), [gruposMeta]);
 
   function iniciarEdicao() {
     if (!placar) return;
     const inicial: Record<string, string> = {};
     for (const p of placar.pessoas) {
-      for (const m of p.metricas) inicial[`${p.userId}:${m.chave}`] = String(m.meta || '');
+      // Só o que a Diretoria de fato digita. As linhas de grupo, a de meta automática e a de
+      // vendas ficam de fora: mandá-las no PUT seria gravar um número que o placar ignora —
+      // e o servidor recusa o envio, justamente para o campo não mentir.
+      for (const m of p.metricas) {
+        if (porChave.get(m.chave)?.metaDigitada === false) continue;
+        inicial[`${p.userId}:${m.chave}`] = String(m.meta || '');
+      }
+      // A meta do grupo é digitada na linha de soma, sob o id do grupo.
+      for (const g of p.gruposMeta) inicial[`${p.userId}:${g.id}`] = String(g.meta || '');
     }
     setRascunho(inicial);
     setEditando(true);
@@ -353,6 +367,7 @@ export function PlacarMetasView() {
                 pessoa={pessoa}
                 semanas={placar.semanas}
                 catalogo={porChave}
+                gruposMeta={grupoPorId}
                 editando={editando}
                 rascunho={rascunho}
                 onRascunho={(chave, valor) => setRascunho((r) => ({ ...r, [chave]: valor }))}
@@ -456,7 +471,9 @@ function ModalEmpreendimentos({ metrica, definicao, pessoaNome, periodo, onFecha
 
 /** Cartão de resumo: quantas metas a pessoa já bateu no mês. */
 function CartaoPessoa({ pessoa, ativo, onClick }: { pessoa: PlacarPessoa; ativo: boolean; onClick: () => void }) {
-  const comMeta = pessoa.metricas.filter((m) => m.meta > 0);
+  // As linhas que dividem uma meta entram pelo grupo, e não uma a uma: quem é cobrado é o
+  // conjunto. Elas próprias já vêm com meta 0, então não se contam duas vezes aqui.
+  const comMeta = [...pessoa.metricas, ...pessoa.gruposMeta].filter((m) => m.meta > 0);
   const batidas = comMeta.filter((m) => m.total >= m.meta).length;
   const percentual = comMeta.length > 0 ? Math.round((batidas / comMeta.length) * 100) : 0;
 
@@ -495,13 +512,14 @@ interface TabelaProps {
   pessoa: PlacarPessoa;
   semanas: SemanaPlacar[];
   catalogo: Map<string, DefinicaoMetrica>;
+  gruposMeta: Map<string, GrupoDeMeta>;
   editando: boolean;
   rascunho: Record<string, string>;
   onRascunho: (chave: string, valor: string) => void;
   onVerEmpreendimentos: (metrica: ValorMetrica) => void;
 }
 
-function TabelaPlacar({ pessoa, semanas, catalogo, editando, rascunho, onRascunho, onVerEmpreendimentos }: TabelaProps) {
+function TabelaPlacar({ pessoa, semanas, catalogo, gruposMeta, editando, rascunho, onRascunho, onVerEmpreendimentos }: TabelaProps) {
   // Agrupa as métricas em blocos, na ordem do catálogo — é a ordem da planilha.
   const blocos = useMemo(() => {
     const mapa = new Map<string, ValorMetrica[]>();
@@ -514,6 +532,19 @@ function TabelaPlacar({ pessoa, semanas, catalogo, editando, rascunho, onRascunh
     }
     return [...mapa.entries()];
   }, [pessoa, catalogo]);
+
+  /**
+   * Linha de soma indexada pela ÚLTIMA métrica que ela junta: é logo depois dela que a soma
+   * entra na tabela, encostada nas linhas que explica.
+   */
+  const somaDepoisDe = useMemo(
+    () => new Map(
+      pessoa.gruposMeta
+        .filter((g) => g.chaves.length > 0)
+        .map((g) => [g.chaves[g.chaves.length - 1], g] as const)
+    ),
+    [pessoa]
+  );
 
   return (
     <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: '#e5e7eb' }}>
@@ -547,6 +578,8 @@ function TabelaPlacar({ pessoa, semanas, catalogo, editando, rascunho, onRascunh
                 metricas={metricas}
                 semanas={semanas}
                 catalogo={catalogo}
+                gruposMeta={gruposMeta}
+                somaDepoisDe={somaDepoisDe}
                 pessoaId={pessoa.userId}
                 editando={editando}
                 rascunho={rascunho}
@@ -561,8 +594,9 @@ function TabelaPlacar({ pessoa, semanas, catalogo, editando, rascunho, onRascunh
   );
 }
 
-function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando, rascunho, onRascunho, onVerEmpreendimentos }: {
+function BlocoMetricas({ grupo, metricas, semanas, catalogo, gruposMeta, somaDepoisDe, pessoaId, editando, rascunho, onRascunho, onVerEmpreendimentos }: {
   grupo: string; metricas: ValorMetrica[]; semanas: SemanaPlacar[]; catalogo: Map<string, DefinicaoMetrica>;
+  gruposMeta: Map<string, GrupoDeMeta>; somaDepoisDe: Map<string, ValorGrupoMeta>;
   pessoaId: string; editando: boolean; rascunho: Record<string, string>; onRascunho: (c: string, v: string) => void;
   onVerEmpreendimentos: (metrica: ValorMetrica) => void;
 }) {
@@ -580,10 +614,14 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando,
         const faltam = Math.max(0, m.meta - m.total);
         const cor = corDoAtingimento(m.total, m.meta);
         const idRascunho = `${pessoaId}:${m.chave}`;
+        // A Diretoria não digita a meta de toda linha: as que dividem uma meta recebem o campo
+        // na linha de soma, a de "Leads atendidos" é calculada e a de vendas vem do rateio.
+        const metaDigitada = def?.metaDigitada !== false;
+        const soma = somaDepoisDe.get(m.chave);
 
         return (
-          <>
-            <tr key={m.chave} className="border-b hover:bg-gray-50" style={{ borderColor: '#f3f4f6' }}>
+          <Fragment key={m.chave}>
+            <tr className="border-b hover:bg-gray-50" style={{ borderColor: '#f3f4f6' }}>
               <td className="px-4 py-2 text-gray-700">
                 <span className="inline-flex items-center gap-1.5">
                   {/* Nas métricas quebradas por empreendimento o rótulo abre o detalhamento.
@@ -622,7 +660,7 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando,
                 {formatarValor(m.total, def)}
               </td>
               <td className="px-3 py-2 text-center whitespace-nowrap">
-                {editando ? (
+                {editando && metaDigitada ? (
                   <input
                     type="number"
                     min={0}
@@ -631,6 +669,22 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando,
                     value={rascunho[idRascunho] ?? ''}
                     onChange={(e) => onRascunho(idRascunho, e.target.value)}
                   />
+                ) : def?.metaGrupo ? (
+                  // A meta desta linha é do conjunto: o campo está na linha de soma, logo
+                  // abaixo. Um traço aqui, e não um campo desabilitado, porque não há nada a
+                  // preencher — o número não é "zero", é de outro lugar.
+                  <span className="text-gray-300" title="Meta única para as duas linhas — definida na linha de total, abaixo.">—</span>
+                ) : def?.metaDerivadaDe ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-gray-500">{formatarValor(m.meta, def)}</span>
+                    <span
+                      className="text-[10px] font-bold px-1 py-0.5 rounded"
+                      style={{ backgroundColor: '#eef2ff', color: '#4338ca' }}
+                      title="Meta automática: acompanha os leads recebidos no mês."
+                    >
+                      auto
+                    </span>
+                  </span>
                 ) : (
                   // A meta de vendas não é editada aqui (vem do rateio da meta geral do mês),
                   // então não há caso de digitar reais nesta coluna.
@@ -644,9 +698,79 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, pessoaId, editando,
                 {m.meta > 0 ? `${Math.round((m.total / m.meta) * 100)}%` : '—'}
               </td>
             </tr>
-          </>
+
+            {/* Última linha do grupo: a soma vem encostada nela, e é a soma que persegue a meta. */}
+            {soma && (
+              <LinhaSomaDoGrupo
+                soma={soma}
+                definicao={gruposMeta.get(soma.id)}
+                semanas={semanas}
+                idRascunho={`${pessoaId}:${soma.id}`}
+                editando={editando}
+                rascunho={rascunho}
+                onRascunho={onRascunho}
+              />
+            )}
+          </Fragment>
         );
       })}
     </>
+  );
+}
+
+/**
+ * Linha de total de um grupo de meta. Fica logo abaixo das linhas que soma, com fundo próprio
+ * para não ser lida como "mais uma métrica": é ela que carrega a meta única, o quanto falta e
+ * o percentual do conjunto.
+ */
+function LinhaSomaDoGrupo({ soma, definicao, semanas, idRascunho, editando, rascunho, onRascunho }: {
+  soma: ValorGrupoMeta; definicao?: GrupoDeMeta; semanas: SemanaPlacar[]; idRascunho: string;
+  editando: boolean; rascunho: Record<string, string>; onRascunho: (c: string, v: string) => void;
+}) {
+  const faltam = Math.max(0, soma.meta - soma.total);
+  const cor = corDoAtingimento(soma.total, soma.meta);
+
+  return (
+    <tr className="border-b" style={{ borderColor: '#e5e7eb', backgroundColor: '#fafafa' }}>
+      <td className="px-4 py-2">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-gray-700">
+          {definicao?.label ?? 'Total'}
+          {definicao?.explicacao && (
+            <span title={definicao.explicacao} className="text-gray-300 cursor-help">
+              <Info size={12} />
+            </span>
+          )}
+        </span>
+      </td>
+      {semanas.map((s) => {
+        const v = totalDaSemana(soma, s);
+        return (
+          <td key={s.numero} className="px-3 py-2 text-center font-semibold text-gray-600 whitespace-nowrap">
+            {v || <span className="text-gray-300">—</span>}
+          </td>
+        );
+      })}
+      <td className="px-3 py-2 text-center font-bold text-gray-800 whitespace-nowrap">{soma.total}</td>
+      <td className="px-3 py-2 text-center whitespace-nowrap">
+        {editando ? (
+          <input
+            type="number"
+            min={0}
+            className="form-input text-sm text-center"
+            style={{ width: 72, padding: '2px 6px' }}
+            value={rascunho[idRascunho] ?? ''}
+            onChange={(e) => onRascunho(idRascunho, e.target.value)}
+          />
+        ) : (
+          <span className="font-semibold text-gray-600">{soma.meta || '—'}</span>
+        )}
+      </td>
+      <td className="px-3 py-2 text-center font-semibold whitespace-nowrap" style={{ color: cor }}>
+        {soma.meta > 0 ? faltam : '—'}
+      </td>
+      <td className="px-3 py-2 text-center font-bold" style={{ color: cor }}>
+        {soma.meta > 0 ? `${Math.round((soma.total / soma.meta) * 100)}%` : '—'}
+      </td>
+    </tr>
   );
 }
