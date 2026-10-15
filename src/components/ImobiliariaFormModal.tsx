@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Landmark, ChevronRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { X, Landmark, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
 import { maskCNPJ } from '../utils';
@@ -12,9 +12,15 @@ interface ImobiliariaFormModalProps {
   onClose: () => void;
 }
 
+/** Só um CNPJ completo (14 dígitos) entra na comparação. Espelha a regra do backend. */
+function digitosDoCnpj(valor: string): string {
+  return valor.replace(/\D/g, '');
+}
+
 export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormModalProps) {
   const createImobiliaria = useStore((s) => s.createImobiliaria);
   const updateImobiliaria = useStore((s) => s.updateImobiliaria);
+  const imobiliariasOptions = useStore((s) => s.imobiliariasOptions);
 
   const [nome, setNome] = useState(imobiliaria?.nome ?? '');
   const [cnpj, setCnpj] = useState(imobiliaria?.cnpj ?? '');
@@ -24,6 +30,28 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  /**
+   * Avisa, enquanto a pessoa digita, que o CNPJ (ou o nome) já está na base — sem esperar o
+   * "Cadastrar" levar um 409. A lista inteira já está na memória da tela, então a checagem não
+   * custa requisição nenhuma. O backend continua sendo quem recusa de verdade; isto é só para
+   * ninguém preencher o formulário inteiro à toa.
+   */
+  const duplicadaPorCnpj = useMemo(() => {
+    const digitos = digitosDoCnpj(cnpj);
+    if (digitos.length !== 14) return null;
+    return imobiliariasOptions.find(
+      (i) => i.id !== imobiliaria?.id && digitosDoCnpj(i.cnpj) === digitos
+    ) ?? null;
+  }, [cnpj, imobiliariasOptions, imobiliaria?.id]);
+
+  const duplicadaPorNome = useMemo(() => {
+    const alvo = nome.trim().toLowerCase();
+    if (!alvo) return null;
+    return imobiliariasOptions.find(
+      (i) => i.id !== imobiliaria?.id && i.nome.trim().toLowerCase() === alvo
+    ) ?? null;
+  }, [nome, imobiliariasOptions, imobiliaria?.id]);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -93,6 +121,9 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
               onChange={(e) => { setNome(e.target.value); setErrors((er) => ({ ...er, nome: '' })); }}
             />
             {errors.nome && <p className="text-xs text-red-500 mt-1">{errors.nome}</p>}
+            {!errors.nome && duplicadaPorNome && (
+              <AvisoDuplicada texto={`Já existe uma imobiliária com este nome, em ${duplicadaPorNome.cidade}${duplicadaPorNome.uf ? `/${duplicadaPorNome.uf}` : ''}.`} />
+            )}
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">
@@ -106,6 +137,9 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
               onChange={(e) => { setCnpj(maskCNPJ(e.target.value)); setErrors((er) => ({ ...er, cnpj: '' })); }}
             />
             {errors.cnpj && <p className="text-xs text-red-500 mt-1">{errors.cnpj}</p>}
+            {!errors.cnpj && duplicadaPorCnpj && (
+              <AvisoDuplicada texto={`Este CNPJ já está cadastrado na imobiliária “${duplicadaPorCnpj.nome}”.`} />
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -148,7 +182,9 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            // Travado enquanto houver duplicata: o backend recusaria de qualquer jeito, e
+            // deixar clicar só devolveria o mesmo aviso depois de uma ida ao servidor.
+            disabled={submitting || Boolean(duplicadaPorCnpj) || Boolean(duplicadaPorNome)}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
             style={{ backgroundColor: '#d55006' }}
           >
@@ -158,5 +194,18 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
         </div>
       </div>
     </div>
+  );
+}
+
+/** Aviso de que o dado digitado já existe na base — amarelo, não vermelho: não é erro de digitação. */
+function AvisoDuplicada({ texto }: { texto: string }) {
+  return (
+    <p
+      className="text-xs mt-1.5 flex items-start gap-1.5 px-2 py-1.5 rounded-lg"
+      style={{ backgroundColor: '#fffbeb', color: '#92400e' }}
+    >
+      <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+      <span>{texto}</span>
+    </p>
   );
 }

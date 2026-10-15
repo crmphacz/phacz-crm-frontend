@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Building2, Save, Tag, Landmark, Pencil, Trash2, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Building2, Save, Tag, Landmark, Pencil, Trash2, Plus, Search } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
 import { SettingsCard } from './SettingsCard';
@@ -34,6 +34,26 @@ export function CompanyProfileView() {
   const [showImobiliariaModal, setShowImobiliariaModal] = useState(false);
   const [editingImobiliaria, setEditingImobiliaria] = useState<ImobiliariaItem | null>(null);
   const [imobiliariaError, setImobiliariaError] = useState<string | null>(null);
+  const [buscaImobiliaria, setBuscaImobiliaria] = useState('');
+
+  /**
+   * Filtro da lista de imobiliárias. Existe para responder "essa já está cadastrada?" antes de
+   * clicar em adicionar — com mais de 150 linhas, procurar com o olho não é viável.
+   *
+   * Busca por nome, CNPJ e cidade ao mesmo tempo, e o CNPJ é comparado também pelos dígitos:
+   * quem tem o número na mão digita "12345678000190", e a lista guarda "12.345.678/0001-90".
+   */
+  const imobiliariasFiltradas = useMemo(() => {
+    const termo = buscaImobiliaria.trim().toLowerCase();
+    if (!termo) return imobiliariasOptions;
+    const digitos = termo.replace(/\D/g, '');
+
+    return imobiliariasOptions.filter((i) => {
+      const texto = `${i.nome} ${i.cnpj} ${i.cidade} ${i.uf}`.toLowerCase();
+      if (texto.includes(termo)) return true;
+      return digitos.length > 0 && i.cnpj.replace(/\D/g, '').includes(digitos);
+    });
+  }, [imobiliariasOptions, buscaImobiliaria]);
 
   function openNewImobiliaria() {
     setEditingImobiliaria(null);
@@ -225,24 +245,44 @@ export function CompanyProfileView() {
           icon={<Landmark size={18} style={{ color: '#d55006' }} />}
           title="Imobiliárias"
           subtitle="Gerencie as imobiliárias disponíveis para associar aos corretores"
-          // No cabeçalho, e não no rodapé: a lista já passa de 150 imobiliárias, e cadastrar
-          // a próxima exigia rolar o cartão inteiro até o fim.
+          // Busca e botão no cabeçalho, e não no rodapé: a lista já passa de 150 imobiliárias.
+          // Cadastrar a próxima exigia rolar o cartão inteiro, e conferir se ela já existe não
+          // tinha como ser feito a não ser com o olho, linha por linha.
           action={
-            <button
-              onClick={openNewImobiliaria}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
-              style={{ backgroundColor: '#d55006' }}
-            >
-              <Plus size={14} /> Adicionar imobiliária
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="search"
+                  value={buscaImobiliaria}
+                  onChange={(e) => setBuscaImobiliaria(e.target.value)}
+                  placeholder="Buscar por nome, CNPJ ou cidade..."
+                  className="pl-9 pr-3 py-2.5 text-sm border rounded-xl w-56 lg:w-72"
+                  style={{ borderColor: '#e6e3de' }}
+                />
+              </div>
+              <button
+                onClick={openNewImobiliaria}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 flex-shrink-0"
+                style={{ backgroundColor: '#d55006' }}
+              >
+                <Plus size={14} /> Adicionar imobiliária
+              </button>
+            </div>
           }
         >
           {/* Antes da lista: o erro vem de excluir uma imobiliária, e no rodapé de uma lista
               de 150+ itens ele aparecia fora da tela de quem acabou de clicar. */}
           {imobiliariaError && <p className="text-xs mb-3" style={{ color: '#dc2626' }}>{imobiliariaError}</p>}
 
+          <p className="text-xs text-gray-400 mb-3">
+            {buscaImobiliaria.trim()
+              ? `${imobiliariasFiltradas.length} de ${imobiliariasOptions.length} imobiliária(s)`
+              : `${imobiliariasOptions.length} imobiliária(s) cadastrada(s)`}
+          </p>
+
           <div className="space-y-2">
-            {imobiliariasOptions.map((item) => (
+            {imobiliariasFiltradas.map((item) => (
               <div
                 key={item.id}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
@@ -271,6 +311,22 @@ export function CompanyProfileView() {
 
             {imobiliariasOptions.length === 0 && (
               <p className="text-xs text-gray-400 py-2">Nenhuma imobiliária cadastrada ainda.</p>
+            )}
+
+            {/* Busca sem resultado é a resposta que interessa: ela ainda não está na base. */}
+            {imobiliariasOptions.length > 0 && imobiliariasFiltradas.length === 0 && (
+              <div className="py-4 text-center">
+                <p className="text-sm text-gray-500">
+                  Nenhuma imobiliária encontrada para “{buscaImobiliaria.trim()}”.
+                </p>
+                <button
+                  onClick={openNewImobiliaria}
+                  className="mt-2 text-xs font-semibold hover:underline"
+                  style={{ color: '#d55006' }}
+                >
+                  Cadastrar uma nova imobiliária
+                </button>
+              </div>
             )}
           </div>
 
