@@ -17,6 +17,7 @@ import {
   MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO, PEDE_PERIODO, PERMITE_VARIOS_DIAS,
   diaDeDatetimeLocal, horaDeDatetimeLocal, juntarDiaEHora, somarHorasDatetimeLocal,
   formatPeriodoAtividade, nomeDoAnexo, anexoEhAudio, ACCEPT_ANEXO_ATIVIDADE,
+  ehCardDeCliente, nomeExibidoNoCard,
 } from '../utils';
 import { PAISES, paisPorIso, maskTelefone, exemploTelefone, paraFormatoInternacional } from '../lib/paises';
 import { ApiError } from '../api/client';
@@ -270,7 +271,7 @@ export function CorretorDetailPanel() {
   const stage = STAGES.find((s) => s.id === corretor.etapa)!;
   const prevStage = STAGES.find((s) => s.id === corretor.etapa - 1);
   const nextStage = STAGES.find((s) => s.id === corretor.etapa + 1);
-  const isNegocio = Boolean(corretor.parentCorretorId);
+  const isNegocio = ehCardDeCliente(corretor);
   const parentCorretor = corretor.parentCorretorId ? corretores.find((l) => l.id === corretor.parentCorretorId) : null;
   const tempConfig = TEMPERATURA_CONFIG[corretor.temperatura];
 
@@ -561,13 +562,18 @@ export function CorretorDetailPanel() {
                     className="font-bold text-base text-gray-900 truncate"
                     style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}
                   >
-                    {isNegocio && corretor.clienteFinalNome ? corretor.clienteFinalNome : corretor.nomeCorretor}
+                    {nomeExibidoNoCard(corretor)}
                   </h2>
                 </div>
                 {isNegocio && parentCorretor && (
                   <p className="text-xs text-gray-400 truncate">
                     via {parentCorretor.nomeCorretor} · {parentCorretor.imobiliaria}
                   </p>
+                )}
+                {/* Cliente que entrou sem corretor de origem: dizer isso e melhor do que
+                    mostrar "Sem imobiliaria", que sugere um cadastro de corretor incompleto. */}
+                {isNegocio && !parentCorretor && (
+                  <p className="text-xs text-gray-400 truncate">Sem corretor vinculado</p>
                 )}
                 {!isNegocio && (
                   <p className="text-xs text-gray-400 truncate">{corretor.imobiliaria || 'Sem imobiliária'}</p>

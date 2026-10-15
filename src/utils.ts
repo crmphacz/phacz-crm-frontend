@@ -232,6 +232,38 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
 export const ETAPA_EXIGE_CADASTRO_COMPLETO = 7;
 export const CAMPOS_DO_CADASTRO_COMPLETO = ['imobiliaria', 'cpf', 'creci', 'dataNascimento'];
 
+/**
+ * O card é de um CLIENTE FINAL, e não de um corretor.
+ *
+ * A marca é `clienteFinalNome` — e não `parentCorretorId`, como era antes. Um negócio
+ * gerado a partir de um corretor tem os dois; um cliente que entrou sem corretor nenhum
+ * (base de pós-venda importada, por exemplo) tem só o nome. Antes, esse segundo caso
+ * aparecia como se fosse um corretor chamado "Fulano", com imobiliária vazia.
+ */
+export function ehCardDeCliente(corretor: Pick<Corretor, 'clienteFinalNome'>): boolean {
+  return Boolean(corretor.clienteFinalNome);
+}
+
+/** O nome que o card mostra: do cliente quando é card de cliente, do corretor quando não. */
+export function nomeExibidoNoCard(
+  corretor: Pick<Corretor, 'clienteFinalNome' | 'nomeCorretor'>
+): string {
+  return corretor.clienteFinalNome || corretor.nomeCorretor;
+}
+
+/**
+ * A linha de baixo do card. Num card de cliente ela diz por qual corretor ele veio; quando
+ * não veio por nenhum, diz isso com todas as letras em vez de mostrar um traço, que parecia
+ * imobiliária faltando.
+ */
+export function subtituloDoCard(
+  corretor: Pick<Corretor, 'clienteFinalNome' | 'nomeCorretor' | 'imobiliaria' | 'parentCorretorId'>
+): string {
+  if (!ehCardDeCliente(corretor)) return corretor.imobiliaria || '—';
+  if (!corretor.parentCorretorId) return 'Sem corretor vinculado';
+  return [corretor.nomeCorretor, corretor.imobiliaria].filter(Boolean).join(' · ');
+}
+
 /** Campos do cadastro completo que ainda estão em branco neste corretor. */
 export function camposFaltandoNoCadastro(corretor: Corretor): string[] {
   const labels: Record<string, string> = {

@@ -4,6 +4,7 @@ import type { StageConfig } from '../types';
 import {
   TEMPERATURA_CONFIG, getSlaStatus, getSlaLabel, getInitials,
   camposFaltandoNoCadastro, ETAPA_EXIGE_CADASTRO_COMPLETO,
+  ehCardDeCliente, nomeExibidoNoCard, subtituloDoCard,
 } from '../utils';
 import { useStore } from '../store';
 
@@ -25,11 +26,10 @@ export function CorretorCard({ corretor, stage }: Props) {
     none: { bg: '#f1f5f9', text: '#475569' },
   };
 
-  const isNegocio = Boolean(corretor.parentCorretorId);
-  const displayName = isNegocio && corretor.clienteFinalNome ? corretor.clienteFinalNome : corretor.nomeCorretor;
-  const subtitle = isNegocio
-    ? `via ${corretor.nomeCorretor} · ${corretor.imobiliaria}`
-    : corretor.imobiliaria || '—';
+  const isNegocio = ehCardDeCliente(corretor);
+  const displayName = nomeExibidoNoCard(corretor);
+  // "via X" so quando houve corretor de origem; sem ele o subtitulo ja se explica sozinho.
+  const subtitle = (corretor.parentCorretorId ? 'via ' : '') + subtituloDoCard(corretor);
 
   // Cadastro incompleto trava o card na etapa 7 (Monitoramento GV). Avisar aqui evita que a
   // pessoa só descubra ao tentar arrastar — e diz exatamente o que falta.

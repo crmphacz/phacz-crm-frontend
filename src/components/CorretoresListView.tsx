@@ -4,7 +4,10 @@ import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
-import { TEMPERATURA_CONFIG, formatRelativeTime, formatCurrency } from '../utils';
+import {
+  TEMPERATURA_CONFIG, formatRelativeTime, formatCurrency,
+  nomeExibidoNoCard, subtituloDoCard,
+} from '../utils';
 import { canCreateCorretor } from '../permissions';
 import { corretoresApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
@@ -273,7 +276,6 @@ export function CorretoresListView() {
 function CorretorRow({ corretor, onClick }: { corretor: Corretor; onClick: () => void }) {
   const stage = STAGES.find((s) => s.id === corretor.etapa)!;
   const tempConfig = TEMPERATURA_CONFIG[corretor.temperatura];
-  const isNegocio = Boolean(corretor.parentCorretorId);
 
   const statusMap = {
     ativo: { bg: '#dcfce7', text: '#166534', label: 'Ativo' },
@@ -293,15 +295,15 @@ function CorretorRow({ corretor, onClick }: { corretor: Corretor; onClick: () =>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0 font-questrial" style={{ backgroundColor: stage.cor }}>
-            {(isNegocio && corretor.clienteFinalNome ? corretor.clienteFinalNome : corretor.nomeCorretor)[0]}
+            {nomeExibidoNoCard(corretor)[0]}
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-gray-900 truncate font-questrial">
-              {isNegocio && corretor.clienteFinalNome ? corretor.clienteFinalNome : corretor.nomeCorretor}
+              {nomeExibidoNoCard(corretor)}
             </p>
             <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
               <Building2 size={10} />
-              {isNegocio ? `via ${corretor.nomeCorretor}` : (corretor.imobiliaria || '—')}
+              {(corretor.parentCorretorId ? 'via ' : '') + subtituloDoCard(corretor)}
             </p>
           </div>
         </div>
