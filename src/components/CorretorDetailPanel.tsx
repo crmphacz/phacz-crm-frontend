@@ -504,11 +504,21 @@ export function CorretorDetailPanel() {
 
   const tabs: { id: TabId; label: string; icon: React.ElementType; count?: number; loading?: boolean }[] = [
     { id: 'geral', label: 'Geral', icon: Tag },
-    { id: 'clientes', label: 'Clientes', icon: Users, count: corretor.clientesFinais.length },
+    // Num card de CLIENTE a aba "Clientes" nao faz sentido: o card ja e a pessoa. Mostra-la
+    // sugeria que havia outros clientes pendurados ali dentro.
+    ...(isNegocio
+      ? []
+      : [{ id: 'clientes' as TabId, label: 'Clientes', icon: Users, count: corretor.clientesFinais.length }]),
     { id: 'atividades', label: 'Atividades', icon: MessageSquare, count: corretor.interacoes.length, loading: detailPending },
     { id: 'propostas', label: 'Propostas', icon: FileText, count: corretor.propostas.length, loading: detailPending },
     { id: 'cadencia', label: 'Cadência', icon: CalendarClock, loading: detailPending },
   ];
+
+  // Navegar com as setas ‹ › de um corretor (com aba Clientes aberta) para um cliente deixaria
+  // a aba ativa apontando para uma aba que nao existe mais — e o painel renderizaria vazio.
+  useEffect(() => {
+    if (tab === 'clientes' && isNegocio) setTab('geral');
+  }, [tab, isNegocio]);
 
   // Atividades, Propostas e Cadência dependem de `interacoes`/`propostas`, que só existem depois
   // do detalhe carregado — antes disso mostrar "Nenhuma atividade" seria errado (é só um
@@ -757,7 +767,7 @@ export function CorretorDetailPanel() {
 
               <fieldset disabled={isReadOnly || !editingGeral} className="border-0 m-0 min-w-0 px-5 pb-5 pt-3 space-y-5">
               {/* Corretor */}
-              <Section title="Dados do Corretor" icon={<Building2 size={14} style={{ color: '#d55006' }} />}>
+              <Section title={isNegocio ? 'Dados do Cliente' : 'Dados do Corretor'} icon={<Building2 size={14} style={{ color: '#d55006' }} />}>
                 <div className="space-y-3">
                   <EditField
                     label="Nome completo"
