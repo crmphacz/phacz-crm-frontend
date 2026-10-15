@@ -6,6 +6,7 @@ import { STAGES } from '../data';
 import { ApiError } from '../api/client';
 import { corretoresApi, type ImobiliariaMatch } from '../api/endpoints';
 import { maskCPF, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
+import { canWriteCorretoresModule } from '../permissions';
 import { PAIS_PADRAO, maskTelefone } from '../lib/paises';
 import { TelefoneInput } from './TelefoneInput';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
@@ -23,13 +24,18 @@ export function NewCorretorModal() {
   const moveCorretor = useStore((s) => s.moveCorretor);
   const showToast = useStore((s) => s.showToast);
   // Etapa da coluna clicada em "+ Adicionar corretor" no Pipeline (1 quando aberto pelos outros botões).
-  const etapaInicial = useStore((s) => s.newCorretorEtapa);
-  const etapaInicialNome = STAGES.find((s) => s.id === etapaInicial)?.nome;
+  const etapaInicialPedida = useStore((s) => s.newCorretorEtapa);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const users = useStore((s) => s.users);
   const currentUser = useStore((s) => s.currentUser);
   // SDR que cadastra entra sempre como o responsável SDR do próprio card (o backend força isso).
   const isSdr = currentUser?.cargo === 'SDR';
+  // O corretor nasce sempre na etapa 1 e é MOVIDO logo depois (ver o submit). Quem só pode
+  // cadastrar — a Recepção — não move card nenhum: para ela a coluna escolhida é ignorada e o
+  // cadastro fica em "Novo Corretor", em vez de tentar o movimento e levar um 403 na cara.
+  const podeMoverCard = canWriteCorretoresModule(currentUser);
+  const etapaInicial = podeMoverCard ? etapaInicialPedida : 1;
+  const etapaInicialNome = STAGES.find((s) => s.id === etapaInicial)?.nome;
   const sdrUsers = users.filter((u) => u.cargo === 'SDR' && u.ativo);
   const canaisOrigem = useStore((s) => s.canaisOrigem).filter((c) => c.ativo);
   const tiposInteresseOptions = useStore((s) => s.tiposInteresseOptions).filter((t) => t.ativo);

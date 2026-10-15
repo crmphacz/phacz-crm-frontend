@@ -26,7 +26,7 @@ import { empreendimentosApi, corretoresApi } from '../api/endpoints';
 import { Combobox } from './Combobox';
 import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
-import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor } from '../permissions';
+import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor, canCreateClienteFinal } from '../permissions';
 import { WhatsappSendModal } from './WhatsappSendModal';
 import { CancelarTreinamentoModal } from './CancelarTreinamentoModal';
 import { WhatsappIcon } from './WhatsappIcon';
@@ -58,6 +58,10 @@ export function CorretorDetailPanel() {
   // "Somente leitura" agora segue a posse do card: Diretoria sempre edita; SDR/GV/GR só no
   // próprio kanban; Marketing/Administrativo/Recepção nunca escrevem em corretores.
   const isReadOnly = !canWriteCorretor(currentUser, corretor);
+  // A Recepção não escreve no card, mas CADASTRA cliente final em qualquer corretor — ela
+  // atende quem liga e quem chega. Sem isto o botão "Adicionar" da aba Clientes ficaria morto
+  // para ela, mesmo com a API aceitando o cadastro.
+  const podeAdicionarCliente = !isReadOnly || canCreateClienteFinal(currentUser);
   const canDelete = canDeleteLeadClienteOuCard(currentUser);
   const canaisOrigem = useStore((s) => s.canaisOrigem);
   const imobiliariasOptions = useStore((s) => s.imobiliariasOptions);
@@ -1128,8 +1132,11 @@ export function CorretorDetailPanel() {
           )}
 
           {/* ─── CLIENTES FINAIS TAB ─── */}
+          {/* O `disabled` do fieldset vale para todos os descendentes e não pode ser desfeito
+              por dentro — então, quando quem está olhando pode ao menos cadastrar cliente, a
+              aba abre liberada e cada botão de ESCRITA no card traz o próprio `isReadOnly`. */}
           {tab === 'clientes' && (
-            <fieldset disabled={isReadOnly} className="border-0 m-0 min-w-0 p-5 space-y-4">
+            <fieldset disabled={isReadOnly && !podeAdicionarCliente} className="border-0 m-0 min-w-0 p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-gray-700">
@@ -1141,7 +1148,7 @@ export function CorretorDetailPanel() {
                     </p>
                   )}
                 </div>
-                {!isNegocio && (
+                {!isNegocio && podeAdicionarCliente && (
                   <button
                     onClick={() => setShowClienteModal(true)}
                     className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl text-white"
@@ -1200,7 +1207,9 @@ export function CorretorDetailPanel() {
                       {!cf.negocioGerado && corretor.etapa >= 5 && (
                         <button
                           onClick={() => handleGerarNegocio(cf.id)}
-                          disabled={gerandoNegocioId !== null}
+                          // Gerar negócio MOVE o card: não é cadastro, e por isso segue a
+                          // posse mesmo com a aba liberada para quem só pode cadastrar.
+                          disabled={gerandoNegocioId !== null || isReadOnly}
                           className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl text-white disabled:opacity-60"
                           style={{ backgroundColor: '#d55006' }}
                         >

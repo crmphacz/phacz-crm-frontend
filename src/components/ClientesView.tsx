@@ -5,7 +5,7 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { formatCurrency, formatRelativeTime } from '../utils';
-import { canWhatsappCliente } from '../permissions';
+import { canWhatsappCliente, canCreateClienteFinal } from '../permissions';
 import { corretoresApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { getViewCache, setViewCache } from '../lib/viewCache';
@@ -39,8 +39,12 @@ interface ClientesListCache {
  */
 export function ClientesView() {
   const currentUser = useStore((s) => s.currentUser);
-  // Só quem chega nesta tela é Diretoria/Marketing/Administrativo/Recepção (ver Sidebar); só a
-  // Diretoria de fato escreve em clientes/corretores — os outros três são leitura.
+  // Só quem chega nesta tela é Diretoria/Marketing/Administrativo/Recepção (ver Sidebar).
+  //
+  // Criar e editar são permissões diferentes aqui: a Recepção CADASTRA o cliente que ligou ou
+  // apareceu, mas não mexe no que já está registrado — editar continua só com a Diretoria.
+  // Marketing e Administrativo seguem como leitura pura.
+  const podeCriar = canCreateClienteFinal(currentUser);
   const isReadOnly = currentUser?.cargo !== 'Diretora';
   const setView = useStore((s) => s.setView);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
@@ -163,7 +167,7 @@ export function ClientesView() {
               />
             </div>
 
-            {!isReadOnly && (
+            {podeCriar && (
               <button
                 onClick={() => setShowNewModal(true)}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg hover:opacity-90 flex-shrink-0"

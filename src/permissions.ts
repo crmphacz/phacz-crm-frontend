@@ -10,7 +10,12 @@ import type { ViewMode } from './store';
  * verdade está sempre no backend — essas funções nunca substituem o bloqueio da API.
  */
 
-/** Perfis com leitura irrestrita em todo o sistema — nunca escrevem em nada. */
+/**
+ * Perfis com leitura irrestrita em todo o sistema. Ponto de partida: não escrevem em nada.
+ * As exceções da Recepção (cadastrar corretor e cliente final, disparar WhatsApp em massa)
+ * são liberadas uma a uma, nas funções abaixo — nunca tirando o perfil desta lista, que é o
+ * que mantém o resto do sistema fechado para ele.
+ */
 export const READ_ONLY_GLOBAL_CARGOS: UserCargo[] = ['Administrativo', 'Recepcao'];
 
 export function isGlobalReadOnly(user: UserProfile | null): boolean {
@@ -45,21 +50,43 @@ export function canWriteCorretor(user: UserProfile | null, corretor: Corretor): 
 }
 
 /**
- * Escreve ALGUMA coisa no módulo de corretores — sem olhar posse de card. Espelha o
- * `blockWrites('MARKETING')` do router de corretores no backend, que barra Marketing,
- * Administrativo e Recepção em qualquer escrita, antes mesmo de `canWriteCorretor` rodar.
+ * Altera ALGUMA coisa já cadastrada no módulo de corretores — sem olhar posse de card.
+ * Espelha o guard do router de corretores no backend, que barra Marketing, Administrativo e
+ * Recepção em toda escrita que não seja criar, antes mesmo de `canWriteCorretor` rodar.
  *
  * Serve às telas que agem sobre um card sem ter o card em mãos — a agenda, que lista
  * compromissos e não corretores, e por isso não consegue chamar `canWriteCorretor`.
+ *
+ * A Recepção fica de fora de propósito: ela cadastra (ver `canCreateCorretor` e
+ * `canCreateClienteFinal`), mas não mexe no que já existe.
  */
 export function canWriteCorretoresModule(user: UserProfile | null): boolean {
   return !!user && !isGlobalReadOnly(user) && user.cargo !== 'Marketing';
 }
 
-/** Criar leads: Diretoria, SDR, GR e GV. Marketing, Administrativo e Recepção não criam. */
+/**
+ * Criar leads: Diretoria, SDR, GR, GV e Recepção. Marketing e Administrativo não criam.
+ *
+ * A Recepção é a única aqui que não trabalha o card depois: ela cadastra quem ligou ou
+ * apareceu e o lead segue o caminho normal do funil. Criar é tudo o que ela faz em corretores
+ * — editar, mover de etapa e registrar atividade continuam fora (ver `canWriteCorretor`).
+ */
 export function canCreateCorretor(user: UserProfile | null): boolean {
   if (!user) return false;
-  return user.cargo === 'Diretora' || user.cargo === 'SDR' || user.cargo === 'GR' || user.cargo === 'GV';
+  return user.cargo === 'Diretora' || user.cargo === 'SDR' || user.cargo === 'GR'
+    || user.cargo === 'GV' || user.cargo === 'Recepcao';
+}
+
+/**
+ * Cadastrar cliente final: Diretoria, Recepção e quem tem posse do card (SDR/GV/GR), que é o
+ * caso tratado por `canWriteCorretor` dentro do painel do corretor.
+ *
+ * Esta função cobre a tela de Clientes Finais, onde não há card em mãos — o corretor
+ * responsável é escolhido no próprio formulário. EDITAR cliente continua só com a Diretoria:
+ * a Recepção registra o que chega, não mexe no que já está cadastrado.
+ */
+export function canCreateClienteFinal(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora' || user?.cargo === 'Recepcao';
 }
 
 /**
