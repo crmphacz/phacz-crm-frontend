@@ -58,9 +58,9 @@ export function CorretorDetailPanel() {
   // "Somente leitura" agora segue a posse do card: Diretoria sempre edita; SDR/GV/GR só no
   // próprio kanban; Marketing/Administrativo/Recepção nunca escrevem em corretores.
   const isReadOnly = !canWriteCorretor(currentUser, corretor);
-  // A Recepção não escreve no card, mas CADASTRA cliente final em qualquer corretor — ela
-  // atende quem liga e quem chega. Sem isto o botão "Adicionar" da aba Clientes ficaria morto
-  // para ela, mesmo com a API aceitando o cadastro.
+  // Recepção e SDR cadastram cliente final em QUALQUER corretor, mesmo sem escrever no card
+  // (ver canCreateClienteFinal). Sem isto o botão "Adicionar" da aba Clientes ficaria morto
+  // para eles em card de terceiro, mesmo com a API aceitando o cadastro.
   const podeAdicionarCliente = !isReadOnly || canCreateClienteFinal(currentUser);
   const canDelete = canDeleteLeadClienteOuCard(currentUser);
   const canaisOrigem = useStore((s) => s.canaisOrigem);

@@ -39,11 +39,11 @@ interface ClientesListCache {
  */
 export function ClientesView() {
   const currentUser = useStore((s) => s.currentUser);
-  // Só quem chega nesta tela é Diretoria/Marketing/Administrativo/Recepção (ver Sidebar).
+  // Quem chega nesta tela: Diretoria, SDR, Marketing, Administrativo e Recepção (ver Sidebar).
   //
-  // Criar e editar são permissões diferentes aqui: a Recepção CADASTRA o cliente que ligou ou
-  // apareceu, mas não mexe no que já está registrado — editar continua só com a Diretoria.
-  // Marketing e Administrativo seguem como leitura pura.
+  // Criar e editar são permissões diferentes aqui: SDR e Recepção CADASTRAM o cliente que
+  // ligou ou apareceu, mas não mexem no que já está registrado — editar continua só com a
+  // Diretoria. Marketing e Administrativo seguem como leitura pura.
   const podeCriar = canCreateClienteFinal(currentUser);
   const isReadOnly = currentUser?.cargo !== 'Diretora';
   const setView = useStore((s) => s.setView);

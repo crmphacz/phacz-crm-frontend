@@ -78,15 +78,18 @@ export function canCreateCorretor(user: UserProfile | null): boolean {
 }
 
 /**
- * Cadastrar cliente final: Diretoria, Recepção e quem tem posse do card (SDR/GV/GR), que é o
- * caso tratado por `canWriteCorretor` dentro do painel do corretor.
+ * Cadastrar cliente final em QUALQUER corretor: Diretoria, Recepção e SDR. GV e GR cadastram
+ * nos cards de que são donos, caso tratado por `canWriteCorretor` dentro do painel do corretor.
  *
  * Esta função cobre a tela de Clientes Finais, onde não há card em mãos — o corretor
- * responsável é escolhido no próprio formulário. EDITAR cliente continua só com a Diretoria:
- * a Recepção registra o que chega, não mexe no que já está cadastrado.
+ * responsável é escolhido no próprio formulário, e por isso a lista não pode oferecer cards
+ * que o servidor recusaria. Espelha CADASTRAM_CLIENTE_EM_QUALQUER_CARD no backend.
+ *
+ * EDITAR cliente continua só com a Diretoria: Recepção e SDR registram o que chega, não mexem
+ * no que já está cadastrado.
  */
 export function canCreateClienteFinal(user: UserProfile | null): boolean {
-  return user?.cargo === 'Diretora' || user?.cargo === 'Recepcao';
+  return user?.cargo === 'Diretora' || user?.cargo === 'Recepcao' || user?.cargo === 'SDR';
 }
 
 /**
@@ -218,8 +221,12 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
       // Marketing não tem acesso a kanban; SDR/GV/GR têm (com posse por card).
       return user.cargo !== 'Marketing';
     case 'corretores':
-    case 'clientes':
       return user.cargo === 'Marketing';
+    case 'clientes':
+      // O SDR entra porque é aqui que se cadastra cliente final escolhendo o corretor — sem a
+      // tela, a permissão de cadastrar não teria onde ser usada. Ele lê a lista inteira, como
+      // já lê o pipeline inteiro; escrever continua restrito (ver canCreateClienteFinal).
+      return user.cargo === 'Marketing' || user.cargo === 'SDR';
     case 'rodadas':
       return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
     case 'email-marketing':
