@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
   X, CalendarDays, ChevronRight, ChevronDown, ChevronUp, Plus, Trash2, Upload, Loader2, Paperclip,
+  AlertTriangle,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
@@ -453,6 +454,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
   const ensureEmpreendimentosLoaded = useStore((s) => s.ensureEmpreendimentosLoaded);
   const createRodada = useStore((s) => s.createRodada);
   const updateRodada = useStore((s) => s.updateRodada);
+  const showToast = useStore((s) => s.showToast);
 
   // O seletor de empreendimento usa essa lista, mas o modal pode abrir sem que a tela de
   // Empreendimentos já tenha sido visitada nesta sessão (ela é carregada sob demanda).
@@ -474,10 +476,11 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     setErrors((er) => ({ ...er, [key]: '' }));
   }
 
-  // Guarda a div de cada campo validável, pra poder rolar até o primeiro erro ao tentar
-  // salvar — ver fieldRef()/handleSubmit(). `Object.keys(e)` em validate() já segue a mesma
-  // ordem visual dos campos no formulário, então o primeiro erro do objeto já é o primeiro
-  // campo com problema de cima pra baixo.
+  // Guarda a div de cada campo obrigatório, para rolar até o primeiro pendente — pelo botão
+  // de salvar ou pelos atalhos do rodapé. TODA chave usada em `camposFaltando` precisa ter
+  // uma `ref={fieldRef(...)}` correspondente no JSX: sem ela a rolagem vira um no-op
+  // silencioso, que foi como o campo de meta mínima deixou o formulário mudo.
+  // `camposFaltando` é montado na ordem visual, então o primeiro da lista é o mais acima.
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
   function fieldRef(key: string) {
     return (el: HTMLDivElement | null) => { fieldRefs.current[key] = el; };
@@ -486,27 +489,59 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
   // Total do orçamento — somado automaticamente a partir dos itens, nunca digitado.
   const orcamentoTotal = form.orcamentoItens.reduce((sum, item) => sum + (parseCurrencyBRL(item.valor) ?? 0), 0);
 
-  function validate() {
-    const e: Record<string, string> = {};
-    if (!form.dataInicio) e.dataInicio = 'Informe a data de início prevista';
-    if (!form.dataFim) e.dataFim = 'Informe a data de fim prevista';
-    if (form.dataInicio && form.dataFim && form.dataFim < form.dataInicio) e.dataFim = 'A data fim não pode ser anterior à data início';
-    if (!form.cidade.trim()) e.cidade = 'Informe a cidade';
-    if (!form.uf.trim()) e.uf = 'Informe a UF';
-    if (form.tipoAcao === 'outro' && !form.tipoAcaoOutro.trim()) e.tipoAcaoOutro = 'Descreva o tipo de ação';
-    if (!form.imobiliaria) e.imobiliaria = form.vinculoTipo === 'corretor' ? 'Selecione o corretor' : 'Selecione a imobiliária';
-    if (!form.metaMinParticipantes && !form.metaMinAgendamentos && !form.metaMinVendas) {
-      e.metaMinima = 'Informe ao menos uma meta mínima: participantes, agendamentos ou vendas';
+  /**
+   * Campos obrigatórios que ainda faltam, na ordem em que aparecem no formulário.
+   *
+   * Cada item traz a `chave` (que casa com `fieldRefs`, para rolar até ele), o `rotulo` que a
+   * pessoa lê na tela e a `mensagem` que fica sob o campo. Espelha `rodadaSchema` no backend —
+   * se as duas listas divergirem, o formulário deixa salvar e a API recusa.
+   */
+  const camposFaltando = useMemo(() => {
+    const faltando: { chave: string; rotulo: string; mensagem: string }[] = [];
+    const falta = (chave: string, rotulo: string, mensagem: string) => faltando.push({ chave, rotulo, mensagem });
+
+    if (!form.dataInicio) falta('dataInicio', 'Data de início', 'Informe a data de início prevista');
+    if (!form.dataFim) falta('dataFim', 'Data de fim', 'Informe a data de fim prevista');
+    else if (form.dataInicio && form.dataFim < form.dataInicio) {
+      falta('dataFim', 'Data de fim', 'A data fim não pode ser anterior à data início');
     }
-    return e;
+    if (!form.cidade.trim()) falta('cidade', 'Cidade', 'Informe a cidade');
+    if (!form.uf.trim()) falta('uf', 'UF', 'Informe a UF');
+    if (form.tipoAcao === 'outro' && !form.tipoAcaoOutro.trim()) {
+      falta('tipoAcaoOutro', 'Tipo de ação', 'Descreva o tipo de ação');
+    }
+    if (!form.imobiliaria) {
+      const ehCorretor = form.vinculoTipo === 'corretor';
+      falta('imobiliaria', ehCorretor ? 'Corretor' : 'Imobiliária', ehCorretor ? 'Selecione o corretor' : 'Selecione a imobiliária');
+    }
+    // Mora na seção 4, longe do botão. É o campo que fazia o "Cadastrar" não responder: ele
+    // não tinha ref, então a rolagem até o erro não acontecia e nada aparecia na tela.
+    if (!form.metaMinParticipantes && !form.metaMinAgendamentos && !form.metaMinVendas) {
+      falta('metaMinima', 'Meta mínima (seção 4)', 'Informe ao menos uma meta mínima: participantes, agendamentos ou vendas');
+    }
+    return faltando;
+  }, [form]);
+
+  const podeSalvar = camposFaltando.length === 0;
+
+  /** Leva até o primeiro campo pendente, marca todos em vermelho e diz quais são. */
+  function apontarCamposFaltando() {
+    setErrors(Object.fromEntries(camposFaltando.map((c) => [c.chave, c.mensagem])));
+
+    const rotulos = camposFaltando.map((c) => c.rotulo).join(', ');
+    showToast(
+      camposFaltando.length === 1
+        ? `Falta preencher: ${rotulos}.`
+        : `Faltam preencher: ${rotulos}.`,
+      'error'
+    );
+
+    fieldRefs.current[camposFaltando[0].chave]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   async function handleSubmit() {
-    const e = validate();
-    if (Object.keys(e).length > 0) {
-      setErrors(e);
-      const firstErrorKey = Object.keys(e)[0];
-      fieldRefs.current[firstErrorKey]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!podeSalvar) {
+      apontarCamposFaltando();
       return;
     }
 
@@ -518,7 +553,11 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
       onSaved?.(saved);
       onClose();
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : 'Não foi possível salvar a rodada. Tente novamente.');
+      const msg = err instanceof ApiError ? err.message : 'Não foi possível salvar a rodada. Tente novamente.';
+      setSubmitError(msg);
+      // Também no toast: o aviso embaixo do formulário fica fora da vista de quem clicou no
+      // botão depois de rolar onze seções.
+      showToast(msg, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -819,8 +858,12 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
               <FormLabel>Perfil dos clientes (profissão/segmento)</FormLabel>
               <input className="form-input" value={form.perfilClientesSegmento} onChange={(ev) => set('perfilClientesSegmento', ev.target.value)} />
             </div>
-            <div>
+            {/* A ref é o que faz o botão "Cadastrar" rolar até aqui. Sem ela, quem só tinha
+                esta pendência clicava no botão e não via nada acontecer — o erro aparecia
+                nesta seção, fora da vista de quem já tinha rolado o formulário todo. */}
+            <div ref={fieldRef('metaMinima')}>
               <FormLabel required>Meta mínima obrigatória</FormLabel>
+              <p className="text-xs text-gray-400 mb-1.5">Basta preencher um dos três.</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <input type="number" min={0} className={`form-input ${errors.metaMinima ? 'border-red-400' : ''}`} placeholder="Nº participantes" value={form.metaMinParticipantes} onChange={(ev) => { set('metaMinParticipantes', ev.target.value); clearError('metaMinima'); }} />
                 <input type="number" min={0} className={`form-input ${errors.metaMinima ? 'border-red-400' : ''}`} placeholder="Nº agendamentos" value={form.metaMinAgendamentos} onChange={(ev) => { set('metaMinAgendamentos', ev.target.value); clearError('metaMinima'); }} />
@@ -1088,21 +1131,58 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
-          <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
-            {isReadOnly ? 'Fechar' : 'Cancelar'}
-          </button>
-          {!isReadOnly && (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
-              style={{ backgroundColor: '#d55006' }}
+        <div className="border-t bg-gray-50 rounded-b-2xl flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
+          {/* O que falta fica à vista ANTES de clicar, e não só depois. O formulário tem onze
+              seções: descobrir a pendência só no clique custa uma rolagem inteira. */}
+          {!isReadOnly && !podeSalvar && (
+            <div
+              className="px-4 sm:px-6 pt-3 pb-1 text-xs flex items-start gap-2"
+              style={{ color: '#92400e' }}
             >
-              {submitting ? 'Salvando...' : rodada ? 'Salvar alterações' : 'Cadastrar Rodada'}
-              {!submitting && <ChevronRight size={16} />}
-            </button>
+              <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" />
+              <p>
+                Para cadastrar, {camposFaltando.length === 1 ? 'falta' : 'faltam'}:{' '}
+                {camposFaltando.map((c, i) => (
+                  <span key={c.chave}>
+                    {i > 0 && ', '}
+                    <button
+                      type="button"
+                      onClick={() => fieldRefs.current[c.chave]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                      className="font-bold underline hover:opacity-80"
+                    >
+                      {c.rotulo}
+                    </button>
+                  </span>
+                ))}
+              </p>
+            </div>
           )}
+
+          <div className="flex items-center gap-3 px-4 sm:px-6 py-4">
+            <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
+              {isReadOnly ? 'Fechar' : 'Cancelar'}
+            </button>
+            {!isReadOnly && (
+              <button
+                onClick={handleSubmit}
+                // `aria-disabled` em vez de `disabled`: o botão continua clicável de propósito.
+                // Botão desabilitado de verdade não dispara evento nenhum, e aí o clique de
+                // quem não entendeu por que não salva cairia no vazio — que é exatamente o que
+                // aconteceu aqui. Clicando, o toast diz o que falta e a tela rola até o campo.
+                aria-disabled={!podeSalvar}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-60"
+                style={{
+                  backgroundColor: '#d55006',
+                  opacity: podeSalvar ? 1 : 0.5,
+                  cursor: podeSalvar ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {submitting ? 'Salvando...' : rodada ? 'Salvar alterações' : 'Cadastrar Rodada'}
+                {!submitting && <ChevronRight size={16} />}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
