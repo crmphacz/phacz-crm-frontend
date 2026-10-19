@@ -184,13 +184,16 @@ export function corretoresDoDisparo(user: UserProfile | null, corretores: Corret
 
 /**
  * Disparo de WhatsApp para um CORRETOR (parceiro do funil). Espelha `canWhatsappCorretor` no
- * backend: Diretoria e Marketing mandam para qualquer corretor; SDR/GV/GR só para os do
- * próprio kanban; Administrativo/Recepção nunca. O envio sai pelo número da Meta do próprio
- * usuário (ver `whatsappNumeroExibicao`).
+ * backend: Diretoria, Marketing e SDR mandam para qualquer corretor; GV e GR só para os do
+ * próprio kanban; Administrativo/Recepção nunca.
+ *
+ * O SDR precisa estar aqui, e não em `canWriteCorretor`: a posse do card não vale para falar
+ * com o lead, e as duas regras já divergiam — a tela mostrava o botão em card sem responsável
+ * SDR e o servidor recusava, então a conversa nunca abria.
  */
 export function canWhatsappCorretor(user: UserProfile | null, corretor: Corretor): boolean {
   if (!user) return false;
-  if (user.cargo === 'Diretora' || user.cargo === 'Marketing') return true;
+  if (user.cargo === 'Diretora' || user.cargo === 'Marketing' || user.cargo === 'SDR') return true;
   return canWriteCorretor(user, corretor);
 }
 
