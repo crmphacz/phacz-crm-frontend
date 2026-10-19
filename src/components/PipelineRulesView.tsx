@@ -3,6 +3,51 @@ import { Users, LayoutList, CheckSquare, ChevronDown, ChevronUp } from 'lucide-r
 import { useStore } from '../store';
 import { STAGES } from '../data';
 import { SettingsCard } from './SettingsCard';
+import { PhaczTour } from './phacz-tour/PhaczTour';
+
+type AbaDocumentacao = 'tutorial' | 'regras';
+
+/**
+ * Cabeçalho comum às duas abas. Fica fora do corpo porque o tutorial não rola (o player se
+ * ajusta à altura disponível) e a aba de regras rola — são dois layouts diferentes abaixo
+ * do mesmo topo.
+ */
+function CabecalhoDocumentacao({ aba, onAba }: { aba: AbaDocumentacao; onAba: (a: AbaDocumentacao) => void }) {
+  const abas: { id: AbaDocumentacao; label: string }[] = [
+    { id: 'tutorial', label: 'Tutorial do sistema' },
+    { id: 'regras', label: 'Regras do pipeline' },
+  ];
+
+  return (
+    <div className="flex-shrink-0">
+      <div className="max-w-4xl mx-auto px-4 md:px-6 pt-6 md:pt-8">
+        <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          Documentação
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {aba === 'tutorial'
+            ? 'Tour guiado pelas telas do CRM — do primeiro lead ao pós-venda.'
+            : 'Equipe comercial, etapas do pipeline e campos obrigatórios para avançar.'}
+        </p>
+        <div className="flex gap-1 mt-4 border-b" style={{ borderColor: '#d6d2cc' }}>
+          {abas.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => onAba(a.id)}
+              className="px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors -mb-px"
+              style={{
+                borderColor: aba === a.id ? '#d55006' : 'transparent',
+                color: aba === a.id ? '#d55006' : '#6b7280',
+              }}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * O que a tela ANUNCIA como exigido em cada etapa. Precisa acompanhar o que o sistema de fato
@@ -26,22 +71,31 @@ const REQUIRED_FIELDS_BY_STAGE: Record<number, string[]> = {
 export function PipelineRulesView() {
   const users = useStore((s) => s.users);
   const [expandedStage, setExpandedStage] = useState<number | null>(null);
+  // Abre no tutorial: é o que alguém que chega em "Documentação" sem conhecer o sistema quer.
+  const [aba, setAba] = useState<AbaDocumentacao>('tutorial');
 
   const equipeSDR = users.filter((u) => u.cargo === 'SDR' && u.ativo).map((u) => u.nome);
   const equipeGR = users.filter((u) => u.cargo === 'GR' && u.ativo).map((u) => u.nome);
   const equipeGV = users.filter((u) => u.cargo === 'GV' && u.ativo).map((u) => u.nome);
 
+  // O tutorial ocupa a tela inteira (o player se dimensiona pela altura do pai), então é um
+  // caminho próprio, e não mais um cartão no meio da página de regras.
+  if (aba === 'tutorial') {
+    return (
+      <div className="h-full flex flex-col" style={{ backgroundColor: '#e6e3de' }}>
+        <CabecalhoDocumentacao aba={aba} onAba={setAba} />
+        <div className="flex-1 min-h-0 flex items-center justify-center px-4 md:px-6 pb-6">
+          <PhaczTour caberNaAltura />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-y-auto" style={{ backgroundColor: '#e6e3de' }}>
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            Documentação
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Equipe comercial, etapas do pipeline e campos obrigatórios para avançar.
-          </p>
-        </div>
+      <CabecalhoDocumentacao aba={aba} onAba={setAba} />
+
+      <div className="max-w-4xl mx-auto px-4 md:px-6 pb-6 md:pb-8 space-y-8">
 
         {/* Team */}
         <SettingsCard
