@@ -83,23 +83,36 @@ function EmpreendimentoCard({ empreendimento, onOpen }: { empreendimento: Empree
       className="text-left rounded-2xl border overflow-hidden bg-white hover:shadow-lg transition-shadow flex flex-col"
       style={{ borderColor: '#e5e7eb' }}
     >
+      {/* A imagem é posicionada ABSOLUTA de propósito. Em fluxo normal a `<img>` impõe a
+          altura natural dela ao pai (um `h-full` de pai com altura indefinida vira `auto`),
+          e o `aspect-ratio` é ignorado — era o que deixava cada card com uma altura, porque
+          as capas têm proporções diferentes. Fora do fluxo, a altura vem só da proporção. */}
       <div className="relative w-full" style={{ aspectRatio: '16 / 9', backgroundColor: '#1e1e1e' }}>
         {empreendimento.imagemCapaUrl ? (
-          <img src={empreendimento.imagemCapaUrl} alt={empreendimento.nome} className="w-full h-full object-cover" />
+          <img
+            src={empreendimento.imagemCapaUrl}
+            alt={empreendimento.nome}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-500">
+          <div className="absolute inset-0 flex items-center justify-center text-gray-500">
             <Building2 size={28} />
           </div>
         )}
       </div>
       <div className="p-4 flex-1 flex flex-col gap-2">
         <p className="font-semibold text-gray-900 font-questrial truncate">{empreendimento.nome}</p>
-        {empreendimento.cidade && (
-          <p className="text-xs text-gray-500 flex items-center gap-1.5 truncate">
-            <MapPin size={12} className="flex-shrink-0" /> {empreendimento.cidade}{empreendimento.uf ? ` - ${empreendimento.uf}` : ''}
-          </p>
-        )}
-        <div className="flex items-center gap-3 mt-1 pt-2 border-t" style={{ borderColor: '#f3f4f6' }}>
+        {/* Sempre renderizada, mesmo sem cidade: uma linha a menos num card e a mais no
+            vizinho desalinharia o rodapé de toda a fileira. */}
+        <p className="text-xs text-gray-500 flex items-center gap-1.5 truncate">
+          <MapPin size={12} className="flex-shrink-0" />
+          {empreendimento.cidade
+            ? `${empreendimento.cidade}${empreendimento.uf ? ` - ${empreendimento.uf}` : ''}`
+            : 'Local não informado'}
+        </p>
+        {/* `mt-auto` cola a faixa de unidades no rodapé: com o card esticado pela fileira,
+            ela fica na mesma altura em todos, e não logo abaixo do texto de cada um. */}
+        <div className="flex items-center gap-3 mt-auto pt-2 border-t" style={{ borderColor: '#f3f4f6' }}>
           <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
             <Layers size={12} /> {empreendimento.totalUnidades} unidade(s)
           </span>

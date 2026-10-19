@@ -677,6 +677,8 @@ export const notificacoesApi = {
   markRead: (id: string): Promise<void> =>
     apiFetch<void>(`/api/notificacoes/${id}`, { method: 'PATCH', body: { lida: true } }),
   markAllRead: (): Promise<void> => apiFetch<void>('/api/notificacoes/marcar-todas-lidas', { method: 'POST' }),
+  /** Some da lista de quem apagou — cada notificação pertence a uma pessoa só. */
+  remove: (id: string): Promise<void> => apiFetch<void>(`/api/notificacoes/${id}`, { method: 'DELETE' }),
 };
 
 // ── Empreendimentos & Unidades ────────────────────────────────────────

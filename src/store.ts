@@ -310,6 +310,8 @@ interface StoreState {
   loadNotificacoes: () => Promise<void>;
   markNotificacaoLida: (id: string) => Promise<void>;
   markAllNotificacoesLidas: () => Promise<void>;
+  /** Apaga da própria lista. Cada notificação tem dono, então some só para quem apagou. */
+  removeNotificacao: (id: string) => Promise<void>;
   abrirNotificacaoRodada: (n: Notificacao) => void;
   clearRodadaFoco: () => void;
 
@@ -1018,6 +1020,20 @@ export const useStore = create<StoreState>()((set, get) => ({
       notificacoesNaoLidas: 0,
     }));
     await notificacoesApi.markAllRead().catch(() => undefined);
+  },
+
+  removeNotificacao: async (id) => {
+    // Tira da lista antes da resposta: é a própria lista de quem clicou, e esperar o servidor
+    // deixaria o item piscando no lugar. Se a chamada falhar, o próximo carregamento o traz
+    // de volta — nada se perde.
+    set((state) => {
+      const alvo = state.notificacoes.find((n) => n.id === id);
+      return {
+        notificacoes: state.notificacoes.filter((n) => n.id !== id),
+        notificacoesNaoLidas: Math.max(0, state.notificacoesNaoLidas - (alvo && !alvo.lida ? 1 : 0)),
+      };
+    });
+    await notificacoesApi.remove(id).catch(() => undefined);
   },
 
   abrirNotificacaoRodada: (n) => {
