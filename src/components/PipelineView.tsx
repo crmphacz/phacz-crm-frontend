@@ -514,9 +514,20 @@ function ColunaPerdidos({ corretores }: { corretores: Corretor[] }) {
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
 
   return (
-    <div ref={setNodeRef} className="flex-shrink-0 flex flex-col mr-3" style={{ width: 300 }}>
+    <div
+      ref={setNodeRef}
+      className="flex-shrink-0 flex flex-col mr-3"
+      style={{
+        width: 300,
+        // O MESMO teto das colunas de etapa. Sem ele a coluna crescia até caber todos os
+        // cards e passava do rodapé da tela: o `overflow-y-auto` do corpo nunca disparava
+        // (um filho `flex-1` dentro de pai sem altura limitada só estica o pai), e não havia
+        // como chegar nos últimos perdidos.
+        maxHeight: 'calc(100vh - 225px)',
+      }}
+    >
       <div
-        className="rounded-t-xl px-3 py-2.5 border border-b-0"
+        className="rounded-t-xl px-3 py-2.5 border border-b-0 flex-shrink-0"
         style={{ borderColor: isOver ? '#dc2626' : '#e5e7eb', backgroundColor: isOver ? '#fef2f2' : '#fff' }}
       >
         <div className="flex items-center justify-between gap-2">
