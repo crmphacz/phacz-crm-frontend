@@ -1,22 +1,11 @@
 # Prints do tutorial
 
-As 15 telas que o tutorial da página **Documentação** percorre.
+As 15 telas que o tutorial da página **Documentação** percorre. Todas presentes.
 
-## Falta 1 print
+Se algum arquivo for removido ou renomeado, o tutorial continua rodando e aquela tela mostra
+o aviso "Print desta tela ainda não adicionado", com o nome do arquivo que falta — nada quebra.
 
-| Arquivo | Tela a capturar |
-|---|---|
-| `tela-05-dashboard.png` | **Dashboard → aba Visão Geral** |
-
-Enquanto ele não existir, o tutorial roda normalmente e aquela tela aparece com o aviso
-"Print desta tela ainda não adicionado" — nada quebra. Basta salvar o arquivo com esse nome
-nesta pasta.
-
-Depois de adicionar, confira as coordenadas da cena 5 em
-`src/components/phacz-tour/phacz-tour.data.ts`: elas foram escritas a partir do layout da tela,
-mas só dá para ter certeza de que o destaque caiu no lugar certo com o print na mão.
-
-## Como tirar um print
+## Como trocar ou tirar um print
 
 1. Abra o sistema **em produção, com dados reais** — é o que torna o tutorial útil: a pessoa
    reconhece o que vai ver.
@@ -33,7 +22,7 @@ mas só dá para ter certeza de que o destaque caiu no lugar certo com o print n
 | 2 | `tela-02-card-corretor.png` | Card do corretor, aba Geral |
 | 3 | `tela-03-atividades.png` | Card do corretor, aba Atividades |
 | 4 | `tela-04-clientes.png` | Clientes Finais |
-| 5 | `tela-05-dashboard.png` | Dashboard → Visão Geral *(falta)* |
+| 5 | `tela-05-dashboard.png` | Dashboard → Visão Geral |
 | 6 | `tela-06-placar.png` | Dashboard → Placar de Metas |
 | 7 | `tela-07-agenda.png` | Agenda |
 | 8 | `tela-08-rodadas.png` | Calendário de Rodadas |

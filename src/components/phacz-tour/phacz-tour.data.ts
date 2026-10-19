@@ -89,12 +89,13 @@ export const PHACZ_TOUR_DADOS: PhaczTourDados = {
       { c: [0.945, 0.052], b: [0.900, 0.031, 0.089, 0.042], cam: [1.8, 0.945, 0.052], r: 'Novo Cliente — escolhendo o corretor responsável' },
       { c: [0.57, 0.4], b: [0.156, 0.110, 0.834, 0.573], cam: [1.2, 0.57, 0.4], r: 'Contato e corretor de cada cliente, com atalho de WhatsApp' },
     ],
-    // 5. Dashboard — Visão Geral. Print ainda não recebido (ver LEIA-ME.md).
+    // 5. Dashboard — Visão Geral.
     [
-      { c: [0.073, 0.383], b: [0.006, 0.359, 0.134, 0.048], cam: [1, 0.073, 0.383], r: 'Dashboard: o resultado do funil em números' },
-      { c: [0.57, 0.25], b: [0.163, 0.160, 0.827, 0.200], cam: [1.3, 0.57, 0.25], r: 'Corretores ativos, fechamentos, volume e conversão' },
-      { c: [0.4, 0.62], b: [0.163, 0.420, 0.520, 0.420], cam: [1.3, 0.4, 0.62], r: 'O funil etapa a etapa' },
-      { c: [0.84, 0.62], b: [0.700, 0.420, 0.290, 0.420], cam: [1.4, 0.84, 0.62], r: 'Temperatura e churn de treinamentos' },
+      { c: [0.073, 0.387], b: [0.006, 0.362, 0.134, 0.049], cam: [1, 0.073, 0.387], r: 'Dashboard: o resultado do funil em números' },
+      { c: [0.57, 0.284], b: [0.164, 0.181, 0.818, 0.205], cam: [1.3, 0.57, 0.284], r: 'Corretores ativos, fechamentos, volume e conversão' },
+      { c: [0.57, 0.493], b: [0.164, 0.417, 0.818, 0.152], cam: [1.35, 0.57, 0.493], r: 'Quantos corretores em cada funil' },
+      { c: [0.43, 0.78], b: [0.164, 0.598, 0.541, 0.392], cam: [1.25, 0.43, 0.78], r: 'O funil etapa a etapa, da entrada ao pós-venda' },
+      { c: [0.85, 0.78], b: [0.718, 0.598, 0.266, 0.392], cam: [1.4, 0.85, 0.78], r: 'Temperatura da base e os corretores mais quentes' },
     ],
     // 6. Placar de metas.
     [
