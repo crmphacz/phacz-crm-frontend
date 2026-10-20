@@ -32,7 +32,9 @@ const tipoInteracaoMap = makeEnumMap<string, TipoInteracao>([
   ['LIGACAO', 'ligacao'], ['WHATSAPP', 'whatsapp'], ['EMAIL', 'email'], ['VISITA', 'visita'],
   ['VISITA_OBRA', 'visita_obra'], ['VISITA_IMOBILIARIA', 'visita_imobiliaria'],
   ['ALMOCO', 'almoco'], ['EVENTO', 'evento'],
-  ['REUNIAO', 'reuniao'], ['NOTA', 'nota'], ['PROPOSTA', 'proposta'], ['ESPECULACAO', 'especulacao'],
+  ['REUNIAO', 'reuniao'],
+  ['ATENDIMENTO_CLIENTE', 'atendimento_cliente'], ['ATENDIMENTO_CORRETOR', 'atendimento_corretor'],
+  ['NOTA', 'nota'], ['PROPOSTA', 'proposta'], ['ESPECULACAO', 'especulacao'],
   ['TREINAMENTO', 'treinamento'],
 ]);
 

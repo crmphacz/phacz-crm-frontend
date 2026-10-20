@@ -179,6 +179,8 @@ export const TIPO_INTERACAO_CONFIG = {
   almoco: { label: 'Almoço', icon: '🍽️' },
   evento: { label: 'Evento', icon: '🎉' },
   reuniao: { label: 'Reunião', icon: '🤝' },
+  atendimento_cliente: { label: 'Atendimento cliente (Phacz)', icon: '🙋' },
+  atendimento_corretor: { label: 'Atendimento corretor (Phacz)', icon: '🧑‍💼' },
   nota: { label: 'Nota', icon: '📝' },
   proposta: { label: 'Proposta', icon: '📄' },
   especulacao: { label: 'Especulação', icon: '💭' },
@@ -445,6 +447,7 @@ export const MODALIDADE_LABEL: Record<ModalidadeAtividade, string> = {
 /** Tipos de atividade em que perguntar "como aconteceu" faz diferença no placar. */
 export const PEDE_MODALIDADE = new Set<TipoInteracao>([
   'visita', 'visita_obra', 'visita_imobiliaria', 'reuniao', 'treinamento',
+  'atendimento_cliente', 'atendimento_corretor',
 ]);
 
 /**
