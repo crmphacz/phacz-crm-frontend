@@ -24,6 +24,7 @@ import { AgendaView } from './components/AgendaView';
 import { EmpreendimentosListView } from './components/EmpreendimentosListView';
 import { HistoricoAcoesView } from './components/HistoricoAcoesView';
 import { ToastContainer } from './components/ToastContainer';
+import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { ViewLoader } from './components/ViewLoader';
 import { useCorretoresLiveSync } from './queries/corretoresSync';
 
@@ -165,6 +166,7 @@ export default function App() {
       {selectedCorretorId && <CorretorDetailPanel />}
       {showNewCorretorModal && <NewCorretorModal />}
       {privacyModal}
+      <SessionExpiredModal />
       <ToastContainer />
     </div>
   );
