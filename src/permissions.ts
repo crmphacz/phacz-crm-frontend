@@ -148,6 +148,15 @@ export function canApproveRodada(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora';
 }
 
+/**
+ * Cancelar é diferente de recusar: recusar é a Diretoria dizendo "não"; cancelar é a Gerência
+ * de Relacionamento retirando o pedido porque o combinado caiu. Quem cadastra a rodada é quem
+ * fica sabendo que ela deixou de existir — por isso a GR também pode.
+ */
+export function canCancelRodada(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora' || user?.cargo === 'GR';
+}
+
 /** E-mail marketing: só Diretoria e Marketing usam a ferramenta (Administrativo/Recepção só leem). */
 export function canWriteEmailMarketing(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora' || user?.cargo === 'Marketing';

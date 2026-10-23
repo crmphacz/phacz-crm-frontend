@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, XCircle, PencilLine } from 'lucide-react';
+import { X, XCircle, PencilLine, Ban } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
 
@@ -9,7 +9,7 @@ import { ApiError } from '../api/client';
  * texto: recusar encerra a rodada, pedir correção mantém ela viva e manda um e-mail para quem
  * cadastrou. Por isso os avisos abaixo do campo são diferentes.
  */
-export type ModoMotivo = 'recusa' | 'correcao';
+export type ModoMotivo = 'recusa' | 'correcao' | 'cancelamento';
 
 const CONFIG = {
   recusa: {
@@ -38,6 +38,22 @@ const CONFIG = {
     corBg: '#fff7ed',
     icon: PencilLine,
   },
+  // Terceiro modo, e não um modal próprio: o formulário é o mesmo (um motivo obrigatório). O que
+  // muda é quem usa — aqui é a Gerência de Relacionamento retirando o próprio pedido, não a
+  // Diretoria decidindo — e por isso o texto fala em "retirar da aprovação", não em recusar.
+  cancelamento: {
+    titulo: 'Cancelar rodada',
+    label: 'Motivo do cancelamento',
+    placeholder: 'Ex.: a imobiliária desmarcou; a data mudou; o combinado não se confirmou.',
+    nota: 'A rodada sai da fila de aprovação e fica no histórico com este motivo. Ela não é apagada.',
+    acao: 'Confirmar cancelamento',
+    acaoLoading: 'Cancelando...',
+    erroVazio: 'Informe o motivo do cancelamento',
+    erroSubmit: 'Não foi possível cancelar a rodada. Tente novamente.',
+    cor: '#475569',
+    corBg: '#f1f5f9',
+    icon: Ban,
+  },
 } as const;
 
 interface RodadaMotivoModalProps {
@@ -49,6 +65,7 @@ interface RodadaMotivoModalProps {
 export function RodadaMotivoModal({ rodadaId, modo, onClose }: RodadaMotivoModalProps) {
   const rejectRodada = useStore((s) => s.rejectRodada);
   const requestRodadaCorrection = useStore((s) => s.requestRodadaCorrection);
+  const cancelRodada = useStore((s) => s.cancelRodada);
   const [motivo, setMotivo] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +82,7 @@ export function RodadaMotivoModal({ rodadaId, modo, onClose }: RodadaMotivoModal
     setError('');
     try {
       if (modo === 'recusa') await rejectRodada(rodadaId, motivo.trim());
+      else if (modo === 'cancelamento') await cancelRodada(rodadaId, motivo.trim());
       else await requestRodadaCorrection(rodadaId, motivo.trim());
       onClose();
     } catch (err) {

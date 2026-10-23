@@ -657,6 +657,9 @@ export const rodadasApi = {
     apiFetch<ApiRodada>(`/api/rodadas/${id}/aprovar`, { method: 'PATCH' }).then(mapRodadaFromApi),
   recusar: (id: string, motivo: string): Promise<Rodada> =>
     apiFetch<ApiRodada>(`/api/rodadas/${id}/recusar`, { method: 'PATCH', body: { motivo } }).then(mapRodadaFromApi),
+  /** Retira uma rodada que ainda está em aprovação. Diferente de recusar: a GR também pode. */
+  cancelar: (id: string, motivo: string): Promise<Rodada> =>
+    apiFetch<ApiRodada>(`/api/rodadas/${id}/cancelar`, { method: 'PATCH', body: { motivo } }).then(mapRodadaFromApi),
   /** Devolve a rodada para quem cadastrou ajustar (sem recusar) — o backend avisa por e-mail. */
   solicitarCorrecao: (id: string, motivo: string): Promise<Rodada> =>
     apiFetch<ApiRodada>(`/api/rodadas/${id}/solicitar-correcao`, { method: 'PATCH', body: { motivo } }).then(mapRodadaFromApi),

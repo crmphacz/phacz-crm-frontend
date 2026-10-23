@@ -335,6 +335,8 @@ interface StoreState {
   removeRodada: (id: string) => Promise<void>;
   approveRodada: (id: string) => Promise<Rodada>;
   rejectRodada: (id: string, motivo: string) => Promise<Rodada>;
+  /** Retira uma rodada ainda em aprovação — a GR também pode, diferente de recusar. */
+  cancelRodada: (id: string, motivo: string) => Promise<Rodada>;
   requestRodadaCorrection: (id: string, motivo: string) => Promise<Rodada>;
 
   // Notificações in-app
@@ -1035,6 +1037,12 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   rejectRodada: async (id, motivo) => {
     const updated = await rodadasApi.recusar(id, motivo);
+    set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
+    return updated;
+  },
+
+  cancelRodada: async (id, motivo) => {
+    const updated = await rodadasApi.cancelar(id, motivo);
     set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
     return updated;
   },

@@ -330,7 +330,7 @@ export interface EmailCampaign {
 export type TipoAcaoRodada = 'rodada' | 'cafe_na_obra' | 'evento_externo' | 'trafego_pago' | 'almoco_jantar' | 'outro';
 /** O que o campo `imobiliaria` da rodada representa: nome de uma imobiliária ou de um corretor cadastrado. */
 export type VinculoRodadaTipo = 'imobiliaria' | 'corretor';
-export type StatusAprovacaoRodada = 'pendente' | 'aprovada' | 'recusada' | 'correcao_solicitada';
+export type StatusAprovacaoRodada = 'pendente' | 'aprovada' | 'recusada' | 'correcao_solicitada' | 'cancelada';
 export type PerfilImobiliaria = 'alto_padrao' | 'misto' | 'investidor' | 'baixo_ticket';
 export type HistoricoParceria = 'ja_parceira' | 'nao_parceira';
 export type IntencaoPrincipal = 'abrir_relacionamento' | 'reativar_base' | 'engajar_corretores' | 'gerar_visitas_propostas' | 'conversao_vendas';
@@ -497,6 +497,11 @@ export interface Rodada {
   aprovadoPorNome?: string;
   aprovadoEm?: string;
 
+  /** Retirada da aprovação pela GR (ou Diretoria) — ver statusAprovacao 'cancelada'. */
+  motivoCancelamento: string;
+  canceladoPorNome?: string;
+  canceladoEm?: string;
+
   criadoPorId: string;
   criadoPorNome: string;
   criadoEm: string;
@@ -504,7 +509,7 @@ export interface Rodada {
 
 export type CreateRodadaPayload = Omit<
   Rodada,
-  'id' | 'criadoPorId' | 'criadoPorNome' | 'criadoEm' | 'custoRodada' | 'empreendimentos' | 'statusAprovacao' | 'motivoRecusa' | 'aprovadoPorNome' | 'aprovadoEm'
+  'id' | 'criadoPorId' | 'criadoPorNome' | 'criadoEm' | 'custoRodada' | 'empreendimentos' | 'statusAprovacao' | 'motivoRecusa' | 'aprovadoPorNome' | 'aprovadoEm' | 'motivoCancelamento' | 'canceladoPorNome' | 'canceladoEm'
 > & {
   empreendimentoIds: string[];
 };

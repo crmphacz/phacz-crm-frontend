@@ -6,14 +6,14 @@ import {
 import { ptBR } from 'date-fns/locale';
 import {
   Plus, ChevronLeft, ChevronRight, MapPin, Wallet, User, Pencil, Trash2, X,
-  CalendarDays, LayoutGrid, List as ListIcon, Check, XCircle, Clock, AlertCircle, PencilLine,
+  CalendarDays, LayoutGrid, List as ListIcon, Check, XCircle, Clock, AlertCircle, PencilLine, Ban,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { ApiError } from '../api/client';
 import { formatCurrency, parseDateKeyLocal, formatDateKeyBR } from '../utils';
-import { canViewRodadas, canWriteRodadas, canViewFullRodada, canApproveRodada } from '../permissions';
+import { canViewRodadas, canWriteRodadas, canViewFullRodada, canApproveRodada, canCancelRodada } from '../permissions';
 import { isRodadaCompleta, type Rodada, type RodadaResumo, type TipoAcaoRodada, type StatusAprovacaoRodada } from '../types';
 import { RodadaFormModal } from './RodadaFormModal';
 import { RodadaResumoModal } from './RodadaResumoModal';
@@ -24,10 +24,13 @@ const STATUS_APROVACAO_CONFIG: Record<StatusAprovacaoRodada, { label: string; bg
   aprovada: { label: 'Aprovada', bg: '#dcfce7', text: '#166534', icon: Check },
   recusada: { label: 'Recusada', bg: '#fee2e2', text: '#b91c1c', icon: XCircle },
   correcao_solicitada: { label: 'Correção solicitada', bg: '#ffedd5', text: '#c2410c', icon: PencilLine },
+  // Cinza, e não o vermelho da recusada: não foi um "não" da Diretoria, foi o pedido sendo
+  // retirado. A cor separa as duas coisas já na lista, sem precisar abrir.
+  cancelada: { label: 'Cancelada', bg: '#f1f5f9', text: '#475569', icon: Ban },
 };
 
 /** Ordem dos filtros da aba Lista. 'todas' primeiro, depois o ciclo de vida da aprovação. */
-const FILTROS_STATUS = ['todas', 'pendente', 'correcao_solicitada', 'aprovada', 'recusada'] as const;
+const FILTROS_STATUS = ['todas', 'pendente', 'correcao_solicitada', 'aprovada', 'recusada', 'cancelada'] as const;
 type FiltroStatus = (typeof FILTROS_STATUS)[number];
 
 /** `RodadaResumo` nunca chega pendente/recusada pro cliente — a API já filtra isso pra quem não vê o formulário completo. */
@@ -75,6 +78,7 @@ export function RodadasCalendarView() {
   // Só a Diretoria aprova/recusa — é quem enxerga rodadas pendentes/recusadas de todo mundo
   // (os demais perfis, quando enxergam alguma pendente/recusada, só veem a própria).
   const canApprove = canApproveRodada(currentUser);
+  const canCancel = canCancelRodada(currentUser);
 
   const rodadas = useStore((s) => s.rodadas);
   const removeRodada = useStore((s) => s.removeRodada);
@@ -148,7 +152,7 @@ export function RodadasCalendarView() {
   /** Quantas rodadas o usuário enxerga em cada status — alimenta os chips de filtro da Lista. */
   const contagemPorStatus = useMemo(() => {
     const base: Record<FiltroStatus, number> = {
-      todas: rodadas.length, pendente: 0, correcao_solicitada: 0, aprovada: 0, recusada: 0,
+      todas: rodadas.length, pendente: 0, correcao_solicitada: 0, aprovada: 0, recusada: 0, cancelada: 0,
     };
     for (const r of rodadas) base[statusDe(r)] += 1;
     return base;
@@ -255,12 +259,15 @@ export function RodadasCalendarView() {
                 <PencilLine size={13} /> {minhasAguardandoCorrecao.length} aguardando correção
               </button>
             )}
-            {canApprove && rodadasPendentes.length > 0 && (
+            {/* A GR também vê este atalho: ela passou a enxergar as rodadas em aprovação e a
+                poder cancelá-las, então precisa do mesmo caminho curto até a fila. O título
+                muda porque para ela não é "sua aprovação" — ela não aprova nada. */}
+            {(canApprove || canCancel) && rodadasPendentes.length > 0 && (
               <button
                 onClick={() => { setTab('lista'); setFiltroStatus('pendente'); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
                 style={{ backgroundColor: '#fef9c3', color: '#854d0e' }}
-                title="Ver rodadas aguardando sua aprovação"
+                title={canApprove ? 'Ver rodadas aguardando sua aprovação' : 'Ver rodadas aguardando aprovação'}
               >
                 <AlertCircle size={13} /> {rodadasPendentes.length} pendente{rodadasPendentes.length !== 1 ? 's' : ''} de aprovação
               </button>
@@ -449,6 +456,14 @@ export function RodadasCalendarView() {
                           {r.motivoRecusa}
                         </p>
                       )}
+                      {/* O motivo do cancelamento é o que justifica a rodada ter saído da fila —
+                          sem ele o status sozinho não explica nada a quem revisa depois. */}
+                      {isRodadaCompleta(r) && status === 'cancelada' && r.motivoCancelamento && (
+                        <p className="text-xs text-gray-500 mt-1 max-w-[260px] whitespace-normal" title={r.motivoCancelamento}>
+                          {r.motivoCancelamento}
+                          {r.canceladoPorNome ? ` — ${r.canceladoPorNome}` : ''}
+                        </p>
+                      )}
                     </td>
                   )}
                   <td className="px-4 py-3">
@@ -479,6 +494,17 @@ export function RodadasCalendarView() {
                             <XCircle size={14} />
                           </button>
                         </>
+                      )}
+                      {/* Fora do bloco acima de propósito: cancelar não é uma decisão de
+                          aprovação, e a GR — que não aprova nada — precisa dele. */}
+                      {canCancel && (status === 'pendente' || status === 'correcao_solicitada') && (
+                        <button
+                          onClick={(ev) => { ev.stopPropagation(); setMotivoModal({ id: r.id, modo: 'cancelamento' }); }}
+                          className="w-7 h-7 rounded flex items-center justify-center text-slate-500 hover:bg-slate-100"
+                          title="Cancelar rodada"
+                        >
+                          <Ban size={14} />
+                        </button>
                       )}
                       <span className="w-7 h-7 rounded flex items-center justify-center text-gray-400" title={isReadOnly ? 'Visualizar' : 'Editar'}>
                         <Pencil size={13} />

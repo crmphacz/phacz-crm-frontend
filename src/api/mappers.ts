@@ -533,7 +533,7 @@ const vinculoRodadaTipoMap = makeEnumMap<string, VinculoRodadaTipo>([
 ]);
 const statusAprovacaoRodadaMap = makeEnumMap<string, StatusAprovacaoRodada>([
   ['PENDENTE', 'pendente'], ['APROVADA', 'aprovada'], ['RECUSADA', 'recusada'],
-  ['CORRECAO_SOLICITADA', 'correcao_solicitada'],
+  ['CORRECAO_SOLICITADA', 'correcao_solicitada'], ['CANCELADA', 'cancelada'],
 ]);
 const perfilImobiliariaMap = makeEnumMap<string, PerfilImobiliaria>([
   ['ALTO_PADRAO', 'alto_padrao'], ['MISTO', 'misto'], ['INVESTIDOR', 'investidor'], ['BAIXO_TICKET', 'baixo_ticket'],
@@ -696,6 +696,9 @@ export interface ApiRodada {
   motivoRecusa: string;
   aprovadoPor: { id: string; nome: string } | null;
   aprovadoEm: string | null;
+  motivoCancelamento?: string | null;
+  canceladoPor?: { id: string; nome: string } | null;
+  canceladoEm?: string | null;
 
   criadoPor: { id: string; nome: string };
   criadoEm: string;
@@ -849,6 +852,10 @@ export function mapRodadaFromApi(r: ApiRodada): Rodada {
     motivoRecusa: r.motivoRecusa,
     aprovadoPorNome: r.aprovadoPor?.nome,
     aprovadoEm: r.aprovadoEm ?? undefined,
+    // Ausentes no recorte reduzido que SDR/GV recebem (RODADA_SUMMARY_SELECT no backend).
+    motivoCancelamento: r.motivoCancelamento ?? '',
+    canceladoPorNome: r.canceladoPor?.nome,
+    canceladoEm: r.canceladoEm ?? undefined,
 
     criadoPorId: r.criadoPor.id,
     criadoPorNome: r.criadoPor.nome,
