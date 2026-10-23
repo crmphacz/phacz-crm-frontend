@@ -167,6 +167,14 @@ export interface Corretor {
    * escrito nela.
    */
   tiposInteracao?: TipoInteracao[];
+  /**
+   * Quando o CORRETOR fechou a última venda, somando o card raiz e todos os negócios gerados a
+   * partir dele — não é o `dataFechamento` deste card. Ausente = nunca vendeu. Só vem
+   * preenchido na listagem paginada (GET /api/corretores).
+   */
+  ultimaVendaEm?: string;
+  /** Quantas vendas o corretor já fechou, na mesma conta de `ultimaVendaEm`. */
+  totalVendas?: number;
   dataDistribuicao?: string;
   dataFechamento?: string;
   etapaTimestamps: Record<string, string>;

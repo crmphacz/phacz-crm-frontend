@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal, Bookmark, Trash2, X, Check } from 'lucide-react';
-import { useStore } from '../store';
+import { useStore, type FiltroVendas } from '../store';
 import { STAGES } from '../data';
 import { TIPO_INTERACAO_CONFIG } from '../utils';
 import type { TipoInteracao } from '../types';
@@ -18,6 +18,10 @@ export function AdvancedFiltersPanel() {
   const setFilterCanalOrigem = useStore((s) => s.setFilterCanalOrigem);
   const filterTipoInteracao = useStore((s) => s.filterTipoInteracao);
   const setFilterTipoInteracao = useStore((s) => s.setFilterTipoInteracao);
+  const filterVendas = useStore((s) => s.filterVendas);
+  const setFilterVendas = useStore((s) => s.setFilterVendas);
+  const filterDiasSemVender = useStore((s) => s.filterDiasSemVender);
+  const setFilterDiasSemVender = useStore((s) => s.setFilterDiasSemVender);
   const clearAdvancedFilters = useStore((s) => s.clearAdvancedFilters);
 
   const users = useStore((s) => s.users);
@@ -36,6 +40,7 @@ export function AdvancedFiltersPanel() {
 
   const activeCount = [
     filterEtapa !== 'all', filterResponsavel !== 'all', filterCanalOrigem !== 'all', filterTipoInteracao !== 'all',
+    filterVendas !== 'all', filterDiasSemVender !== 'all',
   ].filter(Boolean).length;
 
   useEffect(() => {
@@ -154,6 +159,39 @@ export function AdvancedFiltersPanel() {
               </select>
               <p className="text-[11px] text-gray-400 mt-1">
                 Mostra quem já teve esse tipo de atividade registrado — não busca no texto dela.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 block mb-1">Histórico de vendas</label>
+              <select
+                className="form-input"
+                value={filterVendas}
+                onChange={(e) => setFilterVendas(e.target.value as FiltroVendas)}
+              >
+                <option value="all">Todos</option>
+                <option value="ja_vendeu">Já vendeu</option>
+                <option value="nunca_vendeu">Nunca vendeu</option>
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Conta as vendas do corretor somando todos os negócios gerados a partir dele.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 block mb-1">Tempo sem vender</label>
+              <select
+                className="form-input"
+                value={filterDiasSemVender}
+                onChange={(e) => setFilterDiasSemVender(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              >
+                <option value="all">Qualquer tempo</option>
+                <option value={30}>Há mais de 30 dias</option>
+                <option value={60}>Há mais de 60 dias</option>
+                <option value={90}>Há mais de 90 dias</option>
+                <option value={180}>Há mais de 6 meses</option>
+                <option value={365}>Há mais de 1 ano</option>
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Só quem já vendeu alguma vez — quem nunca vendeu não tem data para contar.
               </p>
             </div>
           </div>

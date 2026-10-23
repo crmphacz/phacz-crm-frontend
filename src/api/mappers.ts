@@ -219,6 +219,8 @@ export interface ApiCorretor {
   // Só vem no GET /api/corretores (listagem paginada) — ver comentário do campo em Corretor (types.ts).
   ultimaAtividadeEm?: string | null;
   tiposInteracao?: string[] | null;
+  ultimaVendaEm?: string | null;
+  totalVendas?: number | null;
   dataDistribuicao: string | null;
   dataFechamento: string | null;
   etapaTimestamps: Record<string, string>;
@@ -387,6 +389,8 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     dataUltimaInteracao: l.dataUltimaInteracao,
     ultimaAtividadeEm: l.ultimaAtividadeEm ?? undefined,
     tiposInteracao: (l.tiposInteracao ?? []).map((t) => tipoInteracaoMap.toApp(t)),
+    ultimaVendaEm: l.ultimaVendaEm ?? undefined,
+    totalVendas: l.totalVendas ?? 0,
     dataDistribuicao: l.dataDistribuicao ?? undefined,
     dataFechamento: l.dataFechamento ?? undefined,
     etapaTimestamps: l.etapaTimestamps ?? {},

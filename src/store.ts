@@ -16,6 +16,7 @@ import { mapCargoFromApi } from './api/mappers.js';
 import { getToken, setToken, clearToken, ApiError } from './api/client.js';
 import { isPushSupported, getExistingPushSubscription, subscribeToPush, unsubscribeFromPush } from './push';
 import { getDefaultView } from './permissions';
+import { diasSemVender } from './utils';
 import { clearViewCache } from './lib/viewCache';
 
 // Reexportado por conveniência — NewClienteModal/ClientesView importam este tipo daqui (`from
@@ -95,7 +96,14 @@ export interface PipelineFiltros {
   filterCanalOrigem: CanalOrigem | 'all';
   /** Filtra os cards que JÁ TIVERAM uma atividade deste tipo registrada. */
   filterTipoInteracao: TipoInteracao | 'all';
+  // Opcionais porque as buscas salvas antes destes filtros não os têm gravados — ao aplicar
+  // uma busca antiga eles caem no padrão em vez de virarem `undefined` e sumirem do filtro.
+  filterVendas?: FiltroVendas;
+  filterDiasSemVender?: number | 'all';
 }
+
+/** Recorte por histórico de venda do corretor — ver `totalVendas` em types.ts. */
+export type FiltroVendas = 'all' | 'ja_vendeu' | 'nunca_vendeu';
 
 interface StoreState {
   corretores: Corretor[];
@@ -117,6 +125,9 @@ interface StoreState {
   filterCanalOrigem: CanalOrigem | 'all';
   /** Filtra os cards que JÁ TIVERAM uma atividade deste tipo registrada. */
   filterTipoInteracao: TipoInteracao | 'all';
+  filterVendas: FiltroVendas;
+  /** Mínimo de dias sem vender. Quem nunca vendeu não entra: não há data para medir. */
+  filterDiasSemVender: number | 'all';
   searchQuery: string;
   /** Aba de funil selecionada no Pipeline — fica aqui pra sobreviver a trocar de menu e voltar. */
   pipelineFunnel: PipelineFunnel;
@@ -209,6 +220,8 @@ interface StoreState {
   setPipelineFunnel: (f: PipelineFunnel) => void;
   setShowNewCorretorModal: (v: boolean, etapa?: number) => void;
   setFilterTipoInteracao: (t: TipoInteracao | 'all') => void;
+  setFilterVendas: (v: FiltroVendas) => void;
+  setFilterDiasSemVender: (d: number | 'all') => void;
   clearAdvancedFilters: () => void;
 
   // Corretor CRUD
@@ -342,6 +355,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   filterResponsavel: 'all',
   filterCanalOrigem: 'all',
   filterTipoInteracao: 'all',
+  filterVendas: 'all',
+  filterDiasSemVender: 'all',
   searchQuery: '',
   pipelineFunnel: 'todos',
   savedSearches: [],
@@ -646,11 +661,16 @@ export const useStore = create<StoreState>()((set, get) => ({
   setFilterResponsavel: (r) => set({ filterResponsavel: r }),
   setFilterCanalOrigem: (c) => set({ filterCanalOrigem: c }),
   setFilterTipoInteracao: (t) => set({ filterTipoInteracao: t }),
+  setFilterVendas: (v) => set({ filterVendas: v }),
+  setFilterDiasSemVender: (d) => set({ filterDiasSemVender: d }),
   setSearchQuery: (q) => set({ searchQuery: q }),
   setPipelineFunnel: (f) => set({ pipelineFunnel: f }),
   setShowNewCorretorModal: (v, etapa) => set({ showNewCorretorModal: v, newCorretorEtapa: v ? etapa ?? 1 : 1 }),
   clearAdvancedFilters: () =>
-    set({ filterEtapa: 'all', filterResponsavel: 'all', filterCanalOrigem: 'all', filterTipoInteracao: 'all' }),
+    set({
+      filterEtapa: 'all', filterResponsavel: 'all', filterCanalOrigem: 'all', filterTipoInteracao: 'all',
+      filterVendas: 'all', filterDiasSemVender: 'all',
+    }),
 
   addCorretor: async (corretorData) => {
     const corretor = await corretoresApi.create(corretorData);
@@ -938,9 +958,13 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   createSavedSearch: async (nome) => {
-    const { searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem, filterTipoInteracao } = get();
+    const {
+      searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem, filterTipoInteracao,
+      filterVendas, filterDiasSemVender,
+    } = get();
     const filtros: PipelineFiltros = {
       searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem, filterTipoInteracao,
+      filterVendas, filterDiasSemVender,
     };
     const saved = await savedSearchesApi.create(nome, filtros as unknown as Record<string, unknown>);
     set((state) => ({ savedSearches: [saved, ...state.savedSearches] }));
@@ -1093,6 +1117,8 @@ export const useFilteredCorretores = () => {
   const filterResponsavel = useStore((s) => s.filterResponsavel);
   const filterCanalOrigem = useStore((s) => s.filterCanalOrigem);
   const filterTipoInteracao = useStore((s) => s.filterTipoInteracao);
+  const filterVendas = useStore((s) => s.filterVendas);
+  const filterDiasSemVender = useStore((s) => s.filterDiasSemVender);
   const searchQuery = useStore((s) => s.searchQuery);
 
   return corretores.filter((l) => {
@@ -1104,6 +1130,15 @@ export const useFilteredCorretores = () => {
     if (filterCanalOrigem !== 'all' && l.canalOrigem !== filterCanalOrigem) return false;
     // Basta ter UMA atividade do tipo — não procura no texto do que foi escrito.
     if (filterTipoInteracao !== 'all' && !(l.tiposInteracao ?? []).includes(filterTipoInteracao)) return false;
+    // Histórico de venda do CORRETOR (card raiz + negócios gerados), não deste card.
+    if (filterVendas === 'ja_vendeu' && (l.totalVendas ?? 0) === 0) return false;
+    if (filterVendas === 'nunca_vendeu' && (l.totalVendas ?? 0) > 0) return false;
+    if (filterDiasSemVender !== 'all') {
+      const dias = diasSemVender(l);
+      // Quem nunca vendeu fica de fora deste corte: não há data a partir da qual contar. Para
+      // achar esses, o filtro é o "Nunca vendeu" ao lado — são perguntas comerciais diferentes.
+      if (dias === null || dias < filterDiasSemVender) return false;
+    }
     if (filterResponsavel !== 'all') {
       const match =
         l.responsavelSDR === filterResponsavel ||

@@ -10,7 +10,7 @@ import {
 import { useStore, useSelectedCorretor } from '../store';
 import { STAGES, CADENCIAS } from '../data';
 import {
-  formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG,
+  formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG, labelSemVender,
   TIPO_INTERACAO_CONFIG, getInitials, nowForDatetimeLocal, datetimeLocalToISO,
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
   camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
@@ -1081,6 +1081,19 @@ export function CorretorDetailPanel() {
                   <div>
                     <p className="text-xs text-gray-400 mb-0.5">Última interação</p>
                     <p className="text-sm font-medium text-gray-800">{formatRelativeTime(corretor.dataUltimaInteracao)}</p>
+                  </div>
+                  {/* Diferente do card do pipeline, aqui "Nunca vendeu" aparece: no painel há
+                      espaço, e saber que o parceiro nunca converteu é tão informativo quanto
+                      saber há quanto tempo ele não converte. */}
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Histórico de vendas</p>
+                    <p className="text-sm font-medium text-gray-800">{labelSemVender(corretor)}</p>
+                    {(corretor.totalVendas ?? 0) > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {corretor.totalVendas} {corretor.totalVendas === 1 ? 'venda fechada' : 'vendas fechadas'}
+                        {corretor.ultimaVendaEm ? ` · última ${formatRelativeTime(corretor.ultimaVendaEm)}` : ''}
+                      </p>
+                    )}
                   </div>
                 </div>
               </Section>

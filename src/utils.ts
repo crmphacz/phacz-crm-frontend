@@ -172,6 +172,31 @@ export function getSlaLabel(corretor: Corretor, stage: StageConfig): string {
   return `${differenceInDays(now, entered)}d na etapa`;
 }
 
+/**
+ * Há quantos dias o corretor não fecha uma venda. `null` = nunca vendeu.
+ *
+ * "Nunca vendeu" e "há muito tempo sem vender" são situações comerciais opostas — uma é um
+ * parceiro que ainda não foi convertido, a outra é um parceiro que esfriou — e por isso não
+ * podem colapsar no mesmo valor. Quem chama precisa conseguir distinguir as duas.
+ */
+export function diasSemVender(corretor: Corretor): number | null {
+  if (!corretor.ultimaVendaEm) return null;
+  return differenceInDays(new Date(), new Date(corretor.ultimaVendaEm));
+}
+
+/** Texto curto do tempo sem vender — mesmo texto no selo do card e no campo do painel. */
+export function labelSemVender(corretor: Corretor): string {
+  const dias = diasSemVender(corretor);
+  if (dias === null) return 'Nunca vendeu';
+  if (dias <= 0) return 'Vendeu hoje';
+  if (dias === 1) return '1 dia sem vender';
+  // Acima de um mês o número de dias para de informar: "412 dias" é o mesmo problema do
+  // "532h na etapa" — obriga a dividir de cabeça.
+  if (dias < 30) return `${dias} dias sem vender`;
+  const meses = Math.floor(dias / 30);
+  return meses === 1 ? '1 mês sem vender' : `${meses} meses sem vender`;
+}
+
 export const TEMPERATURA_CONFIG = {
   quente: { label: 'Quente', bg: '#fee2e2', text: '#b91c1c', dot: '#ef4444' },
   morno: { label: 'Morno', bg: '#fef9c3', text: '#854d0e', dot: '#eab308' },

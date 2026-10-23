@@ -1,10 +1,10 @@
-import { Building2, Users, Link, AlertCircle } from 'lucide-react';
+import { Building2, Users, Link, AlertCircle, Trophy } from 'lucide-react';
 import type { Corretor } from '../types';
 import type { StageConfig } from '../types';
 import {
   TEMPERATURA_CONFIG, getSlaStatus, getSlaLabel, getInitials,
   camposFaltandoNoCadastro, ETAPA_EXIGE_CADASTRO_COMPLETO,
-  ehCardDeCliente, nomeExibidoNoCard, subtituloDoCard,
+  ehCardDeCliente, nomeExibidoNoCard, subtituloDoCard, labelSemVender,
 } from '../utils';
 import { useStore } from '../store';
 
@@ -34,6 +34,8 @@ export function CorretorCard({ corretor, stage }: Props) {
   // Cadastro incompleto trava o card na etapa 7 (Monitoramento GV). Avisar aqui evita que a
   // pessoa só descubra ao tentar arrastar — e diz exatamente o que falta.
   const faltando = corretor.etapa < ETAPA_EXIGE_CADASTRO_COMPLETO ? camposFaltandoNoCadastro(corretor) : [];
+
+  const vendas = corretor.totalVendas ?? 0;
 
   return (
     <div
@@ -77,6 +79,19 @@ export function CorretorCard({ corretor, stage }: Props) {
               <Building2 size={11} className="flex-shrink-0" />
               {subtitle}
             </div>
+            {/* Só para quem já vendeu. "Nunca vendeu" em todo card seria ruído em mil e duzentos
+                cards — quem procura esses usa o filtro, e o painel do corretor mostra o estado
+                completo. Aqui o que informa é o parceiro que vendia e parou. */}
+            {vendas > 0 && (
+              <div
+                className="text-[11px] mt-0.5 truncate flex items-center gap-1"
+                style={{ color: '#6b7280' }}
+                title={`${vendas} ${vendas === 1 ? 'venda fechada' : 'vendas fechadas'} — ${labelSemVender(corretor)}`}
+              >
+                <Trophy size={11} className="flex-shrink-0" style={{ color: '#d55006' }} />
+                {labelSemVender(corretor)}
+              </div>
+            )}
           </div>
 
           {/* Temperature badge */}
