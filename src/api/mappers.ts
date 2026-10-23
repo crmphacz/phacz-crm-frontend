@@ -390,7 +390,9 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     ultimaAtividadeEm: l.ultimaAtividadeEm ?? undefined,
     tiposInteracao: (l.tiposInteracao ?? []).map((t) => tipoInteracaoMap.toApp(t)),
     ultimaVendaEm: l.ultimaVendaEm ?? undefined,
-    totalVendas: l.totalVendas ?? 0,
+    // `undefined` (e não 0) quando a resposta não traz o campo: é o que distingue "o servidor
+    // disse que nunca vendeu" de "esta resposta não calcula isso" — ver hydrateCorretorDetail.
+    totalVendas: l.totalVendas ?? undefined,
     dataDistribuicao: l.dataDistribuicao ?? undefined,
     dataFechamento: l.dataFechamento ?? undefined,
     etapaTimestamps: l.etapaTimestamps ?? {},

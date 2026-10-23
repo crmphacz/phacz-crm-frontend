@@ -76,6 +76,24 @@ export type PipelineFunnel = 'todos' | 'pre-atendimento' | 'treinamento' | 'vend
  * simplesmente substituísse o array, todo corretor cujo detalhe já tinha sido aberto voltaria a
  * mostrar histórico vazio a cada revalidação em segundo plano ou ao voltar para o Pipeline/Dashboard.
  */
+/**
+ * Campos que SÓ a listagem paginada calcula (GET /api/corretores) — o detalhe (GET /:id) não os
+ * devolve. Trocar o card pelo detalhe sem preservá-los apagava da tela o histórico de vendas e a
+ * última atividade no instante em que a pessoa abria o card, que é justamente quando ela olha.
+ *
+ * Preserva por ausência, não por valor: `totalVendas: 0` vindo do servidor é "nunca vendeu" e
+ * tem que sobrescrever; `undefined` é "esta resposta não sabe" e tem que ceder ao que já havia.
+ */
+function comCamposDaListagem(detalhe: Corretor, anterior: Corretor): Corretor {
+  return {
+    ...detalhe,
+    ultimaVendaEm: detalhe.ultimaVendaEm ?? anterior.ultimaVendaEm,
+    totalVendas: detalhe.totalVendas ?? anterior.totalVendas,
+    ultimaAtividadeEm: detalhe.ultimaAtividadeEm ?? anterior.ultimaAtividadeEm,
+    tiposInteracao: detalhe.tiposInteracao?.length ? detalhe.tiposInteracao : anterior.tiposInteracao,
+  };
+}
+
 function mergeCorretoresLista(atuais: Corretor[], recebidos: Corretor[]): Corretor[] {
   const detalhados = new Map<string, Corretor>();
   for (const c of atuais) if (c.detalheCarregado) detalhados.set(c.id, c);
@@ -606,7 +624,9 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   hydrateCorretorDetail: async (id) => {
     const full = await corretoresApi.get(id);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? full : l)) }));
+    set((state) => ({
+      corretores: state.corretores.map((l) => (l.id === id ? comCamposDaListagem(full, l) : l)),
+    }));
   },
 
   changePasswordFirstAccess: async (senhaAtual, novaSenha) => {
@@ -696,27 +716,27 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (updates.responsavelGR !== undefined) responsavelIds.responsavelGRId = paraId(updates.responsavelGR);
 
     const updated = await corretoresApi.update(id, updates, responsavelIds);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? updated : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? comCamposDaListagem(updated, l) : l)) }));
   },
 
   moveCorretor: async (id, toEtapa) => {
     const updated = await corretoresApi.move(id, toEtapa);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? updated : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? comCamposDaListagem(updated, l) : l)) }));
   },
 
   archiveCorretor: async (id, motivo) => {
     const updated = await corretoresApi.archive(id, motivo);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? updated : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? comCamposDaListagem(updated, l) : l)) }));
   },
 
   markAsWon: async (id, valor) => {
     const updated = await corretoresApi.markAsWon(id, valor);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? updated : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? comCamposDaListagem(updated, l) : l)) }));
   },
 
   markAsLost: async (id, motivo) => {
     const updated = await corretoresApi.markAsLost(id, motivo);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? updated : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === id ? comCamposDaListagem(updated, l) : l)) }));
   },
 
   deleteCorretor: async (id) => {
@@ -730,7 +750,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   addClienteFinal: async (corretorId, cfData) => {
     await corretoresApi.addCliente(corretorId, cfData);
     const refreshed = await corretoresApi.get(corretorId);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },
 
   updateClienteFinal: async (corretorId, cfId, cfData, novoCorretorId) => {
@@ -740,7 +760,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     const idsParaAtualizar = novoCorretorId && novoCorretorId !== corretorId ? [corretorId, novoCorretorId] : [corretorId];
     const atualizados = await Promise.all(idsParaAtualizar.map((id) => corretoresApi.get(id)));
     set((state) => ({
-      corretores: state.corretores.map((l) => atualizados.find((a) => a.id === l.id) ?? l),
+      corretores: state.corretores.map((l) => (() => { const a = atualizados.find((x) => x.id === l.id); return a ? comCamposDaListagem(a, l) : l; })()),
     }));
   },
 
@@ -756,31 +776,31 @@ export const useStore = create<StoreState>()((set, get) => ({
   addInteracao: async (corretorId, interacaoData) => {
     await corretoresApi.addInteracao(corretorId, interacaoData);
     const refreshed = await corretoresApi.get(corretorId);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },
 
   cancelarAtividade: async (corretorId, interacaoId, motivo) => {
     await corretoresApi.cancelarAtividade(corretorId, interacaoId, motivo);
     const refreshed = await corretoresApi.get(corretorId);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },
 
   reverterCancelamentoAtividade: async (corretorId, interacaoId) => {
     await corretoresApi.reverterCancelamentoAtividade(corretorId, interacaoId);
     const refreshed = await corretoresApi.get(corretorId);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },
 
   addProposta: async (corretorId, propostaData, arquivo) => {
     await corretoresApi.addProposta(corretorId, propostaData, arquivo);
     const refreshed = await corretoresApi.get(corretorId);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },
 
   updateProposta: async (corretorId, propostaId, updates) => {
     await corretoresApi.updateProposta(corretorId, propostaId, updates);
     const refreshed = await corretoresApi.get(corretorId);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? refreshed : l)) }));
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },
 
   downloadPropostaAnexo: (corretorId, propostaId, filename) =>
