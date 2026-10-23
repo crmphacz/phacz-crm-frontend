@@ -143,24 +143,33 @@ export function getSlaStatus(corretor: Corretor, stage: StageConfig): 'ok' | 'wa
   return 'none';
 }
 
+/**
+ * Há quanto tempo o card está parado na etapa.
+ *
+ * A unidade segue o TEMPO DECORRIDO, e não a unidade do SLA da etapa. Antes era o contrário:
+ * uma etapa com SLA de 24h escrevia horas para sempre, e um card esquecido virava
+ * "532h na etapa" — um número que obriga quem lê a dividir por 24 de cabeça para descobrir que
+ * são 22 dias. Pelo mesmo motivo invertido, uma etapa com SLA em dias mostrava "0d na etapa"
+ * durante as primeiras 24 horas, escondendo o que estava acontecendo agora.
+ *
+ * A hora só informa enquanto o card é do dia; passou disso, o dia é a unidade que se lê sem
+ * conta. O status (a cor do selo) continua medido na unidade do SLA, em `getSlaStatus` — o que
+ * mudou aqui é só como o tempo é escrito.
+ */
 export function getSlaLabel(corretor: Corretor, stage: StageConfig): string {
   const enteredAt = corretor.etapaTimestamps[stage.id];
   if (!enteredAt) return '';
   if (stage.slaHoras === 0) return 'Imediato';
+  // Etapa sem SLA nenhum não mostra selo de tempo, como antes.
+  if (!stage.slaHoras && !stage.slaDias) return '';
 
   const now = new Date();
   const entered = new Date(enteredAt);
+  const horas = differenceInHours(now, entered);
 
-  if (stage.slaHoras) {
-    const hrs = differenceInHours(now, entered);
-    if (hrs === 0) return 'agora';
-    return `${hrs}h na etapa`;
-  }
-  if (stage.slaDias) {
-    const days = differenceInDays(now, entered);
-    return `${days}d na etapa`;
-  }
-  return '';
+  if (horas === 0) return 'agora';
+  if (horas < 24) return `${horas}h na etapa`;
+  return `${differenceInDays(now, entered)}d na etapa`;
 }
 
 export const TEMPERATURA_CONFIG = {
