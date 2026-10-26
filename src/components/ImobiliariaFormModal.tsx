@@ -10,6 +10,14 @@ import type { ImobiliariaItem } from '../api/endpoints';
 interface ImobiliariaFormModalProps {
   imobiliaria?: ImobiliariaItem | null;
   onClose: () => void;
+  /**
+   * Avisa quem abriu o modal qual nome acabou de ser cadastrado. Serve para abrir este
+   * formulário de DENTRO de outro (o vínculo da rodada) e já aproveitar o registro novo, sem
+   * a pessoa sair da tela e perder o que tinha preenchido.
+   */
+  onCreated?: (nome: string) => void;
+  /** Sobe o modal acima de quem o abriu — o formulário de rodada é z-60. */
+  zIndex?: number;
 }
 
 /** Só um CNPJ completo (14 dígitos) entra na comparação. Espelha a regra do backend. */
@@ -17,7 +25,7 @@ function digitosDoCnpj(valor: string): string {
   return valor.replace(/\D/g, '');
 }
 
-export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormModalProps) {
+export function ImobiliariaFormModal({ imobiliaria, onClose, onCreated, zIndex }: ImobiliariaFormModalProps) {
   const createImobiliaria = useStore((s) => s.createImobiliaria);
   const updateImobiliaria = useStore((s) => s.updateImobiliaria);
   const imobiliariasOptions = useStore((s) => s.imobiliariasOptions);
@@ -77,6 +85,7 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
         await updateImobiliaria(imobiliaria.id, payload);
       } else {
         await createImobiliaria(payload);
+        onCreated?.(payload.nome);
       }
       onClose();
     } catch (err) {
@@ -88,8 +97,8 @@ export function ImobiliariaFormModal({ imobiliaria, onClose }: ImobiliariaFormMo
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      className="fixed inset-0 flex items-center justify-center modal-backdrop"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: zIndex ?? 50 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-2 sm:mx-4 flex flex-col" style={{ maxHeight: '92vh' }}>

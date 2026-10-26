@@ -9,6 +9,8 @@ import { ApiError } from '../api/client';
 import { rodadasApi } from '../api/endpoints';
 import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL } from '../utils';
 import { canWriteRodadas } from '../permissions';
+import { ImobiliariaFormModal } from './ImobiliariaFormModal';
+import { NewCorretorModal } from './NewCorretorModal';
 import type {
   Rodada, CreateRodadaPayload, TipoAcaoRodada, VinculoRodadaTipo, RodadaVinculo, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal,
   PublicoEsperado, CarteiraPublico, MaterialComercial, EstruturaOperacao, CategoriaOrcamento,
@@ -470,6 +472,9 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
 
   const [form, setForm] = useState<FormState>(() => buildInitialState(rodada, dataInicial));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /** Texto da busca de parceiro e qual modal de cadastro está aberto por cima deste. */
+  const [buscaVinculo, setBuscaVinculo] = useState('');
+  const [modalCadastro, setModalCadastro] = useState<VinculoRodadaTipo | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
@@ -480,6 +485,28 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
   function clearError(key: string) {
     setErrors((er) => ({ ...er, [key]: '' }));
   }
+
+  /**
+   * Resultados da busca de parceiro. Teto de 50 porque a base passa de mil corretores: montar
+   * todos a cada tecla engasga o modal, e ninguém escolhe olhando mil nomes — refina a busca.
+   */
+  const resultadosVinculo = useMemo(() => {
+    const termo = buscaVinculo.trim().toLowerCase();
+    if (!termo) return { visiveis: [] as string[], total: 0 };
+
+    const todos = form.vinculoTipo === 'imobiliaria'
+      ? imobiliariasOptions.map((i) => i.nome)
+      : corretoresOptions.map((c) => c.nomeCorretor);
+
+    const jaVinculados = new Set(
+      form.vinculos.filter((v) => v.tipo === form.vinculoTipo).map((v) => v.nome.trim().toLowerCase())
+    );
+    const achados = todos.filter(
+      (nome) => nome.toLowerCase().includes(termo) && !jaVinculados.has(nome.trim().toLowerCase())
+    );
+
+    return { visiveis: achados.slice(0, 50), total: achados.length };
+  }, [buscaVinculo, form.vinculoTipo, form.vinculos, imobiliariasOptions, corretoresOptions]);
 
   /** Mesma comparação do backend: tipo + nome, ignorando caixa e espaços. */
   function temVinculo(tipo: VinculoRodadaTipo, nome: string) {
@@ -718,26 +745,64 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                     </button>
                   ))}
                 </div>
-                <select
+                {/* Busca em vez de dropdown: a base tem mais de mil corretores, e rolar uma
+                    lista desse tamanho dentro de um modal não é usável. */}
+                <input
+                  type="text"
                   className={`form-input ${errors.vinculos ? 'border-red-400' : ''}`}
-                  value=""
-                  onChange={(ev) => {
-                    const nome = ev.target.value;
-                    if (!nome) return;
-                    adicionarVinculo({ tipo: form.vinculoTipo, nome });
-                  }}
+                  placeholder={
+                    form.vinculoTipo === 'imobiliaria'
+                      ? 'Buscar imobiliária pelo nome...'
+                      : 'Buscar corretor pelo nome...'
+                  }
+                  value={buscaVinculo}
+                  onChange={(ev) => setBuscaVinculo(ev.target.value)}
+                />
+
+                {buscaVinculo.trim() && (
+                  <div
+                    className="mt-1 border rounded-lg overflow-y-auto bg-white"
+                    style={{ borderColor: '#e5e7eb', maxHeight: 200 }}
+                  >
+                    {resultadosVinculo.visiveis.map((nome) => (
+                      <button
+                        key={nome}
+                        type="button"
+                        onClick={() => { adicionarVinculo({ tipo: form.vinculoTipo, nome }); setBuscaVinculo(''); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 transition-colors"
+                      >
+                        {nome}
+                      </button>
+                    ))}
+
+                    {resultadosVinculo.visiveis.length === 0 && (
+                      <p className="px-3 py-2 text-sm text-gray-400">
+                        Nenhum{form.vinculoTipo === 'imobiliaria' ? 'a imobiliária' : ' corretor'} com esse nome.
+                      </p>
+                    )}
+
+                    {resultadosVinculo.total > resultadosVinculo.visiveis.length && (
+                      <p className="px-3 py-1.5 text-[11px] text-gray-400 border-t" style={{ borderColor: '#f1f5f9' }}>
+                        e mais {resultadosVinculo.total - resultadosVinculo.visiveis.length} — refine a busca.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Não achou? Cadastra aqui mesmo. O modal abre POR CIMA deste formulário e,
+                    ao salvar, o registro novo já entra como vínculo — nada do que foi
+                    preenchido na rodada se perde. */}
+                <button
+                  type="button"
+                  onClick={() => setModalCadastro(form.vinculoTipo)}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-semibold hover:underline"
+                  style={{ color: '#d55006' }}
                 >
-                  <option value="">
-                    {form.vinculoTipo === 'imobiliaria' ? 'Adicionar imobiliária...' : 'Adicionar corretor...'}
-                  </option>
+                  <Plus size={12} />
                   {form.vinculoTipo === 'imobiliaria'
-                    ? imobiliariasOptions
-                        .filter((i) => !temVinculo('imobiliaria', i.nome))
-                        .map((i) => <option key={i.id} value={i.nome}>{i.nome}</option>)
-                    : corretoresOptions
-                        .filter((c) => !temVinculo('corretor', c.nomeCorretor))
-                        .map((c) => <option key={c.id} value={c.nomeCorretor}>{c.nomeCorretor}</option>)}
-                </select>
+                    ? 'Não encontrou? Cadastrar nova imobiliária'
+                    : 'Não encontrou? Cadastrar novo corretor'}
+                </button>
 
                 {form.vinculos.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -1250,6 +1315,25 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
           </div>
         </div>
       </div>
+
+      {/* Cadastro de parceiro sem sair daqui. São os MESMOS modais usados nas telas de
+          Imobiliárias e do Pipeline — não há uma segunda versão para manter. Vêm por cima
+          (z-70 contra o z-60 deste) e, ao salvar, o registro novo já entra como vínculo.
+          O formulário da rodada continua montado atrás, com tudo preenchido. */}
+      {modalCadastro === 'imobiliaria' && (
+        <ImobiliariaFormModal
+          onClose={() => setModalCadastro(null)}
+          onCreated={(nome) => { adicionarVinculo({ tipo: 'imobiliaria', nome }); setBuscaVinculo(''); }}
+          zIndex={70}
+        />
+      )}
+      {modalCadastro === 'corretor' && (
+        <NewCorretorModal
+          onClose={() => setModalCadastro(null)}
+          onCreated={(nome) => { adicionarVinculo({ tipo: 'corretor', nome }); setBuscaVinculo(''); }}
+          zIndex={70}
+        />
+      )}
     </div>
   );
 }

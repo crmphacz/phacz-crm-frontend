@@ -18,7 +18,20 @@ function responsavelLabel(m: ImobiliariaMatch): string {
   return nomes.length > 0 ? nomes.join(' / ') : 'sem responsável definido';
 }
 
-export function NewCorretorModal() {
+interface NewCorretorModalProps {
+  /**
+   * Quem abriu o modal de dentro de outra tela (o vínculo da rodada) passa estes dois. Com
+   * `onCreated` o modal vira um "cadastre e volte": NÃO abre o painel do corretor novo, porque
+   * isso tiraria a pessoa de cima do formulário que ela estava preenchendo.
+   */
+  onCreated?: (nome: string) => void;
+  /** Fechamento próprio. Sem ele, o modal segue controlado pelo store, como sempre foi. */
+  onClose?: () => void;
+  /** Sobe o modal acima de quem o abriu — o formulário de rodada é z-60. */
+  zIndex?: number;
+}
+
+export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModalProps = {}) {
   const setShowNewCorretorModal = useStore((s) => s.setShowNewCorretorModal);
   const addCorretor = useStore((s) => s.addCorretor);
   const moveCorretor = useStore((s) => s.moveCorretor);
@@ -26,6 +39,9 @@ export function NewCorretorModal() {
   // Etapa da coluna clicada em "+ Adicionar corretor" no Pipeline (1 quando aberto pelos outros botões).
   const etapaInicialPedida = useStore((s) => s.newCorretorEtapa);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
+
+  /** Fecha pelo caminho de quem abriu: o `onClose` próprio, ou o store (comportamento de sempre). */
+  const fechar = () => (onClose ? onClose() : setShowNewCorretorModal(false));
   const users = useStore((s) => s.users);
   const currentUser = useStore((s) => s.currentUser);
   // SDR que cadastra entra sempre como o responsável SDR do próprio card (o backend força isso).
@@ -34,7 +50,10 @@ export function NewCorretorModal() {
   // cadastrar — a Recepção — não move card nenhum: para ela a coluna escolhida é ignorada e o
   // cadastro fica em "Novo Corretor", em vez de tentar o movimento e levar um 403 na cara.
   const podeMoverCard = canWriteCorretoresModule(currentUser);
-  const etapaInicial = podeMoverCard ? etapaInicialPedida : 1;
+  // Aberto de dentro de outro formulário (`onCreated`), a etapa guardada no store é lixo de uma
+  // interação anterior com o Pipeline — o corretor nasce na etapa 1, que é o certo para quem
+  // está só cadastrando um parceiro para vincular.
+  const etapaInicial = podeMoverCard && !onCreated ? etapaInicialPedida : 1;
   const etapaInicialNome = STAGES.find((s) => s.id === etapaInicial)?.nome;
   const sdrUsers = users.filter((u) => u.cargo === 'SDR' && u.ativo);
   const canaisOrigem = useStore((s) => s.canaisOrigem).filter((c) => c.ativo);
@@ -193,8 +212,11 @@ export function NewCorretorModal() {
         }
       }
 
-      setShowNewCorretorModal(false);
-      setSelectedCorretor(id);
+      fechar();
+      // Aberto de dentro de outro formulário: devolve o nome a quem pediu e NÃO abre o painel
+      // do corretor — abrir levaria a pessoa para longe do que ela estava preenchendo.
+      if (onCreated) onCreated(nome.trim());
+      else setSelectedCorretor(id);
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'Não foi possível criar o corretor. Tente novamente.');
     } finally {
@@ -204,9 +226,9 @@ export function NewCorretorModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) setShowNewCorretorModal(false); }}
+      className="fixed inset-0 flex items-center justify-center modal-backdrop"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: zIndex ?? 50 }}
+      onClick={(e) => { if (e.target === e.currentTarget) fechar(); }}
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-2 sm:mx-4 flex flex-col" style={{ maxHeight: '90vh' }}>
         {/* Header */}
@@ -226,7 +248,7 @@ export function NewCorretorModal() {
               </p>
             </div>
           </div>
-          <button onClick={() => setShowNewCorretorModal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
+          <button onClick={() => fechar()} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -506,7 +528,7 @@ export function NewCorretorModal() {
         {/* Footer */}
         <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl" style={{ borderColor: '#e5e7eb' }}>
           <button
-            onClick={() => setShowNewCorretorModal(false)}
+            onClick={() => fechar()}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
           >
             Cancelar
