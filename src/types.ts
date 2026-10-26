@@ -330,6 +330,12 @@ export interface EmailCampaign {
 export type TipoAcaoRodada = 'rodada' | 'cafe_na_obra' | 'evento_externo' | 'trafego_pago' | 'almoco_jantar' | 'outro';
 /** O que o campo `imobiliaria` da rodada representa: nome de uma imobiliária ou de um corretor cadastrado. */
 export type VinculoRodadaTipo = 'imobiliaria' | 'corretor';
+
+/** Uma imobiliária ou corretor vinculado à rodada. `nome` é o nome mesmo, não um id. */
+export interface RodadaVinculo {
+  tipo: VinculoRodadaTipo;
+  nome: string;
+}
 export type StatusAprovacaoRodada = 'pendente' | 'aprovada' | 'recusada' | 'correcao_solicitada' | 'cancelada';
 export type PerfilImobiliaria = 'alto_padrao' | 'misto' | 'investidor' | 'baixo_ticket';
 export type HistoricoParceria = 'ja_parceira' | 'nao_parceira';
@@ -492,6 +498,13 @@ export interface Rodada {
 
   // Aprovação da Diretoria — só aparece no calendário pra quem não seja Diretoria (ou quem
   // não a criou) depois de aprovada.
+  /**
+   * Todas as imobiliárias e corretores da rodada. `imobiliaria` + `vinculoTipo` acima seguem
+   * existindo e espelham o PRIMEIRO item daqui — é o par que as telas de lista, o log e a IA
+   * leem. Pode vir vazio em rodada antiga ainda não migrada; o formulário trata isso.
+   */
+  vinculos: RodadaVinculo[];
+
   statusAprovacao: StatusAprovacaoRodada;
   motivoRecusa: string;
   aprovadoPorNome?: string;

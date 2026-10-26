@@ -624,6 +624,7 @@ export interface ApiRodada {
   temperaturaRodada: string | null;
   imobiliaria: string;
   vinculoTipo: string;
+  vinculos?: { tipo: string; nome: string }[] | null;
   responsavelImobiliaria: string;
   gerenteVendasInternas: string;
   solicitanteRelacionamento: string;
@@ -756,6 +757,11 @@ export function mapRodadaFromApi(r: ApiRodada): Rodada {
     tipoAcaoOutro: r.tipoAcaoOutro,
     imobiliaria: r.imobiliaria,
     vinculoTipo: vinculoRodadaTipoMap.toApp(r.vinculoTipo),
+    // Rodada ainda não migrada vem sem a lista: cai no par antigo, que é exatamente o que ela
+    // tinha. Sem isso o formulário abriria o vínculo em branco.
+    vinculos: (r.vinculos ?? []).length
+      ? r.vinculos!.map((v) => ({ tipo: vinculoRodadaTipoMap.toApp(v.tipo), nome: v.nome }))
+      : [{ tipo: vinculoRodadaTipoMap.toApp(r.vinculoTipo), nome: r.imobiliaria }],
     responsavelImobiliaria: r.responsavelImobiliaria,
     gerenteVendasInternas: r.gerenteVendasInternas,
     solicitanteRelacionamento: r.solicitanteRelacionamento,
@@ -869,6 +875,7 @@ export function mapCreateRodadaToApi(payload: CreateRodadaPayload): Record<strin
     ...payload,
     tipoAcao: tipoAcaoMap.toApi(payload.tipoAcao),
     vinculoTipo: vinculoRodadaTipoMap.toApi(payload.vinculoTipo),
+    vinculos: payload.vinculos.map((v) => ({ tipo: vinculoRodadaTipoMap.toApi(v.tipo), nome: v.nome })),
     parceiroPerfil: payload.parceiroPerfil ? perfilImobiliariaMap.toApi(payload.parceiroPerfil) : undefined,
     parceiroHistorico: payload.parceiroHistorico ? historicoParceriaMap.toApi(payload.parceiroHistorico) : undefined,
     intencaoPrincipal: payload.intencaoPrincipal ? intencaoPrincipalMap.toApi(payload.intencaoPrincipal) : undefined,

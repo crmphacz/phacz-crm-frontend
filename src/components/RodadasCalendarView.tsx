@@ -434,7 +434,19 @@ export function RodadasCalendarView() {
                     <td className="px-4 py-3 text-gray-800">{r.responsavelImobiliaria || '—'}</td>
                   )}
                   <td className="px-4 py-3 text-gray-600">{r.cidade}</td>
-                  <td className="px-4 py-3 text-gray-600">{r.imobiliaria}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {r.imobiliaria}
+                    {/* A coluna mostra o vínculo principal; o "+N" avisa que há mais, sem
+                        empilhar nomes e estourar a largura da linha. */}
+                    {isRodadaCompleta(r) && r.vinculos.length > 1 && (
+                      <span
+                        className="ml-1.5 text-xs font-semibold text-gray-400"
+                        title={r.vinculos.map((v) => v.nome).join(' · ')}
+                      >
+                        +{r.vinculos.length - 1}
+                      </span>
+                    )}
+                  </td>
                   {isRodadaCompleta(r) && (
                     <td className="px-4 py-3 font-semibold" style={{ color: '#d55006' }}>{formatCurrency(r.custoRodada)}</td>
                   )}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
   X, CalendarDays, ChevronRight, ChevronDown, ChevronUp, Plus, Trash2, Upload, Loader2, Paperclip,
-  AlertTriangle,
+  AlertTriangle, Building2, User,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
@@ -10,7 +10,7 @@ import { rodadasApi } from '../api/endpoints';
 import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL } from '../utils';
 import { canWriteRodadas } from '../permissions';
 import type {
-  Rodada, CreateRodadaPayload, TipoAcaoRodada, VinculoRodadaTipo, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal,
+  Rodada, CreateRodadaPayload, TipoAcaoRodada, VinculoRodadaTipo, RodadaVinculo, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal,
   PublicoEsperado, CarteiraPublico, MaterialComercial, EstruturaOperacao, CategoriaOrcamento,
   ResponsavelEntrega, StatusEntrega, ComoConvite, ProximoPasso, InvestimentoOuMoradia, PlanoB,
   PotencialRetorno, PrioridadeTrimestre, Recomendacao,
@@ -163,7 +163,9 @@ interface FormState {
   tipoAcao: TipoAcaoRodada;
   tipoAcaoOutro: string;
   temperaturaRodada: '' | 'FRIA' | 'QUENTE';
-  imobiliaria: string;
+  /** Todos os parceiros da rodada. O primeiro vira o vínculo principal ao salvar. */
+  vinculos: RodadaVinculo[];
+  /** Só controla QUAL lista o seletor mostra — não é o vínculo em si. */
   vinculoTipo: VinculoRodadaTipo;
   responsavelImobiliaria: string;
   gerenteVendasInternas: string;
@@ -237,7 +239,7 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
   if (!rodada) {
     return {
       dataSolicitacao: '', dataInicio: dataInicial ?? '', dataFim: dataInicial ?? '', cidade: '', uf: '',
-      tipoAcao: 'rodada', tipoAcaoOutro: '', temperaturaRodada: '', imobiliaria: '', vinculoTipo: 'imobiliaria', responsavelImobiliaria: '',
+      tipoAcao: 'rodada', tipoAcaoOutro: '', temperaturaRodada: '', vinculos: [], vinculoTipo: 'imobiliaria', responsavelImobiliaria: '',
       gerenteVendasInternas: '', solicitanteRelacionamento: '',
       parceiroEndereco: '', parceiroPerfil: '', parceiroHistorico: '', parceiroParticipouAcaoAnterior: null,
       parceiroParticipouQuando: '', parceiroResumoRelacionamento: '',
@@ -268,7 +270,7 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
     tipoAcao: rodada.tipoAcao,
     temperaturaRodada: rodada.temperaturaRodada ?? '',
     tipoAcaoOutro: rodada.tipoAcaoOutro,
-    imobiliaria: rodada.imobiliaria,
+    vinculos: rodada.vinculos,
     vinculoTipo: rodada.vinculoTipo,
     responsavelImobiliaria: rodada.responsavelImobiliaria,
     gerenteVendasInternas: rodada.gerenteVendasInternas,
@@ -355,8 +357,11 @@ function toPayload(form: FormState): CreateRodadaPayload {
     tipoAcao: form.tipoAcao,
     temperaturaRodada: form.temperaturaRodada || null,
     tipoAcaoOutro: form.tipoAcaoOutro.trim(),
-    imobiliaria: form.imobiliaria,
-    vinculoTipo: form.vinculoTipo,
+    // O par antigo espelha o PRIMEIRO vínculo — o backend reescreve do mesmo jeito, mas mandar
+    // já coerente evita um corpo que se contradiz.
+    imobiliaria: form.vinculos[0]?.nome ?? '',
+    vinculoTipo: form.vinculos[0]?.tipo ?? 'imobiliaria',
+    vinculos: form.vinculos,
     responsavelImobiliaria: form.responsavelImobiliaria.trim(),
     gerenteVendasInternas: form.gerenteVendasInternas.trim(),
     solicitanteRelacionamento: form.solicitanteRelacionamento.trim(),
@@ -476,6 +481,21 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     setErrors((er) => ({ ...er, [key]: '' }));
   }
 
+  /** Mesma comparação do backend: tipo + nome, ignorando caixa e espaços. */
+  function temVinculo(tipo: VinculoRodadaTipo, nome: string) {
+    return form.vinculos.some((v) => v.tipo === tipo && v.nome.trim().toLowerCase() === nome.trim().toLowerCase());
+  }
+
+  function adicionarVinculo(novo: RodadaVinculo) {
+    if (temVinculo(novo.tipo, novo.nome)) return;
+    setForm((f) => ({ ...f, vinculos: [...f.vinculos, novo] }));
+    clearError('vinculos');
+  }
+
+  function removerVinculo(indice: number) {
+    setForm((f) => ({ ...f, vinculos: f.vinculos.filter((_, i) => i !== indice) }));
+  }
+
   // Guarda a div de cada campo obrigatório, para rolar até o primeiro pendente — pelo botão
   // de salvar ou pelos atalhos do rodapé. TODA chave usada em `camposFaltando` precisa ter
   // uma `ref={fieldRef(...)}` correspondente no JSX: sem ela a rolagem vira um no-op
@@ -510,9 +530,9 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     if (form.tipoAcao === 'outro' && !form.tipoAcaoOutro.trim()) {
       falta('tipoAcaoOutro', 'Tipo de ação', 'Descreva o tipo de ação');
     }
-    if (!form.imobiliaria) {
-      const ehCorretor = form.vinculoTipo === 'corretor';
-      falta('imobiliaria', ehCorretor ? 'Corretor' : 'Imobiliária', ehCorretor ? 'Selecione o corretor' : 'Selecione a imobiliária');
+    // Continua obrigatório ter ao menos um — o que mudou é que agora cabe mais de um.
+    if (form.vinculos.length === 0) {
+      falta('vinculos', 'Imobiliária ou corretor', 'Vincule ao menos uma imobiliária ou um corretor');
     }
     // Mora na seção 4, longe do botão. É o campo que fazia o "Cadastrar" não responder: ele
     // não tinha ref, então a rolagem até o erro não acontecia e nada aparecia na tela.
@@ -673,7 +693,10 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                   {errors.tipoAcaoOutro && <p className="text-xs text-red-500 mt-1">{errors.tipoAcaoOutro}</p>}
                 </div>
               )}
-              <div ref={fieldRef('imobiliaria')} className="sm:col-span-2">
+              {/* Uma rodada costuma reunir mais de um parceiro. O seletor abaixo ACRESCENTA à
+                  lista em vez de substituir, e o primeiro item vira o vínculo principal — é ele
+                  que aparece nas listagens, no log e nas notificações. */}
+              <div ref={fieldRef('vinculos')} className="sm:col-span-2">
                 <FormLabel required>Vincular a</FormLabel>
                 <div className="flex items-center gap-2 mb-2">
                   {([
@@ -683,7 +706,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                     <button
                       key={opt.v}
                       type="button"
-                      onClick={() => { set('vinculoTipo', opt.v); set('imobiliaria', ''); clearError('imobiliaria'); }}
+                      onClick={() => set('vinculoTipo', opt.v)}
                       className="px-4 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
                       style={
                         form.vinculoTipo === opt.v
@@ -696,18 +719,60 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                   ))}
                 </div>
                 <select
-                  className={`form-input ${errors.imobiliaria ? 'border-red-400' : ''}`}
-                  value={form.imobiliaria}
-                  onChange={(ev) => { set('imobiliaria', ev.target.value); clearError('imobiliaria'); }}
+                  className={`form-input ${errors.vinculos ? 'border-red-400' : ''}`}
+                  value=""
+                  onChange={(ev) => {
+                    const nome = ev.target.value;
+                    if (!nome) return;
+                    adicionarVinculo({ tipo: form.vinculoTipo, nome });
+                  }}
                 >
                   <option value="">
-                    {form.vinculoTipo === 'imobiliaria' ? 'Selecionar imobiliária...' : 'Selecionar corretor...'}
+                    {form.vinculoTipo === 'imobiliaria' ? 'Adicionar imobiliária...' : 'Adicionar corretor...'}
                   </option>
                   {form.vinculoTipo === 'imobiliaria'
-                    ? imobiliariasOptions.map((i) => <option key={i.id} value={i.nome}>{i.nome}</option>)
-                    : corretoresOptions.map((c) => <option key={c.id} value={c.nomeCorretor}>{c.nomeCorretor}</option>)}
+                    ? imobiliariasOptions
+                        .filter((i) => !temVinculo('imobiliaria', i.nome))
+                        .map((i) => <option key={i.id} value={i.nome}>{i.nome}</option>)
+                    : corretoresOptions
+                        .filter((c) => !temVinculo('corretor', c.nomeCorretor))
+                        .map((c) => <option key={c.id} value={c.nomeCorretor}>{c.nomeCorretor}</option>)}
                 </select>
-                {errors.imobiliaria && <p className="text-xs text-red-500 mt-1">{errors.imobiliaria}</p>}
+
+                {form.vinculos.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {form.vinculos.map((v, i) => (
+                      <span
+                        key={`${v.tipo}:${v.nome}`}
+                        className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg text-xs font-semibold border"
+                        style={{ backgroundColor: '#fff7ed', borderColor: '#f3d5bd', color: '#9a3412' }}
+                        title={v.tipo === 'imobiliaria' ? 'Imobiliária' : 'Corretor'}
+                      >
+                        {v.tipo === 'imobiliaria' ? <Building2 size={12} /> : <User size={12} />}
+                        {v.nome}
+                        {i === 0 && form.vinculos.length > 1 && (
+                          <span className="text-[10px] font-bold uppercase opacity-60">principal</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removerVinculo(i)}
+                          className="w-5 h-5 rounded flex items-center justify-center hover:bg-orange-200/60"
+                          title={`Remover ${v.nome}`}
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {errors.vinculos && <p className="text-xs text-red-500 mt-1">{errors.vinculos}</p>}
+                {form.vinculos.length > 1 && (
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {form.vinculos.length} parceiros vinculados. O primeiro é o principal — é ele que
+                    aparece nas listagens e nos avisos.
+                  </p>
+                )}
               </div>
               <div>
                 <FormLabel>Responsável (imobiliária)</FormLabel>
