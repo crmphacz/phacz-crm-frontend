@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import {
   X, CalendarDays, ChevronRight, ChevronDown, ChevronUp, Plus, Trash2, Upload, Loader2, Paperclip,
-  AlertTriangle, Building2, User,
+  AlertTriangle, Building2, User, FileText,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
@@ -11,6 +11,7 @@ import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL } from '../ut
 import { canWriteRodadas } from '../permissions';
 import { ImobiliariaFormModal } from './ImobiliariaFormModal';
 import { NewCorretorModal } from './NewCorretorModal';
+import { lerRascunhoRodada, salvarRascunhoRodada, apagarRascunhoRodada } from '../lib/rascunhoRodada';
 import type {
   Rodada, CreateRodadaPayload, TipoAcaoRodada, VinculoRodadaTipo, RodadaVinculo, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal,
   PublicoEsperado, CarteiraPublico, MaterialComercial, EstruturaOperacao, CategoriaOrcamento,
@@ -470,7 +471,21 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [form, setForm] = useState<FormState>(() => buildInitialState(rodada, dataInicial));
+  // Rascunho só vale para rodada NOVA. Editar uma que já existe tem o registro salvo como
+  // fonte da verdade — um esboço paralelo ao lado dele só geraria dúvida sobre qual vale.
+  const rascunhoInicial = useMemo(
+    () => (rodada || !currentUser ? null : lerRascunhoRodada<FormState>(currentUser.id)),
+    // Só na montagem: reler depois substituiria o que a pessoa está digitando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const [form, setForm] = useState<FormState>(
+    () => rascunhoInicial?.form ?? buildInitialState(rodada, dataInicial)
+  );
+  /** Fica visível até a pessoa descartar — ela precisa saber que não começou do zero. */
+  const [rascunhoRestaurado, setRascunhoRestaurado] = useState(Boolean(rascunhoInicial));
+  const [confirmandoRascunho, setConfirmandoRascunho] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   /** Texto da busca de parceiro e qual modal de cadastro está aberto por cima deste. */
   const [buscaVinculo, setBuscaVinculo] = useState('');
@@ -586,6 +601,42 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     fieldRefs.current[camposFaltando[0].chave]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
+  /**
+   * Há algo preenchido que valha guardar? Compara com o formulário zerado do mesmo contexto —
+   * só a data que veio do calendário não conta como "preenchido".
+   */
+  const temAlgoPreenchido = useMemo(
+    () => JSON.stringify(form) !== JSON.stringify(buildInitialState(null, dataInicial)),
+    [form, dataInicial]
+  );
+
+  const podeGuardarRascunho = !rodada && !isReadOnly && temAlgoPreenchido;
+
+  /** Toda saída passa por aqui: o X, o Cancelar e o clique fora. */
+  function tentarFechar() {
+    if (podeGuardarRascunho) setConfirmandoRascunho(true);
+    else onClose();
+  }
+
+  function guardarRascunhoESair() {
+    if (currentUser) salvarRascunhoRodada(currentUser.id, form);
+    showToast('Rascunho guardado. Ele volta na próxima vez que você abrir uma rodada nova.', 'success');
+    setConfirmandoRascunho(false);
+    onClose();
+  }
+
+  function descartarESair() {
+    apagarRascunhoRodada();
+    setConfirmandoRascunho(false);
+    onClose();
+  }
+
+  function descartarRascunhoRestaurado() {
+    apagarRascunhoRodada();
+    setForm(buildInitialState(null, dataInicial));
+    setRascunhoRestaurado(false);
+  }
+
   async function handleSubmit() {
     if (!podeSalvar) {
       apontarCamposFaltando();
@@ -597,6 +648,8 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     try {
       const payload = toPayload(form);
       const saved = rodada ? await updateRodada(rodada.id, payload) : await createRodada(payload);
+      // Virou rodada de verdade: o esboço não serve mais e não pode reaparecer na próxima.
+      if (!rodada) apagarRascunhoRodada();
       onSaved?.(saved);
       onClose();
     } catch (err) {
@@ -614,7 +667,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center modal-backdrop"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-      onClick={(ev) => { if (ev.target === ev.currentTarget) onClose(); }}
+      onClick={(ev) => { if (ev.target === ev.currentTarget) tentarFechar(); }}
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-2 sm:mx-4 flex flex-col" style={{ maxHeight: '94vh' }}>
         {/* Header */}
@@ -630,7 +683,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
               <p className="text-xs text-gray-400">Formulário completo: cabeçalho, orçamento, convidados e mais</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors flex-shrink-0">
+          <button onClick={tentarFechar} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors flex-shrink-0">
             <X size={16} />
           </button>
         </div>
@@ -642,6 +695,34 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
               Seu perfil tem acesso apenas de visualização nesta área — as alterações não podem ser salvas.
             </div>
           )}
+          {/* A pessoa precisa saber que não começou do zero — senão estranha os campos
+              preenchidos e fica em dúvida se já cadastrou essa rodada antes. */}
+          {rascunhoRestaurado && rascunhoInicial && (
+            <div
+              className="flex items-start gap-2 px-3 py-2.5 rounded-lg text-xs"
+              style={{ backgroundColor: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}
+            >
+              <FileText size={14} className="flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold">Rascunho restaurado</p>
+                <p className="opacity-80">
+                  Retomamos o que você preencheu em{' '}
+                  {rascunhoInicial.salvoEm.toLocaleString('pt-BR', {
+                    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                  })}
+                  . Ele some sozinho quando a rodada for cadastrada.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={descartarRascunhoRestaurado}
+                className="flex-shrink-0 font-semibold underline hover:no-underline"
+              >
+                Começar do zero
+              </button>
+            </div>
+          )}
+
           {/* Cabeçalho da rodada */}
           <FormSection title="Cabeçalho da rodada">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1289,7 +1370,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
           )}
 
           <div className="flex items-center gap-3 px-4 sm:px-6 py-4">
-            <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
+            <button onClick={tentarFechar} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
               {isReadOnly ? 'Fechar' : 'Cancelar'}
             </button>
             {!isReadOnly && (
@@ -1333,6 +1414,60 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
           onCreated={(nome) => { adicionarVinculo({ tipo: 'corretor', nome }); setBuscaVinculo(''); }}
           zIndex={70}
         />
+      )}
+
+      {/* Fechar com coisa preenchida não descarta em silêncio. As três saídas são explícitas —
+          não há como perder o trabalho sem ter dito que queria. */}
+      {confirmandoRascunho && (
+        <div
+          className="fixed inset-0 flex items-center justify-center modal-backdrop"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 75 }}
+          onClick={(ev) => { if (ev.target === ev.currentTarget) setConfirmandoRascunho(false); }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-2 sm:mx-4 flex flex-col">
+            <div className="flex items-center gap-3 px-4 sm:px-6 py-4 sm:py-5 border-b" style={{ borderColor: '#e5e7eb' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#eff6ff' }}>
+                <FileText size={18} style={{ color: '#1d4ed8' }} />
+              </div>
+              <h2 className="font-questrial font-bold text-lg text-gray-900">Guardar como rascunho?</h2>
+            </div>
+
+            <div className="px-4 sm:px-6 py-4 sm:py-5">
+              <p className="text-sm text-gray-600">
+                Você preencheu dados que ainda não foram cadastrados. Guardando o rascunho, eles
+                voltam na próxima vez que você abrir uma rodada nova — não precisa digitar de novo.
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                O rascunho fica guardado neste navegador e some quando a rodada for cadastrada.
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl" style={{ borderColor: '#e5e7eb' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmandoRascunho(false)}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                Continuar editando
+              </button>
+              <button
+                type="button"
+                onClick={descartarESair}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Descartar
+              </button>
+              <button
+                type="button"
+                onClick={guardarRascunhoESair}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
+                style={{ backgroundColor: '#d55006' }}
+              >
+                Guardar rascunho
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
