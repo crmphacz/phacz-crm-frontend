@@ -611,7 +611,7 @@ interface ApiRodadaEntrega {
   descricao: string; responsavel: string; prazo: string | null; status: string;
 }
 interface ApiRodadaConvidado {
-  nome: string; perfil: string; jaConheceLitoral: boolean; possuiOutrosImoveis: boolean; investimentoOuMoradia: string | null;
+  nome: string; perfil: string; email?: string | null; telefone?: string | null; jaConheceLitoral: boolean; possuiOutrosImoveis: boolean; investimentoOuMoradia: string | null;
 }
 interface ApiRodadaVisitaAgendada {
   clienteOuImobiliaria: string; horario: string; local: string;
@@ -842,6 +842,10 @@ export function mapRodadaFromApi(r: ApiRodada): Rodada {
     convidados: r.convidados.map((c) => ({
       nome: c.nome,
       perfil: c.perfil,
+      // Convidado cadastrado antes deste campo existir vem sem contato — abre vazio e a
+      // validação cobra no próximo salvamento.
+      email: c.email ?? '',
+      telefone: c.telefone ?? '',
       jaConheceLitoral: c.jaConheceLitoral,
       possuiOutrosImoveis: c.possuiOutrosImoveis,
       investimentoOuMoradia: c.investimentoOuMoradia ? investimentoOuMoradiaMap.toApp(c.investimentoOuMoradia) : undefined,

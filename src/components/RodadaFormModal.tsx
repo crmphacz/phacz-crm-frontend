@@ -153,7 +153,7 @@ interface OrcamentoItemRow {
   anexosUrls: string[]; uploading: boolean;
 }
 interface EntregaRow { _key: string; descricao: string; responsavel: ResponsavelEntrega; prazo: string; status: StatusEntrega; }
-interface ConvidadoRow { _key: string; nome: string; perfil: string; jaConheceLitoral: boolean; possuiOutrosImoveis: boolean; investimentoOuMoradia: InvestimentoOuMoradia | ''; }
+interface ConvidadoRow { _key: string; nome: string; perfil: string; email: string; telefone: string; jaConheceLitoral: boolean; possuiOutrosImoveis: boolean; investimentoOuMoradia: InvestimentoOuMoradia | ''; }
 interface VisitaRow { _key: string; clienteOuImobiliaria: string; horario: string; local: string; }
 interface AgendaBlocoRow { _key: string; texto: string; }
 
@@ -523,6 +523,18 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     return { visiveis: achados.slice(0, 50), total: achados.length };
   }, [buscaVinculo, form.vinculoTipo, form.vinculos, imobiliariasOptions, corretoresOptions]);
 
+  /**
+   * Índices dos convidados sem nenhum contato. Guardado como lista de posições para a linha
+   * exata ficar marcada em vermelho — e não só uma mensagem genérica no rodapé.
+   */
+  const convidadosSemContato = useMemo(
+    () =>
+      form.convidados
+        .map((c, i) => (c.email.trim() || c.telefone.trim() ? -1 : i))
+        .filter((i) => i >= 0),
+    [form.convidados]
+  );
+
   /** Mesma comparação do backend: tipo + nome, ignorando caixa e espaços. */
   function temVinculo(tipo: VinculoRodadaTipo, nome: string) {
     return form.vinculos.some((v) => v.tipo === tipo && v.nome.trim().toLowerCase() === nome.trim().toLowerCase());
@@ -575,6 +587,14 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     // Continua obrigatório ter ao menos um — o que mudou é que agora cabe mais de um.
     if (form.vinculos.length === 0) {
       falta('vinculos', 'Imobiliária ou corretor', 'Vincule ao menos uma imobiliária ou um corretor');
+    }
+    // Convidado sem e-mail nem telefone não serve para o follow-up, que é o motivo de a lista
+    // existir. O rótulo cita o nome porque numa lista de dez "falta contato" não diz de quem.
+    if (convidadosSemContato.length > 0) {
+      const nomes = convidadosSemContato
+        .map((i) => form.convidados[i].nome.trim() || `convidado ${i + 1}`)
+        .join(', ');
+      falta('convidados', 'Contato dos convidados', `Informe e-mail ou telefone de: ${nomes}`);
     }
     // Mora na seção 4, longe do botão. É o campo que fazia o "Cadastrar" não responder: ele
     // não tinha ref, então a rolagem até o erro não acontecia e nada aparecia na tela.
@@ -1235,13 +1255,36 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
             </div>
 
             <p className="text-xs font-bold uppercase tracking-widest text-gray-400 pt-2">Lista de convidados</p>
-            <div className="space-y-2">
+            {/* O ref é obrigatório: a chave 'convidados' é usada em camposFaltando, e sem ele a
+                rolagem até o erro vira um no-op silencioso — foi assim que o campo de meta
+                mínima deixou este formulário mudo. */}
+            <div ref={fieldRef('convidados')} className="space-y-2">
               {form.convidados.map((row, index) => (
                 <div key={row._key} className="p-3 rounded-lg border space-y-2" style={{ borderColor: '#e5e7eb', backgroundColor: '#fafafa' }}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input className="form-input" placeholder="Nome" value={row.nome} onChange={(ev) => updateRow(setForm, 'convidados', index, { nome: ev.target.value })} />
                     <input className="form-input" placeholder="Perfil" value={row.perfil} onChange={(ev) => updateRow(setForm, 'convidados', index, { perfil: ev.target.value })} />
                   </div>
+                  {/* Contato: um dos dois basta. A borda vermelha marca a linha exata quando
+                      nenhum foi preenchido — numa lista de dez, dizer "falta contato" sem
+                      apontar qual obrigaria a conferir um por um. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      className={`form-input ${convidadosSemContato.includes(index) ? 'border-red-400' : ''}`}
+                      placeholder="E-mail"
+                      value={row.email}
+                      onChange={(ev) => updateRow(setForm, 'convidados', index, { email: ev.target.value })}
+                    />
+                    <input
+                      className={`form-input ${convidadosSemContato.includes(index) ? 'border-red-400' : ''}`}
+                      placeholder="Telefone"
+                      value={row.telefone}
+                      onChange={(ev) => updateRow(setForm, 'convidados', index, { telefone: ev.target.value })}
+                    />
+                  </div>
+                  {convidadosSemContato.includes(index) && (
+                    <p className="text-xs text-red-500">Informe e-mail ou telefone deste convidado.</p>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
                     <label className="flex items-center gap-2 text-xs text-gray-600">
                       <input type="checkbox" checked={row.jaConheceLitoral} onChange={(ev) => updateRow(setForm, 'convidados', index, { jaConheceLitoral: ev.target.checked })} />
@@ -1260,7 +1303,7 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                 </div>
               ))}
             </div>
-            <AddRowButton label="Adicionar convidado" onClick={() => setForm((f) => ({ ...f, convidados: [...f.convidados, { _key: uuid(), nome: '', perfil: '', jaConheceLitoral: false, possuiOutrosImoveis: false, investimentoOuMoradia: '' }] }))} />
+            <AddRowButton label="Adicionar convidado" onClick={() => setForm((f) => ({ ...f, convidados: [...f.convidados, { _key: uuid(), nome: '', perfil: '', email: '', telefone: '', jaConheceLitoral: false, possuiOutrosImoveis: false, investimentoOuMoradia: '' }] }))} />
 
             <p className="text-xs font-bold uppercase tracking-widest text-gray-400 pt-2">Agenda de visitas</p>
             <FormLabel>Já há visitas agendadas?</FormLabel>

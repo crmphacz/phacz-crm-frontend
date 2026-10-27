@@ -19,8 +19,11 @@ const CHAVE = 'phacz_rascunho_rodada';
  * no formato errado quebra a tela de um jeito que ninguém relaciona a um rascunho velho.
  *
  * v1 → formato de 26/10/2026, já com `vinculos` como lista.
+ * v2 → 27/10/2026: convidado passou a ter `email` e `telefone`. Um rascunho v1 restaurado aqui
+ *      traria convidados sem esses campos, e a validação de contato quebraria ao ler
+ *      `email.trim()` de um valor inexistente.
  */
-const VERSAO = 1;
+const VERSAO = 2;
 
 interface RascunhoGuardado<T> {
   versao: number;

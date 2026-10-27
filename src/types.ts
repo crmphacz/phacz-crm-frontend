@@ -390,6 +390,9 @@ export interface RodadaEntrega {
 export interface RodadaConvidado {
   nome: string;
   perfil: string;
+  /** Ao menos um dos dois é obrigatório — convidado sem contato não serve para follow-up. */
+  email: string;
+  telefone: string;
   jaConheceLitoral: boolean;
   possuiOutrosImoveis: boolean;
   investimentoOuMoradia?: InvestimentoOuMoradia;
