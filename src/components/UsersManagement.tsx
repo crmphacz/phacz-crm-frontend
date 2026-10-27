@@ -6,7 +6,7 @@ import { ApiError } from '../api/client';
 import type { AppUser } from '../api/endpoints';
 import type { UserCargo } from '../types';
 
-const CARGO_OPTIONS: UserCargo[] = ['Diretora', 'GR', 'GV', 'SDR', 'Marketing', 'Administrativo', 'Recepcao'];
+const CARGO_OPTIONS: UserCargo[] = ['Diretora', 'GR', 'GV', 'SDR', 'GerenteEstrategias', 'Marketing', 'Administrativo', 'Recepcao'];
 
 const CARGO_COLORS: Record<UserCargo, string> = {
   Diretora: '#d55006',
@@ -16,6 +16,7 @@ const CARGO_COLORS: Record<UserCargo, string> = {
   Marketing: '#db2777',
   Administrativo: '#64748b',
   Recepcao: '#059669',
+  GerenteEstrategias: '#9333ea',
 };
 
 const CARGO_LABELS: Record<UserCargo, string> = {
@@ -26,6 +27,7 @@ const CARGO_LABELS: Record<UserCargo, string> = {
   Marketing: 'Marketing — visualização geral + Email Marketing',
   Administrativo: 'Administrativo — visualização (somente leitura)',
   Recepcao: 'Recepção — visualização (somente leitura)',
+  GerenteEstrategias: 'Gerente de Estratégias — pipeline e base, sem exclusão e sem orçamento',
 };
 
 export function UsersManagement() {

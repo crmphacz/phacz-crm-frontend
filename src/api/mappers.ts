@@ -66,11 +66,11 @@ export function mapStatusUnidadeToApi(status: StatusUnidade): string {
 
 const cargoFromApi: Record<string, UserCargo> = {
   DIRETORA: 'Diretora', GR: 'GR', GV: 'GV', SDR: 'SDR', MARKETING: 'Marketing',
-  ADMINISTRATIVO: 'Administrativo', RECEPCAO: 'Recepcao',
+  ADMINISTRATIVO: 'Administrativo', RECEPCAO: 'Recepcao', GE: 'GerenteEstrategias',
 };
 const cargoToApi: Record<UserCargo, string> = {
   Diretora: 'DIRETORA', GR: 'GR', GV: 'GV', SDR: 'SDR', Marketing: 'MARKETING',
-  Administrativo: 'ADMINISTRATIVO', Recepcao: 'RECEPCAO',
+  Administrativo: 'ADMINISTRATIVO', Recepcao: 'RECEPCAO', GerenteEstrategias: 'GE',
 };
 
 export function mapCargoFromApi(cargo: string): UserCargo {

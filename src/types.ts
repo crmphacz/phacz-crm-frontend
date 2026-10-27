@@ -8,7 +8,7 @@ export type TipoInteracao =
   | 'nota' | 'proposta' | 'especulacao' | 'treinamento';
 export type TipoInteresse = string;
 export type CanalOrigem = string;
-export type UserCargo = 'Diretora' | 'GR' | 'GV' | 'SDR' | 'Marketing' | 'Administrativo' | 'Recepcao';
+export type UserCargo = 'Diretora' | 'GR' | 'GV' | 'SDR' | 'Marketing' | 'Administrativo' | 'Recepcao' | 'GerenteEstrategias';
 
 export interface UserProfile {
   id: string;

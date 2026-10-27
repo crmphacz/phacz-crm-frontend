@@ -36,6 +36,10 @@ export function canWriteCorretor(user: UserProfile | null, corretor: Corretor): 
   if (!user) return false;
   switch (user.cargo) {
     case 'Diretora':
+    // Gerente de Estratégias trabalha a base inteira e não é responsável por card nenhum —
+    // uma regra de posse o deixaria vendo tudo e sem poder tocar em nada. Excluir continua
+    // fora (ver canDeleteLeadClienteOuCard).
+    case 'GerenteEstrategias':
       return true;
     case 'SDR':
       // O mapper converte ausência para undefined; o backend guarda null. Vale dos dois jeitos.
@@ -74,7 +78,7 @@ export function canWriteCorretoresModule(user: UserProfile | null): boolean {
 export function canCreateCorretor(user: UserProfile | null): boolean {
   if (!user) return false;
   return user.cargo === 'Diretora' || user.cargo === 'SDR' || user.cargo === 'GR'
-    || user.cargo === 'GV' || user.cargo === 'Recepcao';
+    || user.cargo === 'GV' || user.cargo === 'Recepcao' || user.cargo === 'GerenteEstrategias';
 }
 
 /**
@@ -89,7 +93,8 @@ export function canCreateCorretor(user: UserProfile | null): boolean {
  * no que já está cadastrado.
  */
 export function canCreateClienteFinal(user: UserProfile | null): boolean {
-  return user?.cargo === 'Diretora' || user?.cargo === 'Recepcao' || user?.cargo === 'SDR';
+  return user?.cargo === 'Diretora' || user?.cargo === 'Recepcao' || user?.cargo === 'SDR'
+    || user?.cargo === 'GerenteEstrategias';
 }
 
 /**
@@ -202,7 +207,8 @@ export function corretoresDoDisparo(user: UserProfile | null, corretores: Corret
  */
 export function canWhatsappCorretor(user: UserProfile | null, corretor: Corretor): boolean {
   if (!user) return false;
-  if (user.cargo === 'Diretora' || user.cargo === 'Marketing' || user.cargo === 'SDR') return true;
+  if (user.cargo === 'Diretora' || user.cargo === 'Marketing' || user.cargo === 'SDR'
+    || user.cargo === 'GerenteEstrategias') return true;
   return canWriteCorretor(user, corretor);
 }
 
@@ -238,15 +244,19 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
       // O SDR entra porque é aqui que se cadastra cliente final escolhendo o corretor — sem a
       // tela, a permissão de cadastrar não teria onde ser usada. Ele lê a lista inteira, como
       // já lê o pipeline inteiro; escrever continua restrito (ver canCreateClienteFinal).
-      return user.cargo === 'Marketing' || user.cargo === 'SDR';
+      return user.cargo === 'Marketing' || user.cargo === 'SDR' || user.cargo === 'GerenteEstrategias';
     case 'rodadas':
-      return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
+      return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR'
+        || user.cargo === 'GerenteEstrategias';
     case 'email-marketing':
-      return user.cargo === 'Marketing';
+      // GE entra só para acompanhar os envios — disparar e editar segue com
+      // Diretoria e Marketing (ver canWriteEmailMarketing).
+      return user.cargo === 'Marketing' || user.cargo === 'GerenteEstrategias';
     case 'whatsapp-massa':
       // Diferente do e-mail: SDR, GV e GR também disparam, só que apenas para os corretores
       // do próprio funil (ver `corretoresDoDisparo`). Recepção entra pelo topo da função.
-      return user.cargo === 'Marketing' || user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
+      return user.cargo === 'Marketing' || user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR'
+        || user.cargo === 'GerenteEstrategias';
     case 'tabelas-empreendimentos':
       // Dados financeiros: só Diretoria (+ Administrativo/Recepção, já liberados no topo).
       return false;
