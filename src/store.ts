@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, TipoInteracao, Proposta, Temperatura, UserProfile, CanalOrigem,
   EmailTemplate, EmailCampaign, ChatMessage, DestinatarioTipo, UserCargo,
-  Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, TipoNotificacao, Empreendimento, CreateEmpreendimentoPayload,
+  Rodada, RodadaResumo, CreateRodadaPayload, StatusAprovacaoRodada, Notificacao, TipoNotificacao, Empreendimento, CreateEmpreendimentoPayload,
   WhatsappTemplate, WhatsappCampaign,
 } from './types';
 import {
@@ -337,6 +337,8 @@ interface StoreState {
   rejectRodada: (id: string, motivo: string) => Promise<Rodada>;
   /** Retira uma rodada ainda em aprovação — a GR também pode, diferente de recusar. */
   cancelRodada: (id: string, motivo: string) => Promise<Rodada>;
+  /** Muda a situação para qualquer uma, sem trava de transição — só a Diretoria. */
+  changeRodadaStatus: (id: string, status: StatusAprovacaoRodada, motivo: string) => Promise<Rodada>;
   requestRodadaCorrection: (id: string, motivo: string) => Promise<Rodada>;
 
   // Notificações in-app
@@ -1037,6 +1039,12 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   rejectRodada: async (id, motivo) => {
     const updated = await rodadasApi.recusar(id, motivo);
+    set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
+    return updated;
+  },
+
+  changeRodadaStatus: async (id, status, motivo) => {
+    const updated = await rodadasApi.mudarStatus(id, status, motivo);
     set((state) => ({ rodadas: state.rodadas.map((r) => (r.id === id ? updated : r)) }));
     return updated;
   },

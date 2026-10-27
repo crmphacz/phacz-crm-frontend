@@ -2,7 +2,7 @@ import { apiFetch, downloadFile } from './client.js';
 import {
   mapUserFromApi, mapCorretorFromApi, mapCreateCorretorToApi, mapCorretorUpdateToApi,
   mapEmailTemplateFromApi, mapEmailCampaignFromApi, mapChatMessageFromApi, mapCargoToApi,
-  mapDestinatarioTipoToApi, mapRodadaFromApi, mapRodadaListItemFromApi, mapCreateRodadaToApi, mapNotificacaoFromApi,
+  mapDestinatarioTipoToApi, mapRodadaFromApi, statusAprovacaoRodadaParaApi, mapRodadaListItemFromApi, mapCreateRodadaToApi, mapNotificacaoFromApi,
   mapEmpreendimentoFromApi, mapEmpreendimentoDetailFromApi, mapUnidadeFromApi, mapStatusUnidadeToApi,
   mapLogAcaoFromApi, mapTipoInteracaoFromApi, mapClienteFinalComContextoFromApi, mapAtividadeAgendaFromApi,
   type ApiUser, type ApiCorretor, type ApiEmailTemplate, type ApiEmailCampaign, type ApiChatMessage,
@@ -16,6 +16,7 @@ import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, EmailTemplate, EmailCampaign,
   Placar, CatalogoPlacar,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
+  StatusAprovacaoRodada,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
   LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario, CreateWhatsappCampaignPayload,
   EventoAgenda, EventoAgendaDetalhe,
@@ -657,6 +658,15 @@ export const rodadasApi = {
     apiFetch<ApiRodada>(`/api/rodadas/${id}/aprovar`, { method: 'PATCH' }).then(mapRodadaFromApi),
   recusar: (id: string, motivo: string): Promise<Rodada> =>
     apiFetch<ApiRodada>(`/api/rodadas/${id}/recusar`, { method: 'PATCH', body: { motivo } }).then(mapRodadaFromApi),
+  /**
+   * Muda a situação para qualquer uma, sem trava de transição — só a Diretoria. É o caminho de
+   * correção (desfazer uma aprovação, por exemplo), separado dos botões do dia a dia.
+   */
+  mudarStatus: (id: string, status: StatusAprovacaoRodada, motivo: string): Promise<Rodada> =>
+    apiFetch<ApiRodada>(`/api/rodadas/${id}/status`, {
+      method: 'PATCH',
+      body: { status: statusAprovacaoRodadaParaApi(status), motivo },
+    }).then(mapRodadaFromApi),
   /** Retira uma rodada que ainda está em aprovação. Diferente de recusar: a GR também pode. */
   cancelar: (id: string, motivo: string): Promise<Rodada> =>
     apiFetch<ApiRodada>(`/api/rodadas/${id}/cancelar`, { method: 'PATCH', body: { motivo } }).then(mapRodadaFromApi),

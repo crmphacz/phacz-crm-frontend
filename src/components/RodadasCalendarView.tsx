@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import {
   Plus, ChevronLeft, ChevronRight, MapPin, Wallet, User, Pencil, Trash2, X,
   CalendarDays, LayoutGrid, List as ListIcon, Check, XCircle, Clock, AlertCircle, PencilLine, Ban,
+  RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
@@ -18,6 +19,7 @@ import { isRodadaCompleta, type Rodada, type RodadaResumo, type TipoAcaoRodada, 
 import { RodadaFormModal } from './RodadaFormModal';
 import { RodadaResumoModal } from './RodadaResumoModal';
 import { RodadaMotivoModal, type ModoMotivo } from './RodadaMotivoModal';
+import { RodadaStatusModal } from './RodadaStatusModal';
 
 const STATUS_APROVACAO_CONFIG: Record<StatusAprovacaoRodada, { label: string; bg: string; text: string; icon: React.ElementType }> = {
   pendente: { label: 'Pendente de aprovação', bg: '#fef9c3', text: '#854d0e', icon: Clock },
@@ -108,6 +110,7 @@ export function RodadasCalendarView() {
   const [actionError, setActionError] = useState('');
   // Modal do recado da Diretoria: mesmo formulário para recusar e para pedir correção.
   const [motivoModal, setMotivoModal] = useState<{ id: string; modo: ModoMotivo } | null>(null);
+  const [statusModal, setStatusModal] = useState<{ id: string; status: StatusAprovacaoRodada; descricao: string } | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('todas');
 
   useEffect(() => {
@@ -507,6 +510,17 @@ export function RodadasCalendarView() {
                           </button>
                         </>
                       )}
+                      {/* Correção de rota da Diretoria: aparece em QUALQUER situação, inclusive
+                          nas já aprovadas, que é justamente onde os botões acima não aparecem. */}
+                      {canApprove && isRodadaCompleta(r) && (
+                        <button
+                          onClick={(ev) => { ev.stopPropagation(); setStatusModal({ id: r.id, status, descricao: `${r.imobiliaria} · ${formatDateKeyBR(r.dataInicio)}` }); }}
+                          className="w-7 h-7 rounded flex items-center justify-center text-gray-500 hover:bg-gray-100"
+                          title="Mudar situação"
+                        >
+                          <RefreshCw size={13} />
+                        </button>
+                      )}
                       {/* Fora do bloco acima de propósito: cancelar não é uma decisão de
                           aprovação, e a GR — que não aprova nada — precisa dele. */}
                       {canCancel && (status === 'pendente' || status === 'correcao_solicitada') && (
@@ -653,6 +667,14 @@ export function RodadasCalendarView() {
           rodadaId={motivoModal.id}
           modo={motivoModal.modo}
           onClose={() => setMotivoModal(null)}
+        />
+      )}
+      {statusModal && (
+        <RodadaStatusModal
+          rodadaId={statusModal.id}
+          statusAtual={statusModal.status}
+          descricao={statusModal.descricao}
+          onClose={() => setStatusModal(null)}
         />
       )}
     </div>

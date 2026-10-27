@@ -535,6 +535,11 @@ const statusAprovacaoRodadaMap = makeEnumMap<string, StatusAprovacaoRodada>([
   ['PENDENTE', 'pendente'], ['APROVADA', 'aprovada'], ['RECUSADA', 'recusada'],
   ['CORRECAO_SOLICITADA', 'correcao_solicitada'], ['CANCELADA', 'cancelada'],
 ]);
+
+/** Traduz a situação para o enum da API. Usado pela rota de mudança livre de status. */
+export function statusAprovacaoRodadaParaApi(status: StatusAprovacaoRodada): string {
+  return statusAprovacaoRodadaMap.toApi(status);
+}
 const perfilImobiliariaMap = makeEnumMap<string, PerfilImobiliaria>([
   ['ALTO_PADRAO', 'alto_padrao'], ['MISTO', 'misto'], ['INVESTIDOR', 'investidor'], ['BAIXO_TICKET', 'baixo_ticket'],
 ]);
