@@ -410,15 +410,19 @@ function DroppableStageColumn({
       }}
     >
       <div className="px-3 py-3 border-b flex-shrink-0" style={{ borderColor: '#e9ecef' }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: stage.cor }} />
-            <span className="text-xs font-bold" style={{ color: '#1e1e1e', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        {/* O título quebra em duas linhas em vez de truncar: "Acompanhamento Gerente de
+            Relacionamento" mede 274px e só há ~230px na coluna de 300. O `min-w-0` é o que
+            permite a quebra (sem ele o nome empurraria o contador para fora), e a altura
+            mínima mantém todos os cabeçalhos alinhados, inclusive os de nome curto. */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2 min-w-0" style={{ minHeight: 30 }}>
+            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: stage.cor, marginTop: 3 }} />
+            <span className="text-xs font-bold leading-tight" style={{ color: '#1e1e1e', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               {stage.nome}
             </span>
           </div>
           <span
-            className="text-xs px-2 py-0.5 rounded-full font-bold"
+            className="text-xs px-2 py-0.5 rounded-full font-bold flex-shrink-0"
             style={{
               backgroundColor: corretores.length > 0 ? stage.cor : '#e9ecef',
               color: corretores.length > 0 ? '#fff' : '#9ca3af',

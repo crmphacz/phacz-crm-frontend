@@ -280,9 +280,23 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
  * Isto é recorte de TELA, não de permissão — quem decide o que cada um pode escrever é
  * `canWriteCorretor`, no servidor.
  */
+/**
+ * Quem enxerga a etapa 6 (Acompanhamento Gerente de Relacionamento). Lista de quem PODE, e não
+ * de quem não pode: com a regra invertida, todo perfil novo nasceria vendo a coluna e só
+ * deixaria de ver se alguém lembrasse de incluí-lo na exceção.
+ */
+const VEEM_ACOMPANHAMENTO_GR: UserCargo[] = ['Diretora', 'SDR', 'GerenteEstrategias'];
+
 export function getHiddenPipelineStages(user: UserProfile | null): number[] {
-  if (user?.cargo === 'GR' || user?.cargo === 'GV') return [1, 2, 3, 4];
-  return [];
+  const ocultas: number[] = [];
+
+  // GR e GV: sem o pré-atendimento (1 a 4), que é trabalho do SDR.
+  if (user?.cargo === 'GR' || user?.cargo === 'GV') ocultas.push(1, 2, 3, 4);
+
+  // Etapa 6 restrita a Diretoria, SDR e Gerente de Estratégias.
+  if (!user || !VEEM_ACOMPANHAMENTO_GR.includes(user.cargo)) ocultas.push(6);
+
+  return ocultas;
 }
 
 /** Primeira tela segura para o perfil logado, usada no login/bootstrap. */

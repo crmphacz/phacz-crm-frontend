@@ -58,8 +58,11 @@ export const STAGES: StageConfig[] = [
   },
   {
     id: 6,
-    nome: 'Rel. Ativo + GV',
-    nomeAbrev: 'Rel. Ativo',
+    nome: 'Acompanhamento Gerente de Relacionamento',
+    // Forma curta para selos e listas, onde o nome inteiro não cabe (no Dashboard a linha tem
+    // 112px). Precisa acompanhar o `nome`, senão duas telas chamam a mesma etapa de coisas
+    // diferentes.
+    nomeAbrev: 'Acomp. GR',
     responsavel: ['GR', 'GV'],
     cor: '#0d9488',
     corBg: '#f0fdfa',
