@@ -293,8 +293,13 @@ export function getHiddenPipelineStages(user: UserProfile | null): number[] {
   // GR e GV: sem o pré-atendimento (1 a 4), que é trabalho do SDR.
   if (user?.cargo === 'GR' || user?.cargo === 'GV') ocultas.push(1, 2, 3, 4);
 
-  // Etapa 6 restrita a Diretoria, SDR e Gerente de Estratégias.
-  if (!user || !VEEM_ACOMPANHAMENTO_GR.includes(user.cargo)) ocultas.push(6);
+  // Distribuição GR (5): some só para o GV — o card ainda não é dele, ele o recebe na
+  // Distribuição GV. Exclusão pontual, e não lista de permitidos: os demais perfis já viam a
+  // distribuição antes de ela virar duas colunas, e tirá-la deles seria mudança não pedida.
+  if (user?.cargo === 'GV') ocultas.push(5);
+
+  // Acompanhamento Gerente de Relacionamento (era 6 antes de a distribuição virar duas etapas).
+  if (!user || !VEEM_ACOMPANHAMENTO_GR.includes(user.cargo)) ocultas.push(7);
 
   return ocultas;
 }

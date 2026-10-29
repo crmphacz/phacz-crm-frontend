@@ -662,7 +662,7 @@ export function CorretorDetailPanel() {
               </div>
               <button
                 onClick={() => handleMoveStage('next')}
-                disabled={!nextStage || corretor.etapa === 10}
+                disabled={!nextStage || corretor.etapa === 11}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all"
               >
                 <ChevronRight size={16} />
@@ -698,7 +698,7 @@ export function CorretorDetailPanel() {
 
             {/* Actions */}
             <div className="flex gap-2 mt-2">
-              {corretor.etapa >= 9 && corretor.status !== 'ganho' && (
+              {corretor.etapa >= 10 && corretor.status !== 'ganho' && (
                 <button
                   onClick={() => setShowWonConfirm(true)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-white transition-colors"
@@ -1886,9 +1886,10 @@ export function CorretorDetailPanel() {
             <div className="p-5 space-y-4">
               {(() => {
                 const cadenceRole =
-                  corretor.etapa <= 5 ? 'SDR' as const :
-                  corretor.etapa === 6 ? 'GR' as const :
-                  corretor.etapa <= 9 ? 'GV' as const :
+                  // As DUAS distribuições (5 e 6) são do SDR; 7 é o Acompanhamento GR.
+                  corretor.etapa <= 6 ? 'SDR' as const :
+                  corretor.etapa === 7 ? 'GR' as const :
+                  corretor.etapa <= 10 ? 'GV' as const :
                   null;
 
                 if (!cadenceRole) {

@@ -248,24 +248,27 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
     // O GR saiu daqui: nem todo corretor tem Gerente de Relacionamento atribuído, e exigir o
     // vínculo travava o card na Distribuição. Só o GV continua obrigatório. Espelha
     // validation.ts no backend, que é quem de fato barra.
-    5: ['responsavelGV'],
-    6: [],
+    // A distribuição virou duas etapas: o GR segue opcional na 5, e o GV passou a ser
+    // obrigatório na 6 — a etapa que É a entrega ao Gerente de Vendas.
+    5: [],
+    6: ['responsavelGV'],
     7: [],
     8: [],
     9: [],
     10: [],
+    11: [],
   };
   return fields[etapa] ?? [];
 }
 
 /**
- * Da etapa 7 (Monitoramento GV) em diante o cadastro tem que estar completo — são os campos
+ * Da etapa 8 (Monitoramento GV) em diante o cadastro tem que estar completo — são os campos
  * que o cadastro simplificado deixa em branco na entrada. Espelha ETAPA_EXIGE_CADASTRO_COMPLETO
  * no backend (modules/corretores/validation.ts), que é quem de fato barra.
  *
- * Vale da 7 em DIANTE, e não só na 7: arrastar de 6 direto para 8 pularia a cobrança.
+ * Vale da 8 em DIANTE, e não só na 8: arrastar de 7 direto para 9 pularia a cobrança.
  */
-export const ETAPA_EXIGE_CADASTRO_COMPLETO = 7;
+export const ETAPA_EXIGE_CADASTRO_COMPLETO = 8;
 export const CAMPOS_DO_CADASTRO_COMPLETO = ['imobiliaria', 'cpf', 'creci', 'dataNascimento'];
 
 /**
@@ -340,7 +343,8 @@ export function validateForStageMove(corretor: Corretor, toEtapa: number): strin
     }
   }
 
-  if (toEtapa === 8 && corretor.clientesFinais.length === 0 && !corretor.parentCorretorId) {
+  // 9 = Negociação (era 8 antes de a distribuição virar duas etapas).
+  if (toEtapa === 9 && corretor.clientesFinais.length === 0 && !corretor.parentCorretorId) {
     errors.push('Ao menos um cliente final é necessário para negociação');
   }
 

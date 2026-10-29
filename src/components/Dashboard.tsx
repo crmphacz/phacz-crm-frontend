@@ -404,12 +404,14 @@ function DashSDR({ corretores, currentUser, onNavigate }: { corretores: Corretor
     ? corretores.filter((l) => l.responsavelSDR === currentUser)
     : corretores;
 
-  const stages15 = meusCorretores.filter((l) => l.etapa >= 1 && l.etapa <= 5 && (l.status === 'ativo' || l.status === 'nutricao'));
+  const stages15 = meusCorretores.filter((l) => l.etapa >= 1 && l.etapa <= 6 && (l.status === 'ativo' || l.status === 'nutricao'));
   const novo = stages15.filter((l) => l.etapa === 1).length;
   const contato = stages15.filter((l) => l.etapa === 2).length;
   const qualif = stages15.filter((l) => l.etapa === 3).length;
   const nutricao = stages15.filter((l) => l.etapa === 4).length;
-  const distrib = stages15.filter((l) => l.etapa === 5).length;
+  // Soma as duas distribuições: o KPI é "quantos estão em distribuição", e separá-las
+  // aqui quebraria a comparação com os meses anteriores à divisão.
+  const distrib = stages15.filter((l) => l.etapa === 5 || l.etapa === 6).length;
 
   const totalMeu = stages15.length;
   const totalDistrib = meusCorretores.filter((l) => Boolean(l.etapaTimestamps['5'])).length;
@@ -525,7 +527,7 @@ function DashGR({ corretores, currentUser, onNavigate }: { corretores: Corretor[
     ? corretores.filter((l) => l.responsavelGR === currentUser)
     : corretores;
 
-  const stage6 = meusCorretores.filter((l) => l.etapa === 6 && (l.status === 'ativo' || l.status === 'nutricao'));
+  const stage6 = meusCorretores.filter((l) => l.etapa === 7 && (l.status === 'ativo' || l.status === 'nutricao'));
   const totalMeu = stage6.length;
   const comTreinamento = meusCorretores.filter((l) => l.treinamento).length;
   const treinAgendado = meusCorretores.filter((l) => l.treinamento && l.dataAgendamentoTreinamento).length;
@@ -635,10 +637,10 @@ function DashGV({ corretores, currentUser, onNavigate }: { corretores: Corretor[
     ? corretores.filter((l) => l.responsavelGV === currentUser)
     : corretores;
 
-  const pipeline = meusCorretores.filter((l) => l.etapa >= 7 && l.etapa <= 9 && (l.status === 'ativo' || l.status === 'nutricao'));
-  const negociacao = pipeline.filter((l) => l.etapa === 8).length;
-  const fechamento = pipeline.filter((l) => l.etapa === 9).length;
-  const monitoramento = pipeline.filter((l) => l.etapa === 7).length;
+  const pipeline = meusCorretores.filter((l) => l.etapa >= 8 && l.etapa <= 10 && (l.status === 'ativo' || l.status === 'nutricao'));
+  const negociacao = pipeline.filter((l) => l.etapa === 9).length;
+  const fechamento = pipeline.filter((l) => l.etapa === 10).length;
+  const monitoramento = pipeline.filter((l) => l.etapa === 8).length;
 
   // A listagem de corretores não traz mais propostas completas (ver corretorListInclude no
   // backend) — essas contagens vêm de um endpoint agregado, escopado ao usuário logado.
@@ -658,7 +660,7 @@ function DashGV({ corretores, currentUser, onNavigate }: { corretores: Corretor[
   const pipelineValue = pipeline.reduce((acc, l) => acc + (primeiraPropostaPorCorretor[l.id]?.valor ?? 0), 0);
 
   const closingCorretores = pipeline
-    .filter((l) => l.etapa >= 8)
+    .filter((l) => l.etapa >= 9)
     .sort((a, b) => new Date(b.dataUltimaInteracao).getTime() - new Date(a.dataUltimaInteracao).getTime())
     .slice(0, 6);
 

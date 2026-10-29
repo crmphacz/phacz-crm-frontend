@@ -45,19 +45,33 @@ export const STAGES: StageConfig[] = [
     slaLabel: '30 dias',
     descricao: 'Cadência automática. Nova tentativa a cada 7 dias',
   },
+  // A distribuição virou duas etapas: primeiro o GR, depois o GV. Por isso TUDO o que vem
+  // depois subiu um número — ver a migração 20261029000000. O número da etapa é a posição no
+  // funil em todo o sistema, então inserir no meio obriga a renumerar.
   {
     id: 5,
-    nome: 'Distribuição GR + GV',
-    nomeAbrev: 'Distrib.',
+    nome: 'Distribuição GR',
+    nomeAbrev: 'Distrib. GR',
     responsavel: ['SDR'],
     cor: '#8b5cf6',
     corBg: '#f5f3ff',
     slaHoras: 24,
     slaLabel: '24h',
-    descricao: 'SDR atribui simultaneamente ao GR e ao GV',
+    descricao: 'SDR atribui o Gerente de Relacionamento',
   },
   {
     id: 6,
+    nome: 'Distribuição GV',
+    nomeAbrev: 'Distrib. GV',
+    responsavel: ['SDR'],
+    cor: '#7c3aed',
+    corBg: '#f5f3ff',
+    slaHoras: 24,
+    slaLabel: '24h',
+    descricao: 'SDR atribui o Gerente de Vendas',
+  },
+  {
+    id: 7,
     nome: 'Acompanhamento Gerente de Relacionamento',
     // Forma curta para selos e listas, onde o nome inteiro não cabe (no Dashboard a linha tem
     // 112px). Precisa acompanhar o `nome`, senão duas telas chamam a mesma etapa de coisas
@@ -72,7 +86,7 @@ export const STAGES: StageConfig[] = [
     paralelo: true,
   },
   {
-    id: 7,
+    id: 8,
     nome: 'Monitoramento GV',
     nomeAbrev: 'Monitor.',
     responsavel: ['GV'],
@@ -84,7 +98,7 @@ export const STAGES: StageConfig[] = [
     paralelo: true,
   },
   {
-    id: 8,
+    id: 9,
     nome: 'Negociação',
     nomeAbrev: 'Negoc.',
     responsavel: ['GV', 'GR'],
@@ -95,7 +109,7 @@ export const STAGES: StageConfig[] = [
     descricao: 'GV apresenta proposta formal. GR mantém vínculo emocional',
   },
   {
-    id: 9,
+    id: 10,
     nome: 'Fechamento',
     nomeAbrev: 'Fecha.',
     responsavel: ['GV', 'GR'],
@@ -106,7 +120,7 @@ export const STAGES: StageConfig[] = [
     descricao: 'Formalizar documentação e registrar como Ganho',
   },
   {
-    id: 10,
+    id: 11,
     nome: 'Pós-venda / Fidelização',
     nomeAbrev: 'Pós-venda',
     responsavel: ['Ana', 'Lucimara'],
