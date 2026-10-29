@@ -16,7 +16,7 @@ import { useStore, useFilteredCorretores, type PipelineFunnel } from '../store';
 import { useCorretoresQuery } from '../queries/corretores';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
-import { STAGES } from '../data';
+import { STAGES, FUNIS_DO_PIPELINE, TODAS_AS_ETAPAS, COLUNAS_DO_PIPELINE } from '../data';
 import { ApiError } from '../api/client';
 import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada } from '../utils';
 import { CorretorCard } from './CorretorCard';
@@ -26,17 +26,25 @@ import type { Corretor, StageConfig } from '../types';
 
 type FunnelFilter = PipelineFunnel;
 
-const FUNNEL_CONFIG: Record<FunnelFilter, { label: string; stages: number[]; cor: string; desc: string }> = {
-  'todos': { label: 'Todos os funis', stages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], cor: '#64748b', desc: 'Visão completa' },
-  'pre-atendimento': { label: 'Pré-atendimento', stages: [1, 2, 3, 4, 5], cor: '#8b5cf6', desc: 'SDR — Etapas 1 a 5' },
-  'treinamento': { label: 'Treinamento', stages: [6], cor: '#0d9488', desc: 'GR — Relacionamento ativo' },
-  'venda': { label: 'Venda', stages: [7, 8, 9], cor: '#d55006', desc: 'GV — Etapas 7 a 9' },
-  'pos-venda': { label: 'Pós-venda', stages: [10], cor: '#6366f1', desc: 'Fidelização — Etapa 10' },
+// As etapas de cada funil e o agrupamento das colunas vêm de data.ts — ver FUNIS_DO_PIPELINE.
+// Aqui fica só o que é desta tela: a descrição que aparece sob a aba.
+const DESCRICAO_DO_FUNIL: Record<FunnelFilter, string> = {
+  'todos': 'Visão completa',
+  'pre-atendimento': 'SDR — da entrada à distribuição',
+  'treinamento': 'GR — Relacionamento ativo',
+  'venda': 'GV — monitoramento, negociação e fechamento',
+  'pos-venda': 'Fidelização',
 };
 
-const ALL_STAGE_COLUMNS = [
-  [1], [2], [3], [4], [5], [6, 7], [8], [9], [10],
-];
+const FUNNEL_CONFIG: Record<FunnelFilter, { label: string; stages: readonly number[]; cor: string; desc: string }> = {
+  'todos': { label: 'Todos os funis', stages: TODAS_AS_ETAPAS, cor: '#64748b', desc: DESCRICAO_DO_FUNIL['todos'] },
+  'pre-atendimento': { ...FUNIS_DO_PIPELINE['pre-atendimento'], desc: DESCRICAO_DO_FUNIL['pre-atendimento'] },
+  'treinamento': { ...FUNIS_DO_PIPELINE['treinamento'], desc: DESCRICAO_DO_FUNIL['treinamento'] },
+  'venda': { ...FUNIS_DO_PIPELINE['venda'], desc: DESCRICAO_DO_FUNIL['venda'] },
+  'pos-venda': { ...FUNIS_DO_PIPELINE['pos-venda'], desc: DESCRICAO_DO_FUNIL['pos-venda'] },
+};
+
+const ALL_STAGE_COLUMNS = COLUNAS_DO_PIPELINE;
 
 /**
  * Identificador da coluna "Perdidos" no arrastar-e-soltar.

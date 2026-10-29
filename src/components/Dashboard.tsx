@@ -8,7 +8,7 @@ import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { PlacarMetasView } from './PlacarMetasView';
-import { STAGES } from '../data';
+import { STAGES, FUNIS_DO_PIPELINE } from '../data';
 import { formatCurrency, formatRelativeTime, TIPO_INTERACAO_CONFIG } from '../utils';
 import { ApiError } from '../api/client';
 import { dashboardApi, type AtividadeRecente, type ChurnTreinamentos } from '../api/endpoints';
@@ -143,10 +143,11 @@ function DashGeral({ corretores, onNavigate }: { corretores: Corretor[]; onNavig
 
   // Summary by funnel
   const funnelSummary = [
-    { label: 'Pré-atendimento', cor: '#8b5cf6', stages: [1, 2, 3, 4, 5], icon: <Phone size={14} /> },
-    { label: 'Treinamento', cor: '#0d9488', stages: [6], icon: <CalendarCheck size={14} /> },
-    { label: 'Venda', cor: '#d55006', stages: [7, 8, 9], icon: <Handshake size={14} /> },
-    { label: 'Pós-venda', cor: '#6366f1', stages: [10], icon: <CheckCircle2 size={14} /> },
+    // Etapas e cores vêm de FUNIS_DO_PIPELINE (data.ts); aqui só o ícone, que é desta tela.
+    { ...FUNIS_DO_PIPELINE['pre-atendimento'], icon: <Phone size={14} /> },
+    { ...FUNIS_DO_PIPELINE['treinamento'], icon: <CalendarCheck size={14} /> },
+    { ...FUNIS_DO_PIPELINE['venda'], icon: <Handshake size={14} /> },
+    { ...FUNIS_DO_PIPELINE['pos-venda'], icon: <CheckCircle2 size={14} /> },
   ].map((f) => ({
     ...f,
     count: active.filter((l) => f.stages.includes(l.etapa)).length,

@@ -165,3 +165,41 @@ export const CADENCIAS: Record<'SDR' | 'GR' | 'GV', TarefaCadencia[]> = {
     { dia: 15, tipo: 'whatsapp', label: 'Negociação final', descricao: 'Encaminhar documentação e fechar negócio', responsavel: 'GV' },
   ],
 };
+
+/**
+ * Agrupamento das etapas em funis — fonte ÚNICA para o Pipeline e o Dashboard.
+ *
+ * Existia copiado em três lugares, com os números das etapas cravados em cada um. Quando a
+ * Distribuição virou duas etapas e tudo depois dela foi renumerado, as três cópias ficaram
+ * para trás em silêncio: a coluna de Pós-venda sumiu do quadro e a aba passou a contar 0.
+ * Com uma definição só, a próxima mudança de etapa tem um lugar para acertar.
+ */
+/** `stages` é `number[]` e não tupla literal: as telas testam `stages.includes(etapa)`. */
+export const FUNIS_DO_PIPELINE: Record<
+  'pre-atendimento' | 'treinamento' | 'venda' | 'pos-venda',
+  { label: string; cor: string; stages: number[] }
+> = {
+  'pre-atendimento': { label: 'Pré-atendimento', cor: '#8b5cf6', stages: [1, 2, 3, 4, 5, 6] },
+  // As duas distribuições são trabalho do SDR, por isso entram no pré-atendimento.
+  'treinamento': { label: 'Treinamento', cor: '#0d9488', stages: [7] },
+  'venda': { label: 'Venda', cor: '#d55006', stages: [8, 9, 10] },
+  'pos-venda': { label: 'Pós-venda', cor: '#6366f1', stages: [11] },
+};
+
+/** Todas as etapas, na ordem — o funil "Todos". */
+export const TODAS_AS_ETAPAS: number[] = STAGES.map((s) => s.id);
+
+/**
+ * Colunas do quadro. Etapas marcadas como `paralelo` e vizinhas dividem a mesma coluna — hoje
+ * o Acompanhamento GR e o Monitoramento GV, que acontecem ao mesmo tempo.
+ *
+ * Derivado de STAGES em vez de escrito à mão: era uma lista fixa, e ela também ficou para trás
+ * na renumeração.
+ */
+export const COLUNAS_DO_PIPELINE: number[][] = STAGES.reduce<number[][]>((grupos, etapa) => {
+  const ultimo = grupos[grupos.length - 1];
+  const anterior = ultimo ? STAGES.find((s) => s.id === ultimo[ultimo.length - 1]) : undefined;
+  if (ultimo && anterior?.paralelo && etapa.paralelo) ultimo.push(etapa.id);
+  else grupos.push([etapa.id]);
+  return grupos;
+}, []);
