@@ -208,6 +208,11 @@ export interface ClienteFinalComContexto extends ClienteFinal {
   imobiliaria: string;
   etapaCorretor: number;
   statusCorretor: StatusCorretor;
+  // Donos do card do corretor. Vêm na listagem para a tela saber quem pode EDITAR este
+  // cliente — a edição passa pela posse do card no servidor (ver canEditClienteFinal).
+  responsavelSDRId?: string;
+  responsavelGVId?: string;
+  responsavelGRId?: string;
 }
 
 export interface StageConfig {

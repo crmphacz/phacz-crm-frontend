@@ -5,7 +5,7 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import { formatCurrency, formatRelativeTime } from '../utils';
-import { canWhatsappCliente, canCreateClienteFinal } from '../permissions';
+import { canWhatsappCliente, canCreateClienteFinal, canEditClienteFinal } from '../permissions';
 import { corretoresApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { getViewCache, setViewCache } from '../lib/viewCache';
@@ -54,11 +54,11 @@ export function ClientesView({ modo = 'clientes' }: ClientesViewProps) {
   const currentUser = useStore((s) => s.currentUser);
   // Quem chega nesta tela: Diretoria, SDR, Marketing, Administrativo e Recepção (ver Sidebar).
   //
-  // Criar e editar são permissões diferentes aqui: SDR e Recepção CADASTRAM o cliente que
-  // ligou ou apareceu, mas não mexem no que já está registrado — editar continua só com a
-  // Diretoria. Marketing e Administrativo seguem como leitura pura.
+  // Criar e editar são permissões diferentes aqui. Criar é por cargo (quem registra quem
+  // ligou ou apareceu). Editar é POR LINHA: Diretoria, SDR, GV e GR editam, mas GV e GR só os
+  // clientes dos corretores do próprio kanban — é a regra que o servidor aplica.
+  // Marketing, Administrativo e Recepção seguem como leitura pura.
   const podeCriar = canCreateClienteFinal(currentUser);
-  const isReadOnly = currentUser?.cargo !== 'Diretora';
   const setView = useStore((s) => s.setView);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
 
@@ -138,11 +138,10 @@ export function ClientesView({ modo = 'clientes' }: ClientesViewProps) {
     setReloadTick((t) => t + 1);
   }
 
-  // Diretoria (única que escreve aqui) clica pra editar o cliente (dados + corretor
-  // responsável); os demais perfis com acesso a esta tela (Marketing/Administrativo/Recepção,
-  // só leitura) clicam pra ver o corretor no Pipeline, como já era.
+  // Quem pode editar AQUELE cliente abre a edição; quem não pode cai no Pipeline, no card do
+  // corretor — que é o que a tela já fazia para os perfis de leitura.
   function handleRowClick(cliente: ClienteComComprou) {
-    if (isReadOnly) {
+    if (!canEditClienteFinal(currentUser, cliente)) {
       setView('pipeline');
       setSelectedCorretor(cliente.corretorId);
     } else {

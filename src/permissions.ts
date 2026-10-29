@@ -1,4 +1,4 @@
-import type { UserCargo, UserProfile, Corretor } from './types';
+import type { UserCargo, UserProfile, Corretor, ClienteFinalComContexto } from './types';
 import type { ViewMode } from './store';
 
 /**
@@ -312,4 +312,26 @@ export function getDefaultView(user: UserProfile | null): ViewMode {
   if (canAccessView(user, 'pipeline')) return 'pipeline';
   if (user?.cargo === 'Marketing') return 'corretores';
   return 'pipeline';
+}
+
+/**
+ * Editar um cliente final: Diretoria, SDR, GV e GR.
+ *
+ * Não é uma lista de cargos solta — espelha `canWriteCorretor`, porque é isso que o servidor
+ * aplica: editar o cliente passa por `loadCorretorForWrite` no card do corretor responsável.
+ * Um GV, portanto, edita os clientes dos corretores do próprio kanban e não os dos outros.
+ *
+ * Checar o cargo sem a posse mostraria o botão para quem o servidor vai recusar — foi
+ * exatamente assim que o disparo de WhatsApp do SDR ficou quebrado por semanas.
+ */
+export function canEditClienteFinal(
+  user: UserProfile | null,
+  cliente: Pick<ClienteFinalComContexto, 'responsavelSDRId' | 'responsavelGVId' | 'responsavelGRId'>
+): boolean {
+  if (!user) return false;
+  return canWriteCorretor(user, {
+    responsavelSDRId: cliente.responsavelSDRId,
+    responsavelGVId: cliente.responsavelGVId,
+    responsavelGRId: cliente.responsavelGRId,
+  } as Corretor);
 }

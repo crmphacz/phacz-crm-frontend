@@ -263,7 +263,10 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
 // do array inteiro de corretores pra montar isso no client.
 
 export interface ApiClienteFinalComContexto extends ApiClienteFinal {
-  corretor: { id: string; nomeCorretor: string; imobiliaria: string; etapa: number; status: string };
+  corretor: {
+    id: string; nomeCorretor: string; imobiliaria: string; etapa: number; status: string;
+    responsavelSDRId?: string | null; responsavelGVId?: string | null; responsavelGRId?: string | null;
+  };
   comprou: boolean;
 }
 
@@ -277,6 +280,9 @@ export function mapClienteFinalComContextoFromApi(
     imobiliaria: cf.corretor.imobiliaria,
     etapaCorretor: cf.corretor.etapa,
     statusCorretor: statusCorretorMap.toApp(cf.corretor.status),
+    responsavelSDRId: cf.corretor.responsavelSDRId ?? undefined,
+    responsavelGVId: cf.corretor.responsavelGVId ?? undefined,
+    responsavelGRId: cf.corretor.responsavelGRId ?? undefined,
     comprou: cf.comprou,
   };
 }
