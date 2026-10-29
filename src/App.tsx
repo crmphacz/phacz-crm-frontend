@@ -143,7 +143,9 @@ export default function App() {
           {view === 'pipeline' && <PipelineView />}
           {view === 'dashboard' && <Dashboard />}
           {view === 'corretores' && <CorretoresListView />}
-          {view === 'clientes' && <ClientesView />}
+          {view === 'clientes' && <ClientesView modo="clientes" />}
+          {/* Mesma tela, recorte oposto: quem ainda não teve fechamento nenhum. */}
+          {view === 'leads' && <ClientesView modo="leads" />}
           {view === 'config-usuarios' && <UsersSettingsView />}
           {view === 'config-empresa' && <CompanyProfileView />}
           {view === 'config-regras' && <PipelineRulesView />}

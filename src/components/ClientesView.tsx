@@ -37,7 +37,20 @@ interface ClientesListCache {
  * carregamento em massa (teto de 2000 corretores) — sem paginação de verdade e sem contagem
  * real. Agora busca a própria página em GET /api/corretores/clientes, com `total` do banco.
  */
-export function ClientesView() {
+/**
+ * Serve as DUAS abas: Leads (quem ainda não fechou nada) e Nossos clientes (quem já fechou).
+ *
+ * É a mesma tela porque a lista, a busca, a ordenação e a edição são idênticas — o que muda é
+ * o recorte, e ele é aplicado no SERVIDOR (parâmetro `comprou`). Duplicar o componente só para
+ * trocar um parâmetro criaria duas telas para manter em sincronia.
+ */
+interface ClientesViewProps {
+  /** 'leads' = ainda não comprou; 'clientes' = já teve algum fechamento. */
+  modo?: 'leads' | 'clientes';
+}
+
+export function ClientesView({ modo = 'clientes' }: ClientesViewProps) {
+  const ehLeads = modo === 'leads';
   const currentUser = useStore((s) => s.currentUser);
   // Quem chega nesta tela: Diretoria, SDR, Marketing, Administrativo e Recepção (ver Sidebar).
   //
@@ -49,7 +62,8 @@ export function ClientesView() {
   const setView = useStore((s) => s.setView);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
 
-  const [saved] = useState(() => getViewCache<ClientesListCache>(CACHE_KEY));
+  const cacheKey = `${CACHE_KEY}-${modo}`;
+  const [saved] = useState(() => getViewCache<ClientesListCache>(cacheKey));
   const [rows, setRows] = useState<ClienteComComprou[]>(saved?.rows ?? []);
   const [total, setTotal] = useState(saved?.total ?? 0);
   const [page, setPage] = useState(saved?.page ?? 1);
@@ -82,7 +96,7 @@ export function ClientesView() {
 
   useEffect(() => {
     if (!primeiraCargaFeita) return;
-    setViewCache<ClientesListCache>(CACHE_KEY, { rows, total, page, sortField, sortDir, searchInput, search });
+    setViewCache<ClientesListCache>(cacheKey, { rows, total, page, sortField, sortDir, searchInput, search });
   }, [primeiraCargaFeita, rows, total, page, sortField, sortDir, searchInput, search]);
 
   useEffect(() => {
@@ -90,7 +104,10 @@ export function ClientesView() {
     setLoading(true);
     setError('');
     corretoresApi
-      .listClientesPaged({ page, pageSize: PAGE_SIZE, search: search || undefined, sort: sortField, dir: sortDir })
+      .listClientesPaged({
+        page, pageSize: PAGE_SIZE, search: search || undefined, sort: sortField, dir: sortDir,
+        comprou: ehLeads ? 'nao' : 'sim',
+      })
       .then((res) => {
         if (cancelled) return;
         setRows(res.clientes);
@@ -98,7 +115,7 @@ export function ClientesView() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os clientes.');
+        setError(err instanceof ApiError ? err.message : `Não foi possível carregar ${ehLeads ? 'os leads' : 'os clientes'}.`);
       })
       .finally(() => {
         if (!cancelled) {
@@ -148,7 +165,7 @@ export function ClientesView() {
       <div className="bg-white border-b px-4 md:px-6 py-4 flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
           <div>
-            <h1 className="font-questrial text-xl text-gray-800">Nossos clientes</h1>
+            <h1 className="font-questrial text-xl text-gray-800">{ehLeads ? 'Leads' : 'Nossos clientes'}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {total} registro{total !== 1 ? 's' : ''}
               {totalPages > 1 && <span className="text-gray-400"> — página {page} de {totalPages}</span>}
@@ -159,7 +176,7 @@ export function ClientesView() {
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar cliente, corretor ou imobiliária..."
+                placeholder={`Buscar ${ehLeads ? 'lead' : 'cliente'}, corretor ou imobiliária...`}
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9 pr-4 py-2 text-sm border rounded-lg w-full sm:w-64"
@@ -174,7 +191,7 @@ export function ClientesView() {
                 style={{ backgroundColor: '#d55006' }}
               >
                 <Plus size={16} />
-                <span className="hidden sm:inline">Novo Cliente</span>
+                <span className="hidden sm:inline">{ehLeads ? 'Novo Lead' : 'Novo Cliente'}</span>
               </button>
             )}
           </div>

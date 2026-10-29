@@ -113,6 +113,8 @@ export interface ClientesPagedParams {
   search?: string;
   sort?: 'nome' | 'dataAdicionado' | 'orcamento';
   dir?: 'asc' | 'desc';
+  /** 'nao' = tela de Leads, 'sim' = Nossos clientes. Omitido traz os dois. */
+  comprou?: 'todos' | 'sim' | 'nao';
 }
 
 export interface ClientesPagedResult {

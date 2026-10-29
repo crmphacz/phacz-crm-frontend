@@ -244,6 +244,9 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
       // O SDR entra porque é aqui que se cadastra cliente final escolhendo o corretor — sem a
       // tela, a permissão de cadastrar não teria onde ser usada. Ele lê a lista inteira, como
       // já lê o pipeline inteiro; escrever continua restrito (ver canCreateClienteFinal).
+    // Leads são os mesmos clientes finais, só que antes do primeiro fechamento — quem vê uma
+    // tela vê a outra.
+    case 'leads':
       return user.cargo === 'Marketing' || user.cargo === 'SDR' || user.cargo === 'GerenteEstrategias';
     case 'rodadas':
       return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR'

@@ -29,6 +29,7 @@ export type ViewMode =
   | 'dashboard'
   | 'corretores'
   | 'clientes'
+  | 'leads'
   | 'config-usuarios'
   | 'config-empresa'
   | 'config-regras'
