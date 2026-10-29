@@ -533,7 +533,7 @@ function ColunaPerdidos({ corretores }: { corretores: Corretor[] }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#dc2626' }} />
-            <h3 className="text-sm font-semibold text-gray-800 truncate">Perdidos</h3>
+            <h3 className="text-sm font-semibold text-gray-800 truncate">Corretores perdidos</h3>
           </div>
           <span
             className="text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0"
@@ -639,7 +639,7 @@ function MotivoPerdaModal({ nome, onConfirm, onClose }: {
           />
           {erro && <p className="text-xs text-red-500">{erro}</p>}
           <p className="text-xs text-gray-400">
-            O card sai do funil e passa a aparecer na coluna Perdidos, com este motivo.
+            O card sai do funil e passa a aparecer na coluna Corretores perdidos, com este motivo.
           </p>
         </div>
 
