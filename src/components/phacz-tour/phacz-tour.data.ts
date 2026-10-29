@@ -44,7 +44,7 @@ export const PHACZ_TOUR_DADOS: PhaczTourDados = {
     'Pipeline',
     'Card do corretor',
     'Atividades',
-    'Clientes finais',
+    'Nossos clientes',
     'Dashboard',
     'Placar de metas',
     'Agenda',
@@ -82,9 +82,9 @@ export const PHACZ_TOUR_DADOS: PhaczTourDados = {
       { c: [0.8, 0.507], b: [0.614, 0.454, 0.375, 0.106], cam: [1.4, 0.8, 0.507], r: 'Cada movimento do card vira um registro, com autor e data' },
       { c: [0.8, 0.49], b: [0.614, 0.374, 0.375, 0.243], cam: [1.25, 0.8, 0.49], r: 'Anexe arquivos e áudios — e cancele o treinamento que não aconteceu' },
     ],
-    // 4. Clientes finais.
+    // 4. Nossos clientes.
     [
-      { c: [0.073, 0.492], b: [0.006, 0.468, 0.134, 0.048], cam: [1, 0.073, 0.492], r: 'Clientes Finais: os compradores que os corretores trazem' },
+      { c: [0.073, 0.492], b: [0.006, 0.468, 0.134, 0.048], cam: [1, 0.073, 0.492], r: 'Nossos clientes: os compradores que os corretores trazem' },
       { c: [0.82, 0.052], b: [0.745, 0.031, 0.151, 0.042], cam: [1.7, 0.82, 0.052], r: 'Busque por cliente, corretor ou imobiliária' },
       { c: [0.945, 0.052], b: [0.900, 0.031, 0.089, 0.042], cam: [1.8, 0.945, 0.052], r: 'Novo Cliente — escolhendo o corretor responsável' },
       { c: [0.57, 0.4], b: [0.156, 0.110, 0.834, 0.573], cam: [1.2, 0.57, 0.4], r: 'Contato e corretor de cada cliente, com atalho de WhatsApp' },

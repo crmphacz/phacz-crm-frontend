@@ -148,7 +148,7 @@ export function ClientesView() {
       <div className="bg-white border-b px-4 md:px-6 py-4 flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
           <div>
-            <h1 className="font-questrial text-xl text-gray-800">Clientes Finais</h1>
+            <h1 className="font-questrial text-xl text-gray-800">Nossos clientes</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {total} registro{total !== 1 ? 's' : ''}
               {totalPages > 1 && <span className="text-gray-400"> — página {page} de {totalPages}</span>}
