@@ -285,7 +285,7 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
  * de quem não pode: com a regra invertida, todo perfil novo nasceria vendo a coluna e só
  * deixaria de ver se alguém lembrasse de incluí-lo na exceção.
  */
-const VEEM_ACOMPANHAMENTO_GR: UserCargo[] = ['Diretora', 'SDR', 'GerenteEstrategias'];
+const VEEM_ACOMPANHAMENTO_GR: UserCargo[] = ['Diretora', 'SDR', 'GerenteEstrategias', 'GR'];
 
 export function getHiddenPipelineStages(user: UserProfile | null): number[] {
   const ocultas: number[] = [];
