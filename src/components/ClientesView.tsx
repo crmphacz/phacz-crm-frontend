@@ -54,11 +54,11 @@ export function ClientesView({ modo = 'clientes' }: ClientesViewProps) {
   const currentUser = useStore((s) => s.currentUser);
   // Quem chega nesta tela: Diretoria, SDR, Marketing, Administrativo e Recepção (ver Sidebar).
   //
-  // Criar e editar são permissões diferentes aqui. Criar é por cargo (quem registra quem
-  // ligou ou apareceu). Editar é POR LINHA: Diretoria, SDR, GV e GR editam, mas GV e GR só os
-  // clientes dos corretores do próprio kanban — é a regra que o servidor aplica.
-  // Marketing, Administrativo e Recepção seguem como leitura pura.
+  // Criar e editar são permissões diferentes aqui, e as duas são por CARGO — nenhuma depende
+  // da posse do card. Editam Diretoria, SDR, GV e GR; Marketing, Administrativo e Recepção
+  // seguem como leitura pura.
   const podeCriar = canCreateClienteFinal(currentUser);
+  const podeEditar = canEditClienteFinal(currentUser);
   const setView = useStore((s) => s.setView);
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
 
@@ -138,10 +138,10 @@ export function ClientesView({ modo = 'clientes' }: ClientesViewProps) {
     setReloadTick((t) => t + 1);
   }
 
-  // Quem pode editar AQUELE cliente abre a edição; quem não pode cai no Pipeline, no card do
-  // corretor — que é o que a tela já fazia para os perfis de leitura.
+  // Quem edita abre a edição; quem só lê cai no Pipeline, no card do corretor — que é o que
+  // a tela já fazia para esses perfis.
   function handleRowClick(cliente: ClienteComComprou) {
-    if (!canEditClienteFinal(currentUser, cliente)) {
+    if (!podeEditar) {
       setView('pipeline');
       setSelectedCorretor(cliente.corretorId);
     } else {

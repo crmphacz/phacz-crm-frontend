@@ -1,4 +1,4 @@
-import type { UserCargo, UserProfile, Corretor, ClienteFinalComContexto } from './types';
+import type { UserCargo, UserProfile, Corretor } from './types';
 import type { ViewMode } from './store';
 
 /**
@@ -315,23 +315,18 @@ export function getDefaultView(user: UserProfile | null): ViewMode {
 }
 
 /**
- * Editar um cliente final: Diretoria, SDR, GV e GR.
+ * Editar um cliente final: Diretoria, SDR, GV e GR — em QUALQUER card.
  *
- * Não é uma lista de cargos solta — espelha `canWriteCorretor`, porque é isso que o servidor
- * aplica: editar o cliente passa por `loadCorretorForWrite` no card do corretor responsável.
- * Um GV, portanto, edita os clientes dos corretores do próprio kanban e não os dos outros.
+ * Diferente do kanban, aqui a posse do card não vale. O cliente final é um fato sobre o
+ * corretor ("este parceiro trouxe este comprador"), e corrigir um telefone errado não deveria
+ * depender de o card estar no kanban de quem percebeu o erro. A maior parte da base entra pela
+ * automação sem responsável, então a posse travava justamente quem trabalha esses leads.
  *
- * Checar o cargo sem a posse mostraria o botão para quem o servidor vai recusar — foi
- * exatamente assim que o disparo de WhatsApp do SDR ficou quebrado por semanas.
+ * Espelha EDITAM_CLIENTE_EM_QUALQUER_CARD no backend, que é quem de fato decide. Marketing,
+ * Administrativo e Recepção ficam de fora: são leitura pura, e o servidor já os barra antes.
  */
-export function canEditClienteFinal(
-  user: UserProfile | null,
-  cliente: Pick<ClienteFinalComContexto, 'responsavelSDRId' | 'responsavelGVId' | 'responsavelGRId'>
-): boolean {
-  if (!user) return false;
-  return canWriteCorretor(user, {
-    responsavelSDRId: cliente.responsavelSDRId,
-    responsavelGVId: cliente.responsavelGVId,
-    responsavelGRId: cliente.responsavelGRId,
-  } as Corretor);
+const EDITAM_CLIENTE_FINAL: UserCargo[] = ['Diretora', 'SDR', 'GV', 'GR'];
+
+export function canEditClienteFinal(user: UserProfile | null): boolean {
+  return !!user && EDITAM_CLIENTE_FINAL.includes(user.cargo);
 }
