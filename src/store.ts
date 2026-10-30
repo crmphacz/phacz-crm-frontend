@@ -144,6 +144,14 @@ interface StoreState {
   filterCanalOrigem: CanalOrigem | 'all';
   /** Filtra os cards que JÁ TIVERAM uma atividade deste tipo registrada. */
   filterTipoInteracao: TipoInteracao | 'all';
+  /**
+   * Cargo cujas COLUNAS estão sendo pré-visualizadas no Pipeline. `null` = visão própria.
+   *
+   * Afeta só quais colunas aparecem. Não troca o perfil de quem está logado nem o que ela
+   * pode fazer: manter os próprios poderes é o que impede a pré-visualização de virar um
+   * estado estranho em que a pessoa clica e leva recusa do servidor.
+   */
+  pipelinePreviewCargo: UserCargo | null;
   filterVendas: FiltroVendas;
   /** Mínimo de dias sem vender. Quem nunca vendeu não entra: não há data para medir. */
   filterDiasSemVender: number | 'all';
@@ -239,6 +247,8 @@ interface StoreState {
   setPipelineFunnel: (f: PipelineFunnel) => void;
   setShowNewCorretorModal: (v: boolean, etapa?: number) => void;
   setFilterTipoInteracao: (t: TipoInteracao | 'all') => void;
+  /** Pré-visualização de colunas por cargo — só muda o que aparece, não o que pode. */
+  setPipelinePreviewCargo: (c: UserCargo | null) => void;
   setFilterVendas: (v: FiltroVendas) => void;
   setFilterDiasSemVender: (d: number | 'all') => void;
   clearAdvancedFilters: () => void;
@@ -378,6 +388,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   filterResponsavel: 'all',
   filterCanalOrigem: 'all',
   filterTipoInteracao: 'all',
+  pipelinePreviewCargo: null,
   filterVendas: 'all',
   filterDiasSemVender: 'all',
   searchQuery: '',
@@ -686,6 +697,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   setFilterResponsavel: (r) => set({ filterResponsavel: r }),
   setFilterCanalOrigem: (c) => set({ filterCanalOrigem: c }),
   setFilterTipoInteracao: (t) => set({ filterTipoInteracao: t }),
+  setPipelinePreviewCargo: (c) => set({ pipelinePreviewCargo: c }),
   setFilterVendas: (v) => set({ filterVendas: v }),
   setFilterDiasSemVender: (d) => set({ filterDiasSemVender: d }),
   setSearchQuery: (q) => set({ searchQuery: q }),

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, X, Zap, GripVertical, XCircle } from 'lucide-react';
+import { Plus, Search, X, Zap, GripVertical, XCircle, Eye } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -21,7 +21,10 @@ import { ApiError } from '../api/client';
 import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada } from '../utils';
 import { CorretorCard } from './CorretorCard';
 import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
-import { canCreateCorretor, canWriteCorretor, getHiddenPipelineStages } from '../permissions';
+import {
+  canCreateCorretor, canWriteCorretor, getHiddenPipelineStages,
+  canPreverPipelineComoOutroCargo, CARGOS_PREVISUALIZAVEIS,
+} from '../permissions';
 import type { Corretor, StageConfig } from '../types';
 
 type FunnelFilter = PipelineFunnel;
@@ -74,6 +77,9 @@ export function PipelineView() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const funnelFilter = useStore((s) => s.pipelineFunnel);
   const setFunnelFilter = useStore((s) => s.setPipelineFunnel);
+  const pipelinePreviewCargo = useStore((s) => s.pipelinePreviewCargo);
+  const setPipelinePreviewCargo = useStore((s) => s.setPipelinePreviewCargo);
+  const [previewAberto, setPreviewAberto] = useState(false);
 
   // TanStack Query cuida do cache/memoização da listagem: evita rebuscar ao trocar de tela e
   // voltar dentro do staleTime, e revalida em background depois disso — a automação de tráfego
@@ -94,7 +100,13 @@ export function PipelineView() {
   const activeCorretor = activeId ? corretores.find((l) => l.id === activeId) ?? null : null;
   const activeStage = activeCorretor ? STAGES.find((s) => s.id === activeCorretor.etapa) ?? null : null;
 
-  const hiddenStageIds = getHiddenPipelineStages(currentUser);
+  // Com a pré-visualização ativa, as colunas seguem o cargo escolhido. Só as colunas: o
+  // `currentUser` não é trocado, então tudo o mais (editar, arrastar, criar) continua com
+  // os poderes de quem está de fato logada.
+  const cargoDaVisao = pipelinePreviewCargo ?? currentUser?.cargo;
+  const hiddenStageIds = getHiddenPipelineStages(
+    currentUser ? { ...currentUser, cargo: cargoDaVisao! } : null
+  );
   const visibleStageIds = FUNNEL_CONFIG[funnelFilter].stages.filter((id) => !hiddenStageIds.includes(id));
 
   /**
@@ -183,6 +195,30 @@ export function PipelineView() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Enquanto a pré-visualização estiver ligada, ela fica visível o tempo todo: sem isso é
+          fácil esquecer e concluir que uma coluna "sumiu" do sistema. */}
+      {pipelinePreviewCargo && (
+        <div
+          className="flex items-center justify-between gap-3 px-4 md:px-6 py-2 flex-shrink-0 text-xs"
+          style={{ backgroundColor: '#fff7ed', color: '#9a3412', borderBottom: '1px solid #f3d5bd' }}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <Eye size={14} className="flex-shrink-0" />
+            <span className="truncate">
+              Você está vendo as colunas como <strong>
+                {CARGOS_PREVISUALIZAVEIS.find((c) => c.cargo === pipelinePreviewCargo)?.label}
+              </strong>. Suas permissões não mudaram.
+            </span>
+          </span>
+          <button
+            onClick={() => setPipelinePreviewCargo(null)}
+            className="font-semibold underline hover:no-underline flex-shrink-0"
+          >
+            Voltar à minha visão
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b px-4 md:px-6 py-4 flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
@@ -196,6 +232,60 @@ export function PipelineView() {
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {canPreverPipelineComoOutroCargo(currentUser) && (
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={() => setPreviewAberto((v) => !v)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg border transition-colors"
+                  style={
+                    pipelinePreviewCargo
+                      ? { borderColor: '#d55006', color: '#d55006', backgroundColor: '#fff7ed' }
+                      : { borderColor: '#e5e7eb', color: '#6b7280', backgroundColor: '#fff' }
+                  }
+                  title="Ver o pipeline como outro perfil vê"
+                >
+                  <Eye size={15} />
+                  <span className="hidden sm:inline">
+                    {pipelinePreviewCargo
+                      ? CARGOS_PREVISUALIZAVEIS.find((c) => c.cargo === pipelinePreviewCargo)?.label
+                      : 'Ver como'}
+                  </span>
+                </button>
+
+                {previewAberto && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setPreviewAberto(false)} />
+                    <div
+                      className="absolute right-0 mt-1 w-60 bg-white rounded-xl shadow-2xl border py-1 z-50"
+                      style={{ borderColor: '#e5e7eb' }}
+                    >
+                      <p className="px-3 py-2 text-[11px] text-gray-400 leading-snug border-b" style={{ borderColor: '#f1f5f9' }}>
+                        Mostra <strong>quais colunas</strong> cada perfil enxerga. Não muda o que
+                        você pode fazer.
+                      </p>
+                      <button
+                        onClick={() => { setPipelinePreviewCargo(null); setPreviewAberto(false); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 font-semibold"
+                        style={{ color: !pipelinePreviewCargo ? '#d55006' : '#374151' }}
+                      >
+                        Minha visão
+                      </button>
+                      {CARGOS_PREVISUALIZAVEIS.map((c) => (
+                        <button
+                          key={c.cargo}
+                          onClick={() => { setPipelinePreviewCargo(c.cargo); setPreviewAberto(false); }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                          style={{ color: pipelinePreviewCargo === c.cargo ? '#d55006' : '#374151' }}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="relative flex-1 sm:flex-none">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input

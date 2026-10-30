@@ -330,3 +330,22 @@ const EDITAM_CLIENTE_FINAL: UserCargo[] = ['Diretora', 'SDR', 'GV', 'GR'];
 export function canEditClienteFinal(user: UserProfile | null): boolean {
   return !!user && EDITAM_CLIENTE_FINAL.includes(user.cargo);
 }
+
+/**
+ * Quem pode pré-visualizar o Pipeline com os olhos de outro cargo: Diretoria e SDR.
+ *
+ * É um recurso de CONFERÊNCIA, não de acesso: serve para a Diretoria e o SDR responderem
+ * "o GV está vendo essa coluna?" sem pedir o computador de ninguém. Por isso ele mexe só em
+ * quais colunas aparecem — nunca no que a pessoa logada pode fazer.
+ */
+export function canPreverPipelineComoOutroCargo(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora' || user?.cargo === 'SDR';
+}
+
+/** Cargos oferecidos na pré-visualização, na ordem em que aparecem. */
+export const CARGOS_PREVISUALIZAVEIS: { cargo: UserCargo; label: string }[] = [
+  { cargo: 'SDR', label: 'SDR' },
+  { cargo: 'GR', label: 'GR — Relacionamento' },
+  { cargo: 'GV', label: 'GV — Vendas' },
+  { cargo: 'GerenteEstrategias', label: 'Gerente de Estratégias' },
+];
