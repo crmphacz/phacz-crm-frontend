@@ -204,6 +204,25 @@ export function corretoresDoDisparo(user: UserProfile | null, corretores: Corret
 }
 
 /**
+ * Registrar ATIVIDADE num card (ligação, visita, treinamento, especulação…) — e cancelar um
+ * compromisso já marcado, que é a outra ponta do mesmo trabalho. Espelha
+ * `canRegistrarAtividade` no backend.
+ *
+ * É mais aberto que `canWriteCorretor` por causa do GR: o relacionamento dele corre a base
+ * inteira — visita de obra, evento, almoço com a imobiliária — e quase nada disso acontece em
+ * card de que ele seja o responsável. Com a posse valendo, a atividade acontecia no mundo real
+ * e não entrava no sistema.
+ *
+ * Registrar atividade NÃO é editar o card: o GR segue sem mover de etapa e sem mexer em dado
+ * cadastral fora do próprio kanban — isso continua em `canWriteCorretor`.
+ */
+export function canRegistrarAtividade(user: UserProfile | null, corretor: Corretor): boolean {
+  if (!user) return false;
+  if (user.cargo === 'GR') return true;
+  return canWriteCorretor(user, corretor);
+}
+
+/**
  * Disparo de WhatsApp para um CORRETOR (parceiro do funil). Espelha `canWhatsappCorretor` no
  * backend: Diretoria, Marketing e SDR mandam para qualquer corretor; GV e GR só para os do
  * próprio kanban; Administrativo/Recepção nunca.

@@ -26,7 +26,7 @@ import { empreendimentosApi, corretoresApi } from '../api/endpoints';
 import { Combobox } from './Combobox';
 import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
-import { canWriteCorretor, canDeleteLeadClienteOuCard, canWhatsappCorretor, canCreateClienteFinal } from '../permissions';
+import { canWriteCorretor, canRegistrarAtividade, canDeleteLeadClienteOuCard, canWhatsappCorretor, canCreateClienteFinal } from '../permissions';
 import { WhatsappSendModal } from './WhatsappSendModal';
 import { CancelarTreinamentoModal } from './CancelarTreinamentoModal';
 import { WhatsappIcon } from './WhatsappIcon';
@@ -58,6 +58,10 @@ export function CorretorDetailPanel() {
   // "Somente leitura" agora segue a posse do card: Diretoria sempre edita; SDR/GV/GR só no
   // próprio kanban; Marketing/Administrativo/Recepção nunca escrevem em corretores.
   const isReadOnly = !canWriteCorretor(currentUser, corretor);
+  // A aba de Atividades tem porta própria, mais aberta: o GR registra atividade em qualquer
+  // card, mesmo nos que não são dele (ver canRegistrarAtividade). As outras abas seguem
+  // em `isReadOnly` — registrar atividade não é editar o card.
+  const atividadeBloqueada = !canRegistrarAtividade(currentUser, corretor);
   // Recepção e SDR cadastram cliente final em QUALQUER corretor, mesmo sem escrever no card
   // (ver canCreateClienteFinal). Sem isto o botão "Adicionar" da aba Clientes ficaria morto
   // para eles em card de terceiro, mesmo com a API aceitando o cadastro.
@@ -1268,7 +1272,7 @@ export function CorretorDetailPanel() {
           {/* ─── ATIVIDADES TAB ─── */}
           {tab === 'atividades' && detailGate}
           {tab === 'atividades' && !detailGate && (
-            <fieldset disabled={isReadOnly} className="border-0 m-0 min-w-0 p-5 space-y-4">
+            <fieldset disabled={atividadeBloqueada} className="border-0 m-0 min-w-0 p-5 space-y-4">
               <button
                 onClick={() => setShowActivityForm(!showActivityForm)}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border-2 border-dashed transition-colors"
@@ -1637,7 +1641,7 @@ export function CorretorDetailPanel() {
                         {/* Treinamento marcado que não aconteceu: registrar o motivo aqui é o
                             que alimenta a taxa de churn. Sem isto só restava apagar a
                             atividade — e aí o treinamento perdido some da conta. */}
-                        {podeCancelar && !isReadOnly && (
+                        {podeCancelar && !atividadeBloqueada && (
                           <div className="flex items-center gap-3 mt-1.5">
                             {cancelado ? (
                               <>
