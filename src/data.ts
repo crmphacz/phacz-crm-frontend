@@ -212,6 +212,11 @@ export const FUNIS_DO_PIPELINE: Record<
  * do funil (já aconteceu duas vezes) seja mudar números AQUI, e não caçar literais pelas telas.
  * Espelham as constantes de modules/stages/data.ts no backend.
  */
+/**
+ * Distribuição GR funciona como POOL: o card ainda não tem Gerente de Vendas, e qualquer GV
+ * pode enxergá-lo e puxá-lo para si. É a única etapa em que o GV age sem ser dono do card.
+ */
+export const ETAPA_DISTRIBUICAO_GR = 5;
 export const ETAPA_NEGOCIACAO = 9;
 export const ETAPA_CLIENTES_PERDIDOS = 10;
 export const ETAPA_FECHAMENTO = 11;
