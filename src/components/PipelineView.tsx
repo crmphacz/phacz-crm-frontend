@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, X, Zap, GripVertical, XCircle, Eye } from 'lucide-react';
+import { Plus, Search, X, Zap, GripVertical, XCircle, Eye, Trash2 } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -18,13 +18,14 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { STAGES, FUNIS_DO_PIPELINE, TODAS_AS_ETAPAS, COLUNAS_DO_PIPELINE } from '../data';
 import { ApiError } from '../api/client';
-import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada } from '../utils';
+import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada, nomeExibidoNoCard } from '../utils';
 import { CorretorCard } from './CorretorCard';
 import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
 import {
   canCreateCorretor, canWriteCorretor, getHiddenPipelineStages,
-  canPreverPipelineComoOutroCargo, CARGOS_PREVISUALIZAVEIS,
+  canPreverPipelineComoOutroCargo, CARGOS_PREVISUALIZAVEIS, canDeleteLeadClienteOuCard,
 } from '../permissions';
+import { ExcluirCorretorModal } from './ExcluirCorretorModal';
 import type { Corretor, StageConfig } from '../types';
 
 type FunnelFilter = PipelineFunnel;
@@ -581,6 +582,8 @@ function DroppableStageColumn({
 function DraggableCorretorCard({ corretor, stage }: { corretor: Corretor; stage: StageConfig }) {
   const currentUser = useStore((s) => s.currentUser);
   const isReadOnly = !canWriteCorretor(currentUser, corretor);
+  const podeExcluir = canDeleteLeadClienteOuCard(currentUser);
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: corretor.id, disabled: isReadOnly });
 
   return (
@@ -594,6 +597,9 @@ function DraggableCorretorCard({ corretor, stage }: { corretor: Corretor; stage:
         zIndex: isDragging ? 50 : undefined,
       }}
     >
+      {/* Ações do card, no mesmo canto e com a mesma revelação por hover. Ficam AQUI, e não
+          dentro do CorretorCard, porque o card também é usado como a prévia flutuante do
+          arrastar — onde um botão de excluir não faria sentido nenhum. */}
       {!isReadOnly && (
         <button
           {...listeners}
@@ -605,7 +611,32 @@ function DraggableCorretorCard({ corretor, stage }: { corretor: Corretor; stage:
           <GripVertical size={13} />
         </button>
       )}
+      {podeExcluir && (
+        <button
+          // À esquerda do grip quando os dois aparecem; sozinho, ocupa o canto.
+          className={`absolute top-2 ${isReadOnly ? 'right-2' : 'right-9'} z-10 w-6 h-6 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-gray-300 hover:text-red-600 hover:bg-red-50`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirmandoExclusao(true);
+          }}
+          title="Excluir"
+          aria-label={`Excluir ${nomeExibidoNoCard(corretor)}`}
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
       <CorretorCard corretor={corretor} stage={stage} />
+      {confirmandoExclusao && (
+        // O modal é `fixed`, mas ainda é descendente do card no DOM: sem segurar o clique
+        // aqui, mexer nele abriria o painel do corretor por baixo.
+        <div onClick={(e) => e.stopPropagation()}>
+          <ExcluirCorretorModal
+            corretor={corretor}
+            onClose={() => setConfirmandoExclusao(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }

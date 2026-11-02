@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Building2, Users } from 'lucide-react';
+import { Plus, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Building2, Users, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
@@ -8,7 +8,8 @@ import {
   TEMPERATURA_CONFIG, formatRelativeTime, formatCurrency,
   nomeExibidoNoCard, subtituloDoCard,
 } from '../utils';
-import { canCreateCorretor } from '../permissions';
+import { canCreateCorretor, canDeleteLeadClienteOuCard } from '../permissions';
+import { ExcluirCorretorModal } from './ExcluirCorretorModal';
 import { corretoresApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { getViewCache, setViewCache } from '../lib/viewCache';
@@ -58,6 +59,19 @@ export function CorretoresListView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadTick, setReloadTick] = useState(0);
+
+  /**
+   * A listagem é paginada no servidor, então excluir não é tirar a linha da tela: o `total` e o
+   * conteúdo da página mudam, e as linhas seguintes sobem. Por isso recarrega em vez de filtrar
+   * o array local, que deixaria a página com 299 itens e a contagem errada.
+   *
+   * Excluir a última linha de uma página volta uma página — senão a tela ficaria vazia, com a
+   * paginação apontando para um lugar que não existe mais.
+   */
+  function aposExcluir() {
+    setPage((atual) => (rows.length === 1 && atual > 1 ? atual - 1 : atual));
+    setReloadTick((t) => t + 1);
+  }
 
   // Com cache, a tela reabre na hora com as linhas anteriores e revalida em segundo plano (o
   // spinner sobre a tabela indica a atualização); o loader de tela cheia é só da primeira vez.
@@ -225,15 +239,23 @@ export function CorretoresListView() {
                 <span className="flex items-center gap-1">Última atividade <SortIcon field="dataUltimaInteracao" /></span>
               </Th>
               <Th>Status</Th>
+              {/* Ações. Sem rótulo: a coluna só existe para a Diretoria, e um cabeçalho
+                  "Ações" ficaria sozinho sobre células vazias para todo mundo. */}
+              <Th />
             </tr>
           </thead>
           <tbody>
             {rows.map((corretor) => (
-              <CorretorRow key={corretor.id} corretor={corretor} onClick={() => setSelectedCorretor(corretor.id)} />
+              <CorretorRow
+                key={corretor.id}
+                corretor={corretor}
+                onClick={() => setSelectedCorretor(corretor.id)}
+                onExcluido={aposExcluir}
+              />
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-16 text-center text-gray-400 text-sm">
+                <td colSpan={9} className="py-16 text-center text-gray-400 text-sm">
                   Nenhum corretor encontrado
                 </td>
               </tr>
@@ -273,9 +295,12 @@ export function CorretoresListView() {
   );
 }
 
-function CorretorRow({ corretor, onClick }: { corretor: Corretor; onClick: () => void }) {
+function CorretorRow({ corretor, onClick, onExcluido }: { corretor: Corretor; onClick: () => void; onExcluido: () => void }) {
   const stage = STAGES.find((s) => s.id === corretor.etapa)!;
   const tempConfig = TEMPERATURA_CONFIG[corretor.temperatura];
+  const currentUser = useStore((s) => s.currentUser);
+  const podeExcluir = canDeleteLeadClienteOuCard(currentUser);
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
 
   const statusMap = {
     ativo: { bg: '#dcfce7', text: '#166534', label: 'Ativo' },
@@ -354,11 +379,37 @@ function CorretorRow({ corretor, onClick }: { corretor: Corretor; onClick: () =>
           {st.label}
         </span>
       </td>
+      <td className="px-4 py-3">
+        {podeExcluir && (
+          <button
+            onClick={(ev) => {
+              // A linha inteira abre o painel do corretor; sem isto, excluir abriria o painel
+              // atrás do modal.
+              ev.stopPropagation();
+              setConfirmandoExclusao(true);
+            }}
+            className="p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+            title="Excluir"
+            aria-label={`Excluir ${corretor.nomeCorretor}`}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+        {confirmandoExclusao && (
+          <div onClick={(ev) => ev.stopPropagation()}>
+            <ExcluirCorretorModal
+              corretor={corretor}
+              onClose={() => setConfirmandoExclusao(false)}
+              onExcluido={onExcluido}
+            />
+          </div>
+        )}
+      </td>
     </tr>
   );
 }
 
-function Th({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+function Th({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) {
   return (
     <th
       className={`px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider ${onClick ? 'cursor-pointer hover:text-gray-600 select-none' : ''}`}
