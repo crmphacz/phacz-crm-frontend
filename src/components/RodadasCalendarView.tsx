@@ -16,6 +16,7 @@ import { ApiError } from '../api/client';
 import { formatCurrency, parseDateKeyLocal, formatDateKeyBR } from '../utils';
 import { canViewRodadas, canWriteRodadas, canViewFullRodada, canApproveRodada, canCancelRodada } from '../permissions';
 import { isRodadaCompleta, type Rodada, type RodadaResumo, type TipoAcaoRodada, type StatusAprovacaoRodada } from '../types';
+import { tipoDeAcaoRodada } from '../lib/tiposDeAcaoRodada';
 import { RodadaFormModal } from './RodadaFormModal';
 import { RodadaResumoModal } from './RodadaResumoModal';
 import { RodadaMotivoModal, type ModoMotivo } from './RodadaMotivoModal';
@@ -42,14 +43,18 @@ function statusDe(r: Rodada | RodadaResumo): StatusAprovacaoRodada {
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-const TIPO_ACAO_LABELS: Record<TipoAcaoRodada, string> = {
-  rodada: 'Rodada',
-  cafe_na_obra: 'Café na obra',
-  evento_externo: 'Evento externo',
-  trafego_pago: 'Tráfego pago',
-  almoco_jantar: 'Almoço/Jantar',
-  outro: 'Outro',
-};
+/** Chip do tipo de ação. Mesmo formato dos selos de status, para a linha ler como um conjunto. */
+function TipoAcaoChip({ tipo }: { tipo: TipoAcaoRodada }) {
+  const { label, cor, corBg } = tipoDeAcaoRodada(tipo);
+  return (
+    <span
+      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+      style={{ backgroundColor: corBg, color: cor }}
+    >
+      {label}
+    </span>
+  );
+}
 
 /**
  * Expande o intervalo [inicio, fim] de uma rodada em chaves de dia "YYYY-MM-DD".
@@ -432,7 +437,7 @@ export function RodadasCalendarView() {
                     {formatDateKeyBR(r.dataInicio)} {r.dataInicio !== r.dataFim && <>– {formatDateKeyBR(r.dataFim)}</>}
                   </td>
                   {isRodadaCompleta(r) ? (
-                    <td className="px-4 py-3 text-gray-800">{TIPO_ACAO_LABELS[r.tipoAcao]}</td>
+                    <td className="px-4 py-3"><TipoAcaoChip tipo={r.tipoAcao} /></td>
                   ) : (
                     <td className="px-4 py-3 text-gray-800">{r.responsavelImobiliaria || '—'}</td>
                   )}
@@ -600,7 +605,7 @@ export function RodadasCalendarView() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                         <User size={13} style={{ color: '#d55006' }} />
-                        {isRodadaCompleta(r) ? TIPO_ACAO_LABELS[r.tipoAcao] : r.responsavelImobiliaria || 'Rodada'} — {r.imobiliaria}
+                        {isRodadaCompleta(r) ? tipoDeAcaoRodada(r.tipoAcao).label : r.responsavelImobiliaria || 'Rodada'} — {r.imobiliaria}
                       </p>
                       <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
                         <MapPin size={12} /> {r.cidade}{r.uf ? ` - ${r.uf}` : ''}

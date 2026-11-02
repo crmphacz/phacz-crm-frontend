@@ -12,6 +12,7 @@ import { canWriteRodadas } from '../permissions';
 import { ImobiliariaFormModal } from './ImobiliariaFormModal';
 import { NewCorretorModal } from './NewCorretorModal';
 import { lerRascunhoRodada, salvarRascunhoRodada, apagarRascunhoRodada } from '../lib/rascunhoRodada';
+import { TIPOS_DE_ACAO_RODADA } from '../lib/tiposDeAcaoRodada';
 import type {
   Rodada, CreateRodadaPayload, TipoAcaoRodada, VinculoRodadaTipo, RodadaVinculo, PerfilImobiliaria, HistoricoParceria, IntencaoPrincipal,
   PublicoEsperado, CarteiraPublico, MaterialComercial, EstruturaOperacao, CategoriaOrcamento,
@@ -21,14 +22,9 @@ import type {
 
 // ── Opções de cada campo de seleção ──────────────────────────────────
 
-const TIPO_ACAO_OPTIONS: { value: TipoAcaoRodada; label: string }[] = [
-  { value: 'rodada', label: 'Rodada' },
-  { value: 'cafe_na_obra', label: 'Café na obra' },
-  { value: 'evento_externo', label: 'Evento externo' },
-  { value: 'trafego_pago', label: 'Tráfego pago' },
-  { value: 'almoco_jantar', label: 'Almoço/Jantar' },
-  { value: 'outro', label: 'Outro' },
-];
+// Vem de lib/tiposDeAcaoRodada: os rótulos eram copiados aqui e na listagem do calendário, e
+// as duas cópias já tinham divergido.
+const TIPO_ACAO_OPTIONS = TIPOS_DE_ACAO_RODADA;
 
 const PERFIL_IMOBILIARIA_OPTIONS: { value: PerfilImobiliaria; label: string }[] = [
   { value: 'alto_padrao', label: 'Alto padrão' },
