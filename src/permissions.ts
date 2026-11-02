@@ -274,7 +274,7 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
  * - GR e GV: sem as etapas 1 a 4 (pré-atendimento), que são trabalho do SDR. O card só chega
  *   a eles na Distribuição (etapa 5) — antes disso, as colunas só poluíam o quadro com mais de
  *   mil cards que eles não atuam.
- * - SDR: funil inteiro. A etapa 10 (Pós-venda) ficava oculta por não ser responsabilidade
+ * - SDR: funil inteiro. A Pós-venda ficava oculta por não ser responsabilidade
  *   dele, mas o SDR acompanha o card até o fim — é ele quem distribui, e ver onde cada um foi
  *   parar é parte do trabalho.
  *
@@ -284,7 +284,7 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
  * `canWriteCorretor`, no servidor.
  */
 /**
- * Quem enxerga a etapa 6 (Acompanhamento Gerente de Relacionamento). Lista de quem PODE, e não
+ * Quem enxerga a etapa 7 (Acompanhamento Gerente de Relacionamento). Lista de quem PODE, e não
  * de quem não pode: com a regra invertida, todo perfil novo nasceria vendo a coluna e só
  * deixaria de ver se alguém lembrasse de incluí-lo na exceção.
  */

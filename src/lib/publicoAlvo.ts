@@ -1,5 +1,5 @@
 import type { Corretor, DestinatarioTipo, GrupoFunil } from '../types';
-import { STAGES } from '../data';
+import { FUNIS_DO_PIPELINE, STAGES, TODAS_AS_ETAPAS } from '../data';
 
 /**
  * Seleção de público das campanhas, do lado da tela. Espelha src/lib/publicoAlvo.ts do backend
@@ -8,13 +8,23 @@ import { STAGES } from '../data';
  * corretor elegível.
  */
 
-/** Grupos de etapas do pipeline — mesmos das abas do Pipeline. */
+/**
+ * Grupos de etapas do pipeline — os mesmos das abas do Pipeline, e por isso vindos de
+ * FUNIS_DO_PIPELINE. Esta lista já foi escrita à mão aqui e ficou para trás numa renumeração,
+ * mirando as etapas erradas sem que nada reclamasse. "Todos os funis" é TODAS_AS_ETAPAS por
+ * definição, nunca uma cópia: era ele que esquecia a última etapa a cada mudança.
+ */
+/** Só traduz `stages` (nome no Pipeline) para `etapas` (nome nas campanhas). */
+function doFunil(id: Exclude<GrupoFunil, 'todos'>): { label: string; etapas: number[] } {
+  return { label: FUNIS_DO_PIPELINE[id].label, etapas: FUNIS_DO_PIPELINE[id].stages };
+}
+
 export const GRUPOS_FUNIL: Record<GrupoFunil, { label: string; etapas: number[] }> = {
-  'todos': { label: 'Todos os funis', etapas: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
-  'pre-atendimento': { label: 'Pré-atendimento', etapas: [1, 2, 3, 4, 5] },
-  'treinamento': { label: 'Treinamento', etapas: [6] },
-  'venda': { label: 'Venda', etapas: [7, 8, 9] },
-  'pos-venda': { label: 'Pós-venda', etapas: [10] },
+  'todos': { label: 'Todos os funis', etapas: TODAS_AS_ETAPAS },
+  'pre-atendimento': doFunil('pre-atendimento'),
+  'treinamento': doFunil('treinamento'),
+  'venda': doFunil('venda'),
+  'pos-venda': doFunil('pos-venda'),
 };
 
 export const GRUPOS_FUNIL_LISTA = Object.entries(GRUPOS_FUNIL) as [GrupoFunil, { label: string; etapas: number[] }][];

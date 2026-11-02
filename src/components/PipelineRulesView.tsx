@@ -108,19 +108,19 @@ export function PipelineRulesView() {
               role="SDR — Qualificação"
               color="#64748b"
               members={equipeSDR}
-              description="Responsáveis pelas etapas 1–5: primeiro contato, qualificação, nutrição e distribuição"
+              description="Responsáveis pelas etapas 1–6: primeiro contato, qualificação, nutrição e as duas distribuições"
             />
             <TeamSection
               role="GR — Gerente de Relacionamento"
               color="#0d9488"
               members={equipeGR}
-              description="Responsáveis pela etapa 6: relacionamento ativo, vínculo emocional e acompanhamento de longo prazo"
+              description="Responsáveis pela etapa 7: relacionamento ativo, vínculo emocional e acompanhamento de longo prazo"
             />
             <TeamSection
               role="GV — Gerente de Vendas"
               color="#d55006"
               members={equipeGV}
-              description="Responsáveis pelas etapas 7–9: monitoramento, proposta, negociação e fechamento"
+              description="Responsáveis pelas etapas 8–11: monitoramento, proposta, negociação, clientes perdidos e fechamento"
             />
           </div>
         </SettingsCard>
@@ -129,7 +129,7 @@ export function PipelineRulesView() {
         <SettingsCard
           icon={<LayoutList size={18} style={{ color: '#d55006' }} />}
           title="Etapas do Pipeline"
-          subtitle="10 etapas com SLA monitorado — clique em uma etapa para ver os detalhes"
+          subtitle={`${STAGES.length} etapas com SLA monitorado — clique em uma etapa para ver os detalhes`}
         >
           <div className="space-y-1">
             {STAGES.map((stage) => (
@@ -229,10 +229,12 @@ export function PipelineRulesView() {
                   { etapas: '2→3', regra: 'Primeiro contato realizado (ligação, WhatsApp ou visita registrada)' },
                   { etapas: '3→4', regra: 'Tipo de interesse definido e status de treinamento confirmado' },
                   { etapas: '4→5', regra: 'Corretor retomado após nutrição, pronto para distribuição' },
-                  { etapas: '5→6/7', regra: 'GR e GV atribuídos simultaneamente; ao menos 1 cliente final cadastrado' },
-                  { etapas: '6/7→8', regra: '"Gerar Negócio" acionado — cria card individual por cliente final' },
-                  { etapas: '8→9', regra: 'Proposta formal registrada e apresentada ao cliente' },
-                  { etapas: '9→10', regra: 'Proposta aceita, documentação em coleta — marcar como Ganho' },
+                  { etapas: '5→6', regra: 'GR atribuído; o card segue para a entrega ao Gerente de Vendas' },
+                  { etapas: '6→7/8', regra: 'GV atribuído; ao menos 1 cliente final cadastrado' },
+                  { etapas: '7/8→9', regra: '"Gerar Negócio" acionado — cria card individual por cliente final' },
+                  { etapas: '9→10', regra: 'Negociação encerrada sem fechamento — o cliente final não comprou' },
+                  { etapas: '9→11', regra: 'Proposta aceita, documentação em coleta — marcar como Ganho' },
+                  { etapas: '11→12', regra: 'Negócio ganho — entra em fidelização, NPS e indicações' },
                 ].map(({ etapas, regra }) => (
                   <div key={etapas} className="flex items-start gap-3 py-2 border-b last:border-0" style={{ borderColor: '#e6e3de' }}>
                     <span className="text-xs font-bold px-2 py-1 rounded-lg flex-shrink-0" style={{ backgroundColor: '#fff7ed', color: '#d55006' }}>

@@ -8,7 +8,7 @@ import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { PlacarMetasView } from './PlacarMetasView';
-import { STAGES, FUNIS_DO_PIPELINE } from '../data';
+import { STAGES, FUNIS_DO_PIPELINE, ETAPA_CLIENTES_PERDIDOS, ETAPA_FECHAMENTO, ETAPA_NEGOCIACAO } from '../data';
 import { formatCurrency, formatRelativeTime, TIPO_INTERACAO_CONFIG } from '../utils';
 import { ApiError } from '../api/client';
 import { dashboardApi, type AtividadeRecente, type ChurnTreinamentos } from '../api/endpoints';
@@ -638,10 +638,15 @@ function DashGV({ corretores, currentUser, onNavigate }: { corretores: Corretor[
     ? corretores.filter((l) => l.responsavelGV === currentUser)
     : corretores;
 
-  const pipeline = meusCorretores.filter((l) => l.etapa >= 8 && l.etapa <= 10 && (l.status === 'ativo' || l.status === 'nutricao'));
-  const negociacao = pipeline.filter((l) => l.etapa === 9).length;
-  const fechamento = pipeline.filter((l) => l.etapa === 10).length;
+  // O trecho de venda do funil, SEM os Clientes Perdidos: a coluna fica no meio da faixa, mas
+  // um negócio que não fechou não é pipeline aberto — contá-lo infla "Em negociação" e o
+  // "Valor em pipeline" com o que já morreu. Por isso a lista é explícita, e não uma faixa.
+  const ETAPAS_EM_ABERTO = [8, ETAPA_NEGOCIACAO, ETAPA_FECHAMENTO];
+  const pipeline = meusCorretores.filter((l) => ETAPAS_EM_ABERTO.includes(l.etapa) && (l.status === 'ativo' || l.status === 'nutricao'));
+  const negociacao = pipeline.filter((l) => l.etapa === ETAPA_NEGOCIACAO).length;
+  const fechamento = pipeline.filter((l) => l.etapa === ETAPA_FECHAMENTO).length;
   const monitoramento = pipeline.filter((l) => l.etapa === 8).length;
+  const clientesPerdidos = meusCorretores.filter((l) => l.etapa === ETAPA_CLIENTES_PERDIDOS).length;
 
   // A listagem de corretores não traz mais propostas completas (ver corretorListInclude no
   // backend) — essas contagens vêm de um endpoint agregado, escopado ao usuário logado.
@@ -661,14 +666,14 @@ function DashGV({ corretores, currentUser, onNavigate }: { corretores: Corretor[
   const pipelineValue = pipeline.reduce((acc, l) => acc + (primeiraPropostaPorCorretor[l.id]?.valor ?? 0), 0);
 
   const closingCorretores = pipeline
-    .filter((l) => l.etapa >= 9)
+    .filter((l) => l.etapa >= ETAPA_NEGOCIACAO)
     .sort((a, b) => new Date(b.dataUltimaInteracao).getTime() - new Date(a.dataUltimaInteracao).getTime())
     .slice(0, 6);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <KpiCard icon={<Users size={20} />} label="Em negociação" value={pipeline.length} sub="Etapas 7–9" color="#d55006" />
+        <KpiCard icon={<Users size={20} />} label="Em negociação" value={pipeline.length} sub={clientesPerdidos > 0 ? `${clientesPerdidos} cliente${clientesPerdidos > 1 ? 's' : ''} perdido${clientesPerdidos > 1 ? 's' : ''}` : 'Negócios em aberto'} color="#d55006" />
         <KpiCard icon={<FileText size={20} />} label="Propostas enviadas" value={propostasPendentes} sub={`${propostasAceitas} aceitas`} color="#0891b2" />
         <KpiCard icon={<TrendingUp size={20} />} label="Valor em pipeline" value={formatCurrency(pipelineValue)} sub="Negócios abertos" color="#8b5cf6" large />
         <KpiCard icon={<Trophy size={20} />} label="Volume fechado" value={formatCurrency(totalWonValue)} sub={`${won.length} fechamentos`} color="#059669" large />

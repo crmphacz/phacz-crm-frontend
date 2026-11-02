@@ -50,11 +50,16 @@ const FUNNEL_CONFIG: Record<FunnelFilter, { label: string; stages: readonly numb
 const ALL_STAGE_COLUMNS = COLUNAS_DO_PIPELINE;
 
 /**
- * Identificador da coluna "Perdidos" no arrastar-e-soltar.
+ * Identificador da coluna "Corretores perdidos" no arrastar-e-soltar.
  *
- * Perdido é STATUS do card, não etapa: o corretor guarda a etapa em que parou, e `motivoPerda`
- * registra por quê. Fazer disso uma etapa 11 criaria uma segunda fonte de verdade para "este
- * lead morreu" e os indicadores, que já contam por status, passariam a divergir do quadro.
+ * Aqui perdido é STATUS do card, não etapa: a PARCERIA com o corretor acabou. O card guarda a
+ * etapa em que parou, e `motivoPerda` registra por quê. Fazer disso uma etapa criaria uma
+ * segunda fonte de verdade para "este corretor morreu" e os indicadores, que já contam por
+ * status, passariam a divergir do quadro.
+ *
+ * Não confundir com "Clientes Perdidos" (etapa 10), que é coisa diferente: lá o corretor segue
+ * ATIVO e só este NEGÓCIO não fechou — é posição no funil, e o card pode voltar à Negociação.
+ * Um é o fim do relacionamento, o outro é o fim de uma venda.
  */
 const COLUNA_PERDIDOS = 'coluna-perdidos';
 

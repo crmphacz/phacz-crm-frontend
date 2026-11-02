@@ -2,6 +2,7 @@ import { formatDistanceToNow, differenceInHours, differenceInDays } from 'date-f
 import { ptBR } from 'date-fns/locale';
 import type { Corretor, StageConfig, StatusUnidade, ModalidadeAtividade, TipoInteracao } from './types';
 import { ApiError } from './api/client';
+import { ETAPA_CLIENTES_PERDIDOS, ETAPA_NEGOCIACAO } from './data';
 
 export function formatRelativeTime(iso: string): string {
   return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: ptBR });
@@ -257,6 +258,7 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
     9: [],
     10: [],
     11: [],
+    12: [],
   };
   return fields[etapa] ?? [];
 }
@@ -266,7 +268,8 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
  * que o cadastro simplificado deixa em branco na entrada. Espelha ETAPA_EXIGE_CADASTRO_COMPLETO
  * no backend (modules/corretores/validation.ts), que é quem de fato barra.
  *
- * Vale da 8 em DIANTE, e não só na 8: arrastar de 7 direto para 9 pularia a cobrança.
+ * Vale da 8 em DIANTE, e não só na 8: arrastar de 7 direto para 9 pularia a cobrança. A única
+ * exceção é a 10 (Clientes Perdidos) — ver validateForStageMove.
  */
 export const ETAPA_EXIGE_CADASTRO_COMPLETO = 8;
 export const CAMPOS_DO_CADASTRO_COMPLETO = ['imobiliaria', 'cpf', 'creci', 'dataNascimento'];
@@ -315,9 +318,15 @@ export function camposFaltandoNoCadastro(corretor: Corretor): string[] {
 
 export function validateForStageMove(corretor: Corretor, toEtapa: number): string[] {
   const errors: string[] = [];
+  // Registrar uma perda nunca é barrado por campo em branco. Exigir CPF ou CRECI para admitir
+  // que o negócio não fechou deixaria o card preso na Negociação, inflando o funil com algo
+  // que já morreu — e é justamente o cadastro incompleto que costuma explicar a perda.
+  // Espelha validation.ts no backend, que é quem de fato barra.
+  const exigeCadastroCompleto =
+    toEtapa >= ETAPA_EXIGE_CADASTRO_COMPLETO && toEtapa !== ETAPA_CLIENTES_PERDIDOS;
   const required = [
     ...getMandatoryFieldsForStage(toEtapa),
-    ...(toEtapa >= ETAPA_EXIGE_CADASTRO_COMPLETO ? CAMPOS_DO_CADASTRO_COMPLETO : []),
+    ...(exigeCadastroCompleto ? CAMPOS_DO_CADASTRO_COMPLETO : []),
   ];
 
   for (const field of required) {
@@ -343,8 +352,7 @@ export function validateForStageMove(corretor: Corretor, toEtapa: number): strin
     }
   }
 
-  // 9 = Negociação (era 8 antes de a distribuição virar duas etapas).
-  if (toEtapa === 9 && corretor.clientesFinais.length === 0 && !corretor.parentCorretorId) {
+  if (toEtapa === ETAPA_NEGOCIACAO && corretor.clientesFinais.length === 0 && !corretor.parentCorretorId) {
     errors.push('Ao menos um cliente final é necessário para negociação');
   }
 

@@ -8,7 +8,7 @@ import {
   Edit3, CalendarClock, CheckCheck, Paperclip, Download,
 } from 'lucide-react';
 import { useStore, useSelectedCorretor } from '../store';
-import { STAGES, CADENCIAS } from '../data';
+import { STAGES, CADENCIAS, ETAPA_CLIENTES_PERDIDOS, ETAPA_FECHAMENTO, ETAPA_POS_VENDA } from '../data';
 import {
   formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG, labelSemVender,
   TIPO_INTERACAO_CONFIG, getInitials, nowForDatetimeLocal, datetimeLocalToISO,
@@ -662,7 +662,7 @@ export function CorretorDetailPanel() {
               </div>
               <button
                 onClick={() => handleMoveStage('next')}
-                disabled={!nextStage || corretor.etapa === 11}
+                disabled={!nextStage || corretor.etapa === ETAPA_POS_VENDA}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all"
               >
                 <ChevronRight size={16} />
@@ -698,7 +698,10 @@ export function CorretorDetailPanel() {
 
             {/* Actions */}
             <div className="flex gap-2 mt-2">
-              {corretor.etapa >= 10 && corretor.status !== 'ganho' && (
+              {/* Só do Fechamento em diante. Nos Clientes Perdidos (10) o botão sumiria de
+                  qualquer forma pela comparação, e é o certo: marcar como Ganho um negócio
+                  que está na coluna de perdidos deixaria o card contraditório. */}
+              {corretor.etapa >= ETAPA_FECHAMENTO && corretor.status !== 'ganho' && (
                 <button
                   onClick={() => setShowWonConfirm(true)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-white transition-colors"
@@ -1115,7 +1118,7 @@ export function CorretorDetailPanel() {
                     value={shown('responsavelGR')}
                     options={grNames}
                     onUpdate={(v) => patchDraft({ responsavelGR: v })}
-                    description="Relacionamento ativo e vínculo emocional (etapas 6, 8)"
+                    description="Relacionamento ativo e vínculo emocional (etapas 7, 9)"
                   />
                   <TeamSelect
                     role="GV — Gerente de Vendas"
@@ -1123,7 +1126,7 @@ export function CorretorDetailPanel() {
                     value={shown('responsavelGV')}
                     options={gvNames}
                     onUpdate={(v) => patchDraft({ responsavelGV: v })}
-                    description="Proposta, negociação e fechamento (etapas 7–9)"
+                    description="Proposta, negociação e fechamento (etapas 8–11)"
                   />
                 </div>
               </Section>
@@ -1889,15 +1892,19 @@ export function CorretorDetailPanel() {
                   // As DUAS distribuições (5 e 6) são do SDR; 7 é o Acompanhamento GR.
                   corretor.etapa <= 6 ? 'SDR' as const :
                   corretor.etapa === 7 ? 'GR' as const :
-                  corretor.etapa <= 10 ? 'GV' as const :
+                  // Clientes Perdidos fica no meio da faixa do GV, mas não tem cadência:
+                  // seria uma régua de ligações e propostas para um negócio que não existe.
+                  corretor.etapa === ETAPA_CLIENTES_PERDIDOS ? null :
+                  corretor.etapa <= ETAPA_FECHAMENTO ? 'GV' as const :
                   null;
 
                 if (!cadenceRole) {
+                  const nomeDaEtapa = STAGES.find((s) => s.id === corretor.etapa)?.nome ?? 'Esta etapa';
                   return (
                     <div className="py-12 text-center text-gray-400">
                       <CalendarClock size={32} className="mx-auto mb-3 opacity-30" />
                       <p className="text-sm font-medium">Sem cadência padrão</p>
-                      <p className="text-xs mt-1">Corretores em Pós-venda (etapa 10) seguem acompanhamento personalizado.</p>
+                      <p className="text-xs mt-1">{nomeDaEtapa} segue acompanhamento personalizado.</p>
                     </div>
                   );
                 }

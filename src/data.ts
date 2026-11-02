@@ -1,4 +1,4 @@
-import type { StageConfig, TarefaCadencia } from './types';
+﻿import type { StageConfig, TarefaCadencia } from './types';
 
 export const STAGES: StageConfig[] = [
   {
@@ -94,7 +94,7 @@ export const STAGES: StageConfig[] = [
     corBg: '#ecfeff',
     slaDias: 7,
     slaLabel: 'Semanal',
-    descricao: 'GV acompanha sinais de venda em paralelo com etapa 6',
+    descricao: 'GV acompanha sinais de venda em paralelo com a etapa 7',
     paralelo: true,
   },
   {
@@ -108,8 +108,27 @@ export const STAGES: StageConfig[] = [
     slaLabel: '48h',
     descricao: 'GV apresenta proposta formal. GR mantém vínculo emocional',
   },
+  // Negociação que morreu: o CLIENTE FINAL não fechou. Não confundir com "Corretores
+  // perdidos", que é o status PERDIDO do card — ali a parceria com o corretor é que acabou.
+  // Aqui o corretor segue ativo e pode negociar de novo; o que se perdeu foi este negócio.
+  // Por isso é etapa, e não status: é uma posição no funil, de onde o card pode voltar.
+  // Nasceu entre a Negociação e o Fechamento, então o Fechamento e a Pós-venda subiram um
+  // número — ver a migração 20261030000000.
   {
     id: 10,
+    nome: 'Clientes Perdidos',
+    nomeAbrev: 'Cli. perdidos',
+    responsavel: ['GV', 'GR'],
+    cor: '#be123c',
+    corBg: '#fff1f2',
+    // SLA 0 de propósito: cobrar prazo de um negócio perdido só geraria alerta para uma
+    // coluna onde não há nada a fazer.
+    slaHoras: 0,
+    slaLabel: 'Sem SLA',
+    descricao: 'Negociação encerrada sem fechamento do cliente final',
+  },
+  {
+    id: 11,
     nome: 'Fechamento',
     nomeAbrev: 'Fecha.',
     responsavel: ['GV', 'GR'],
@@ -120,7 +139,7 @@ export const STAGES: StageConfig[] = [
     descricao: 'Formalizar documentação e registrar como Ganho',
   },
   {
-    id: 11,
+    id: 12,
     nome: 'Pós-venda / Fidelização',
     nomeAbrev: 'Pós-venda',
     responsavel: ['Ana', 'Lucimara'],
@@ -182,9 +201,21 @@ export const FUNIS_DO_PIPELINE: Record<
   'pre-atendimento': { label: 'Pré-atendimento', cor: '#8b5cf6', stages: [1, 2, 3, 4, 5, 6] },
   // As duas distribuições são trabalho do SDR, por isso entram no pré-atendimento.
   'treinamento': { label: 'Treinamento', cor: '#0d9488', stages: [7] },
-  'venda': { label: 'Venda', cor: '#d55006', stages: [8, 9, 10] },
-  'pos-venda': { label: 'Pós-venda', cor: '#6366f1', stages: [11] },
+  // Clientes Perdidos (10) entra na Venda: é onde a coluna fica no quadro. Quem quiser só o
+  // que está vivo filtra por etapa, não por funil.
+  'venda': { label: 'Venda', cor: '#d55006', stages: [8, 9, 10, 11] },
+  'pos-venda': { label: 'Pós-venda', cor: '#6366f1', stages: [12] },
 };
+
+/**
+ * Etapas citadas por número em regras de negócio. Existem para que inserir uma etapa no meio
+ * do funil (já aconteceu duas vezes) seja mudar números AQUI, e não caçar literais pelas telas.
+ * Espelham as constantes de modules/stages/data.ts no backend.
+ */
+export const ETAPA_NEGOCIACAO = 9;
+export const ETAPA_CLIENTES_PERDIDOS = 10;
+export const ETAPA_FECHAMENTO = 11;
+export const ETAPA_POS_VENDA = 12;
 
 /** Todas as etapas, na ordem — o funil "Todos". */
 export const TODAS_AS_ETAPAS: number[] = STAGES.map((s) => s.id);
