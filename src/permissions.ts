@@ -89,19 +89,22 @@ export function canCreateCorretor(user: UserProfile | null): boolean {
 }
 
 /**
- * Cadastrar cliente final em QUALQUER corretor: Diretoria, Recepção e SDR. GV e GR cadastram
- * nos cards de que são donos, caso tratado por `canWriteCorretor` dentro do painel do corretor.
+ * Mostra o botão de cadastrar cliente final nas telas de Leads e Nossos clientes.
  *
- * Esta função cobre a tela de Clientes Finais, onde não há card em mãos — o corretor
- * responsável é escolhido no próprio formulário, e por isso a lista não pode oferecer cards
- * que o servidor recusaria. Espelha CADASTRAM_CLIENTE_EM_QUALQUER_CARD no backend.
+ * O alcance de cada perfil NÃO está aqui, e sim no seletor de corretor do formulário, que é
+ * alimentado pela listagem de quem está logado. Diretoria, Recepção, SDR e GE enxergam a base
+ * inteira e por isso cadastram em qualquer card (espelhado em
+ * CADASTRAM_CLIENTE_EM_QUALQUER_CARD no backend); o GV enxerga só o próprio kanban, então só
+ * consegue escolher os cards dele — e para esses `canWriteCorretor` já basta, dos dois lados.
  *
- * EDITAR cliente continua só com a Diretoria: Recepção e SDR registram o que chega, não mexem
- * no que já está cadastrado.
+ * O GV entrou junto com o acesso dele a estas telas: ele já cadastrava cliente pelo painel do
+ * card, mas não alcançava a tela onde o cadastro é feito escolhendo o corretor.
+ *
+ * Quem EDITA cliente já cadastrado é outra regra, mais ampla — ver canEditClienteFinal.
  */
 export function canCreateClienteFinal(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora' || user?.cargo === 'Recepcao' || user?.cargo === 'SDR'
-    || user?.cargo === 'GerenteEstrategias';
+    || user?.cargo === 'GV' || user?.cargo === 'GerenteEstrategias';
 }
 
 /**
@@ -268,12 +271,16 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
       return user.cargo === 'Marketing';
     case 'clientes':
       // O SDR entra porque é aqui que se cadastra cliente final escolhendo o corretor — sem a
-      // tela, a permissão de cadastrar não teria onde ser usada. Ele lê a lista inteira, como
-      // já lê o pipeline inteiro; escrever continua restrito (ver canCreateClienteFinal).
+      // tela, a permissão de cadastrar não teria onde ser usada.
+      //
+      // O GV entrou depois, e era uma lacuna: ele já podia EDITAR qualquer cliente final (ver
+      // canEditClienteFinal) e criar cliente nos cards dele, mas não alcançava nenhuma das
+      // duas telas onde isso se faz. Permissão sem tela é permissão que não existe.
     // Leads são os mesmos clientes finais, só que antes do primeiro fechamento — quem vê uma
     // tela vê a outra.
     case 'leads':
-      return user.cargo === 'Marketing' || user.cargo === 'SDR' || user.cargo === 'GerenteEstrategias';
+      return user.cargo === 'Marketing' || user.cargo === 'SDR' || user.cargo === 'GV'
+        || user.cargo === 'GerenteEstrategias';
     case 'rodadas':
       return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR'
         || user.cargo === 'GerenteEstrategias';
