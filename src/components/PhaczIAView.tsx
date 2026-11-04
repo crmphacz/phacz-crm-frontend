@@ -5,6 +5,7 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { formatRelativeTime, getInitials } from '../utils';
 import { ApiError } from '../api/client';
+import { RespostaIA } from './RespostaIA';
 
 const SUGGESTED_PROMPTS: { icon: React.ElementType; label: string }[] = [
   { icon: Filter, label: 'Quantos corretores estão ativos em cada etapa do funil?' },
@@ -195,14 +196,19 @@ function MessageBubble({ role, content, createdAt, userInitials, userColor }: {
       </div>
       <div className={`flex flex-col gap-1 max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
         <div
-          className="px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap"
+          // `whitespace-pre-wrap` só do lado do usuário: ali o texto é literal, e preservar as
+          // quebras que a pessoa digitou é o certo. Do lado da IA o Markdown vira estrutura, e
+          // manter pre-wrap duplicaria os espaçamentos dos blocos.
+          className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${isUser ? 'whitespace-pre-wrap' : ''}`}
           style={
             isUser
               ? { backgroundColor: '#d55006', color: '#fff', borderBottomRightRadius: 4 }
               : { backgroundColor: '#fff', color: '#374151', border: '1px solid #e5e7eb', borderBottomLeftRadius: 4 }
           }
         >
-          {content}
+          {/* Markdown só na resposta da IA. O que o usuário digitou aparece como digitou —
+              quem escreve "custo * 2" não quer ver itálico. */}
+          {isUser ? content : <RespostaIA content={content} />}
         </div>
         <span className="text-xs text-gray-300 px-1">{formatRelativeTime(createdAt)}</span>
       </div>
