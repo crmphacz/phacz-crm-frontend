@@ -550,6 +550,14 @@ export interface RodadaResumo {
   vinculoTipo: VinculoRodadaTipo;
   /** "Corretor parceiro" — responsável pela imobiliária nessa rodada. */
   responsavelImobiliaria: string;
+  /**
+   * Seção 6 (materiais e estrutura). Opcionais porque só o Marketing os recebe — é quem
+   * organiza a logística do evento. Para os demais perfis de resumo a API não os envia, e a
+   * tela não mostra o bloco (ver rodadaSelectParaCargo no backend).
+   */
+  materiaisComerciais?: string[];
+  estruturaOperacao?: string[];
+  brindesDescricao?: string;
 }
 
 /** Type guard: distingue o formulário completo (Diretoria) do resumo (demais perfis). */

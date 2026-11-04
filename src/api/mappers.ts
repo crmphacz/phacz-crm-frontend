@@ -730,6 +730,10 @@ export interface ApiRodadaResumo {
   imobiliaria: string;
   vinculoTipo: string;
   responsavelImobiliaria: string;
+  /** Só chegam para o Marketing — ver rodadaSelectParaCargo no backend. */
+  materiaisComerciais?: string[];
+  estruturaOperacao?: string[];
+  brindesDescricao?: string;
 }
 
 export function mapRodadaResumoFromApi(r: ApiRodadaResumo): RodadaResumo {
@@ -742,6 +746,11 @@ export function mapRodadaResumoFromApi(r: ApiRodadaResumo): RodadaResumo {
     imobiliaria: r.imobiliaria,
     vinculoTipo: vinculoRodadaTipoMap.toApp(r.vinculoTipo),
     responsavelImobiliaria: r.responsavelImobiliaria,
+    // Repassados só quando vieram: o `undefined` é o que diz à tela que este perfil não tem a
+    // seção, e trocá-lo por `[]` faria o bloco aparecer vazio para todo mundo.
+    materiaisComerciais: r.materiaisComerciais,
+    estruturaOperacao: r.estruturaOperacao,
+    brindesDescricao: r.brindesDescricao,
   };
 }
 

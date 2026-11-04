@@ -142,17 +142,24 @@ export function canWriteRodadas(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora' || user?.cargo === 'GR';
 }
 
-/** Quem enxerga o calendário (mesmo que só em modo leitura). Marketing não tem esse módulo. */
+/**
+ * Quem enxerga o calendário (mesmo que só em modo leitura) — hoje, todo perfil autenticado.
+ *
+ * O Marketing era a única exceção e deixou de ser: é quem organiza os materiais e a estrutura
+ * do evento. O que ele recebe de cada rodada continua recortado pelo servidor (resumo mais a
+ * seção 6, nunca orçamento nem valores — ver rodadaSelectParaCargo).
+ */
 export function canViewRodadas(user: UserProfile | null): boolean {
-  return !!user && user.cargo !== 'Marketing';
+  return !!user;
 }
 
 /**
  * Diretoria e GR veem o formulário completo da rodada (as 11 seções) — GR também cria/edita
  * rodadas (ver `canWriteRodadas`), então precisa do formulário inteiro. Os demais perfis com
- * acesso ao calendário (Administrativo, Recepção, SDR, GV) só veem o resumo — dia, corretor
- * parceiro, imobiliária e cidade/UF. Espelha `canViewFullRodada` no backend; a API já retorna
- * só os campos permitidos (ver `RodadaResumo`), isto só decide qual modal abrir.
+ * acesso ao calendário (Administrativo, Recepção, SDR, GV, GE e Marketing) só veem o resumo —
+ * dia, corretor parceiro, imobiliária e cidade/UF, mais a seção de materiais no caso do
+ * Marketing. Espelha `canViewFullRodada` no backend; a API já retorna só os campos permitidos
+ * (ver `RodadaResumo`), isto só decide qual modal abrir.
  */
 export function canViewFullRodada(user: UserProfile | null): boolean {
   return user?.cargo === 'Diretora' || user?.cargo === 'GR';
@@ -282,8 +289,11 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
       return user.cargo === 'Marketing' || user.cargo === 'SDR' || user.cargo === 'GV'
         || user.cargo === 'GerenteEstrategias';
     case 'rodadas':
+      // Marketing entra só para consultar: é quem organiza os materiais e a estrutura do
+      // evento. O que ele recebe de cada rodada é o resumo mais a seção 6 — nunca orçamento
+      // nem valores (ver rodadaSelectParaCargo no backend, que é quem de fato recorta).
       return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR'
-        || user.cargo === 'GerenteEstrategias';
+        || user.cargo === 'GerenteEstrategias' || user.cargo === 'Marketing';
     case 'email-marketing':
       // GE entra só para acompanhar os envios — disparar e editar segue com
       // Diretoria e Marketing (ver canWriteEmailMarketing).

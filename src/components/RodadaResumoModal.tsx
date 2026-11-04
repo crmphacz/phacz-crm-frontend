@@ -1,16 +1,29 @@
-import { X, CalendarDays, MapPin, Building2, UserRound } from 'lucide-react';
+import { X, CalendarDays, MapPin, Building2, UserRound, Package } from 'lucide-react';
 import { formatDateKeyBR } from '../utils';
 import type { RodadaResumo } from '../types';
 
 /**
  * Modal de consulta para perfis sem acesso ao formulário completo da rodada (Administrativo,
- * Recepção, SDR, GV/"GRV", GR/"Gerente de Relacionamento") — mostra só o que a API retornou:
- * dia, corretor parceiro, imobiliária e cidade/UF. Nenhum outro campo do formulário (orçamento,
- * convidados, metas, materiais, riscos, parecer) chega até aqui, porque a API nunca os envia
- * para esses perfis (ver `RODADA_SUMMARY_SELECT` no backend) — este componente não tem como
+ * Recepção, SDR, GV/"GRV", GE e Marketing) — mostra só o que a API retornou: dia, corretor
+ * parceiro, imobiliária e cidade/UF. Orçamento, convidados, metas, riscos e parecer nunca
+ * chegam aqui, porque a API não os envia para esses perfis — este componente não tem como
  * exibir o que não recebeu.
+ *
+ * O bloco de materiais e estrutura é a exceção, e só aparece para o Marketing, que organiza a
+ * logística do evento. A condição é a PRESENÇA dos campos, não o cargo: quem decide é o
+ * servidor (ver `rodadaSelectParaCargo`), e repetir a regra de cargo aqui criaria uma segunda
+ * fonte de verdade — do tipo que já divergiu nesta base.
  */
 export function RodadaResumoModal({ rodada, onClose }: { rodada: RodadaResumo; onClose: () => void }) {
+  const temMateriais =
+    rodada.materiaisComerciais !== undefined ||
+    rodada.estruturaOperacao !== undefined ||
+    rodada.brindesDescricao !== undefined;
+
+  const materiais = rodada.materiaisComerciais ?? [];
+  const estrutura = rodada.estruturaOperacao ?? [];
+  const brindes = (rodada.brindesDescricao ?? '').trim();
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop"
@@ -45,12 +58,56 @@ export function RodadaResumoModal({ rodada, onClose }: { rodada: RodadaResumo; o
             {rodada.cidade}{rodada.uf ? ` - ${rodada.uf}` : ''}
           </InfoRow>
 
+          {temMateriais && (
+            <div className="pt-3 border-t" style={{ borderColor: '#f3f4f6' }}>
+              <div className="flex items-center gap-2 mb-2.5">
+                <Package size={14} style={{ color: '#d55006' }} />
+                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                  Materiais e estrutura
+                </p>
+              </div>
+
+              <ListaDeItens titulo="Materiais comerciais" itens={materiais} />
+              <ListaDeItens titulo="Estrutura e operação" itens={estrutura} />
+
+              <p className="text-[11px] font-semibold text-gray-500 mt-2.5">Brindes</p>
+              <p className="text-sm text-gray-800 mt-0.5">
+                {brindes || <span className="text-gray-400">Nenhum brinde informado</span>}
+              </p>
+            </div>
+          )}
+
           <p className="text-xs text-gray-400 pt-2 border-t" style={{ borderColor: '#f3f4f6' }}>
-            Os demais detalhes desta rodada (orçamento, convidados, metas, materiais, riscos e
-            parecer de viabilidade) não estão disponíveis para o seu perfil de acesso.
+            Os demais detalhes desta rodada (orçamento, convidados, metas
+            {temMateriais ? '' : ', materiais'}, riscos e parecer de viabilidade) não estão
+            disponíveis para o seu perfil de acesso.
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Cada item vira um selo, como no formulário — é a mesma lista, vista por quem não edita. */
+function ListaDeItens({ titulo, itens }: { titulo: string; itens: string[] }) {
+  return (
+    <div className="mb-2.5">
+      <p className="text-[11px] font-semibold text-gray-500">{titulo}</p>
+      {itens.length === 0 ? (
+        <p className="text-sm text-gray-400 mt-0.5">Nada marcado</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {itens.map((item) => (
+            <span
+              key={item}
+              className="px-2 py-0.5 rounded-lg text-xs font-medium"
+              style={{ backgroundColor: '#fff7ed', color: '#9a3412' }}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
