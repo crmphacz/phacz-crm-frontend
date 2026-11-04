@@ -50,8 +50,8 @@ export const STAGES: StageConfig[] = [
   // funil em todo o sistema, então inserir no meio obriga a renumerar.
   {
     id: 5,
-    nome: 'Distribuição GR',
-    nomeAbrev: 'Distrib. GR',
+    nome: 'Oportunidade GR',
+    nomeAbrev: 'Oport. GR',
     responsavel: ['SDR'],
     cor: '#8b5cf6',
     corBg: '#f5f3ff',
@@ -63,16 +63,16 @@ export const STAGES: StageConfig[] = [
     id: 6,
     nome: 'Distribuição GV',
     nomeAbrev: 'Distrib. GV',
-    responsavel: ['SDR'],
+    responsavel: ['SDR', 'GR'],
     cor: '#7c3aed',
     corBg: '#f5f3ff',
     slaHoras: 24,
     slaLabel: '24h',
-    descricao: 'SDR atribui o Gerente de Vendas',
+    descricao: 'SDR e GR atribuem o Gerente de Vendas',
   },
   {
     id: 7,
-    nome: 'Acompanhamento Gerente de Relacionamento',
+    nome: 'Acompanhamento GR',
     // Forma curta para selos e listas, onde o nome inteiro não cabe (no Dashboard a linha tem
     // 112px). Precisa acompanhar o `nome`, senão duas telas chamam a mesma etapa de coisas
     // diferentes.
@@ -87,14 +87,14 @@ export const STAGES: StageConfig[] = [
   },
   {
     id: 8,
-    nome: 'Monitoramento GV',
+    nome: 'Monitoramento Geral',
     nomeAbrev: 'Monitor.',
     responsavel: ['GV'],
     cor: '#0891b2',
     corBg: '#ecfeff',
     slaDias: 7,
     slaLabel: 'Semanal',
-    descricao: 'GV acompanha sinais de venda em paralelo com a etapa 7',
+    descricao: 'Acompanhamento de sinais de venda, em paralelo com a etapa 7',
     paralelo: true,
   },
   {
@@ -213,10 +213,10 @@ export const FUNIS_DO_PIPELINE: Record<
  * Espelham as constantes de modules/stages/data.ts no backend.
  */
 /**
- * Distribuição GR funciona como POOL: o card ainda não tem Gerente de Vendas, e qualquer GV
+ * Oportunidade GR funciona como POOL: o card ainda não tem Gerente de Vendas, e qualquer GV
  * pode enxergá-lo e puxá-lo para si. É a única etapa em que o GV age sem ser dono do card.
  */
-export const ETAPA_DISTRIBUICAO_GR = 5;
+export const ETAPA_OPORTUNIDADE_GR = 5;
 export const ETAPA_NEGOCIACAO = 9;
 export const ETAPA_CLIENTES_PERDIDOS = 10;
 export const ETAPA_FECHAMENTO = 11;
@@ -227,7 +227,7 @@ export const TODAS_AS_ETAPAS: number[] = STAGES.map((s) => s.id);
 
 /**
  * Colunas do quadro. Etapas marcadas como `paralelo` e vizinhas dividem a mesma coluna — hoje
- * o Acompanhamento GR e o Monitoramento GV, que acontecem ao mesmo tempo.
+ * o Acompanhamento GR e o Monitoramento Geral, que acontecem ao mesmo tempo.
  *
  * Derivado de STAGES em vez de escrito à mão: era uma lista fixa, e ela também ficou para trás
  * na renumeração.

@@ -90,7 +90,7 @@ export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModa
   /**
    * Cadastro pelo caminho curto: só nome, telefone e canal de origem. Muito corretor chega com
    * pouca informação, e exigir tudo na entrada fazia o lead não ser cadastrado. Os campos que
-   * ficam para depois voltam a ser obrigatórios ao mover o card para Monitoramento GV.
+   * ficam para depois voltam a ser obrigatórios ao mover o card para Monitoramento Geral.
    */
   const [cadastroSimplificado, setCadastroSimplificado] = useState(false);
 
@@ -283,7 +283,7 @@ export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModa
               <span className="block text-xs text-gray-500 mt-0.5 leading-relaxed">
                 Cadastra com o que você tem agora: nome, telefone e canal de origem.
                 Imobiliária, CPF, CRECI e data de nascimento ficam para depois — mas passam a
-                ser obrigatórios para mover o card até <strong>Monitoramento GV</strong>.
+                ser obrigatórios para mover o card até <strong>Monitoramento Geral</strong>.
               </span>
             </span>
           </label>

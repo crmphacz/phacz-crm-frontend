@@ -264,7 +264,7 @@ export function getMandatoryFieldsForStage(etapa: number): string[] {
 }
 
 /**
- * Da etapa 8 (Monitoramento GV) em diante o cadastro tem que estar completo — são os campos
+ * Da etapa 8 (Monitoramento Geral) em diante o cadastro tem que estar completo — são os campos
  * que o cadastro simplificado deixa em branco na entrada. Espelha ETAPA_EXIGE_CADASTRO_COMPLETO
  * no backend (modules/corretores/validation.ts), que é quem de fato barra.
  *

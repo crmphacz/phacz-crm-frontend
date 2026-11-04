@@ -31,7 +31,7 @@ export function CorretorCard({ corretor, stage }: Props) {
   // "via X" so quando houve corretor de origem; sem ele o subtitulo ja se explica sozinho.
   const subtitle = (corretor.parentCorretorId ? 'via ' : '') + subtituloDoCard(corretor);
 
-  // Cadastro incompleto trava o card na etapa 7 (Monitoramento GV). Avisar aqui evita que a
+  // Cadastro incompleto trava o card na etapa 8 (Monitoramento Geral). Avisar aqui evita que a
   // pessoa só descubra ao tentar arrastar — e diz exatamente o que falta.
   const faltando = corretor.etapa < ETAPA_EXIGE_CADASTRO_COMPLETO ? camposFaltandoNoCadastro(corretor) : [];
 
@@ -51,7 +51,7 @@ export function CorretorCard({ corretor, stage }: Props) {
           <div
             className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold mb-2 w-fit"
             style={{ backgroundColor: '#fef9c3', color: '#854d0e' }}
-            title={`Cadastro simplificado — falta preencher: ${faltando.join(', ')}. Obrigatório para chegar em Monitoramento GV.`}
+            title={`Cadastro simplificado — falta preencher: ${faltando.join(', ')}. Obrigatório para chegar em Monitoramento Geral.`}
           >
             <AlertCircle size={10} className="flex-shrink-0" />
             Faltam {faltando.length} {faltando.length === 1 ? 'dado' : 'dados'}

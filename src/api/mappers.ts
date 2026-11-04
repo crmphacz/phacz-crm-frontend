@@ -427,7 +427,7 @@ export interface CreateCorretorPayload {
   eventoAgendaId?: string | null;
   /**
    * Cadastro pelo caminho curto: imobiliária, CPF, CRECI e data de nascimento ficam para
-   * depois. Eles voltam a ser exigidos ao mover o card para Monitoramento GV (etapa 7).
+   * depois. Eles voltam a ser exigidos ao mover o card para Monitoramento Geral (etapa 8).
    */
   cadastroSimplificado?: boolean;
   nomeCorretor: string;

@@ -16,6 +16,20 @@ import type { Corretor } from '../types';
 
 type DashTab = 'metas' | 'geral' | 'sdr' | 'gr' | 'gv';
 
+/**
+ * Uma linha das barras de funil, montada a partir de STAGES. Número, nome e cor saem da
+ * definição da etapa — escrever isso à mão foi o que deixou o Dashboard anunciando etapas que
+ * já não existiam depois de cada renumeração.
+ */
+function linhaDoFunil(etapaId: number, count: number): { label: string; count: number; cor: string } {
+  const etapa = STAGES.find((s) => s.id === etapaId);
+  return {
+    label: etapa ? `${etapa.id}. ${etapa.nome}` : `Etapa ${etapaId}`,
+    count,
+    cor: etapa?.cor ?? '#64748b',
+  };
+}
+
 export function Dashboard() {
   const corretores = useStore((s) => s.corretores);
   const currentUser = useStore((s) => s.currentUser);
@@ -463,11 +477,14 @@ function DashSDR({ corretores, currentUser, onNavigate }: { corretores: Corretor
           <h3 className="font-questrial font-bold text-sm text-gray-800 mb-4">Distribuição — Funil Pré-atendimento</h3>
           <div className="space-y-3">
             {[
-              { label: '1. Novo Corretor', count: novo, cor: '#64748b' },
-              { label: '2. Tentativa de Contato', count: contato, cor: '#3b82f6' },
-              { label: '3. Qualificação', count: qualif, cor: '#10b981' },
-              { label: '4. Nutrição / Cadência', count: nutricao, cor: '#f59e0b' },
-              { label: '5. Distribuição GR + GV', count: distrib, cor: '#8b5cf6' },
+              // Vem de STAGES: rótulo, número e cor eram escritos à mão aqui e ficaram para
+              // trás em DUAS renumerações — esta linha ainda dizia "5. Distribuição GR + GV",
+              // nome que deixou de existir quando a distribuição virou duas etapas.
+              linhaDoFunil(1, novo),
+              linhaDoFunil(2, contato),
+              linhaDoFunil(3, qualif),
+              linhaDoFunil(4, nutricao),
+              linhaDoFunil(5, distrib),
             ].map((s) => {
               const max = Math.max(novo, contato, qualif, nutricao, distrib, 1);
               return (
@@ -685,9 +702,9 @@ function DashGV({ corretores, currentUser, onNavigate }: { corretores: Corretor[
           <h3 className="font-questrial font-bold text-sm text-gray-800 mb-4">Funil de Vendas</h3>
           <div className="space-y-3">
             {[
-              { label: '7. Monitoramento GV', count: monitoramento, cor: '#0891b2' },
-              { label: '8. Negociação', count: negociacao, cor: '#d55006' },
-              { label: '9. Fechamento', count: fechamento, cor: '#059669' },
+              linhaDoFunil(8, monitoramento),
+              linhaDoFunil(ETAPA_NEGOCIACAO, negociacao),
+              linhaDoFunil(ETAPA_FECHAMENTO, fechamento),
             ].map((s) => {
               const max = Math.max(monitoramento, negociacao, fechamento, 1);
               return (

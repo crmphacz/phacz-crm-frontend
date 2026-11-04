@@ -1,6 +1,6 @@
 import type { UserCargo, UserProfile, Corretor } from './types';
 import type { ViewMode } from './store';
-import { ETAPA_DISTRIBUICAO_GR } from './data';
+import { ETAPA_OPORTUNIDADE_GR } from './data';
 
 /**
  * Camada central de RBAC do frontend — espelha exatamente as regras aplicadas no backend
@@ -45,13 +45,13 @@ export function canWriteCorretor(user: UserProfile | null, corretor: Corretor): 
     case 'SDR':
       // O mapper converte ausência para undefined; o backend guarda null. Vale dos dois jeitos.
       return !corretor.responsavelSDRId || corretor.responsavelSDRId === user.id;
-    // Além dos cards em que é o responsável, o GV age nos que estão parados na Distribuição GR
+    // Além dos cards em que é o responsável, o GV age nos que estão parados na Oportunidade GR
     // SEM Gerente de Vendas: essa coluna é um pool, e é dela que ele puxa trabalho para si. O
     // "sem GV" é o que impede um GV de mexer no card já atribuído a outro.
     case 'GV':
       return (
         corretor.responsavelGVId === user.id ||
-        (corretor.etapa === ETAPA_DISTRIBUICAO_GR && !corretor.responsavelGVId)
+        (corretor.etapa === ETAPA_OPORTUNIDADE_GR && !corretor.responsavelGVId)
       );
     case 'GR':
       return corretor.responsavelGRId === user.id;
@@ -327,7 +327,7 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
  * `canWriteCorretor`, no servidor.
  */
 /**
- * Quem enxerga a etapa 7 (Acompanhamento Gerente de Relacionamento). Lista de quem PODE, e não
+ * Quem enxerga a etapa 7 (Acompanhamento GR). Lista de quem PODE, e não
  * de quem não pode: com a regra invertida, todo perfil novo nasceria vendo a coluna e só
  * deixaria de ver se alguém lembrasse de incluí-lo na exceção.
  */
@@ -339,13 +339,13 @@ export function getHiddenPipelineStages(user: UserProfile | null): number[] {
   // GR e GV: sem o pré-atendimento (1 a 4), que é trabalho do SDR.
   if (user?.cargo === 'GR' || user?.cargo === 'GV') ocultas.push(1, 2, 3, 4);
 
-  // A Distribuição GR (5) ficava oculta para o GV, porque o card ainda não era dele. Agora a
+  // A Oportunidade GR (5) ficava oculta para o GV, porque o card ainda não era dele. Agora a
   // coluna é um POOL: o GV enxerga os cards sem Gerente de Vendas e pode puxá-los para si, de
   // modo que esconder a coluna passou a atrapalhar em vez de limpar o quadro. O recorte real
   // é do servidor (getCorretorScreenScope), que só entrega os cards sem GV — aqui não há mais
   // nada a esconder.
 
-  // Acompanhamento Gerente de Relacionamento (era 6 antes de a distribuição virar duas etapas).
+  // Acompanhamento GR (era 6 antes de a distribuição virar duas etapas).
   if (!user || !VEEM_ACOMPANHAMENTO_GR.includes(user.cargo)) ocultas.push(7);
 
   return ocultas;
