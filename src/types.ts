@@ -34,6 +34,14 @@ export interface ClienteFinal {
   telefone: string;
   /** País do telefone (ISO 3166-1 alfa-2). Define a máscara e o DDI. Padrão 'BR'. */
   paisTelefone?: string;
+  /**
+   * "YYYY-MM-DD". Opcional, e vazia em todo cliente cadastrado antes do campo existir.
+   * Quando preenchida, o aniversário aparece na Agenda ao lado dos de corretor.
+   *
+   * Aceita `null` porque é assim que o formulário APAGA uma data digitada errada: `undefined`
+   * sai do JSON e o backend manteria o valor antigo.
+   */
+  dataNascimento?: string | null;
   email?: string;
   cidade?: string;
   uf?: string;
@@ -625,9 +633,15 @@ export interface SaudacaoAniversario {
 }
 
 export interface AniversarioAgenda {
+  /** Id da LINHA: do corretor ou do cliente final, conforme `tipo`. */
+  id: string;
+  /** De quem é o aniversário. A Agenda mostra os dois, com cores e rótulos diferentes. */
+  tipo: 'corretor' | 'cliente';
+  /** No cliente final, o corretor que o trouxe — não o aniversariante. */
   corretorId: string;
-  nomeCorretor: string;
-  imobiliaria: string;
+  nome: string;
+  /** Imobiliária, no corretor; nome do corretor que o trouxe, no cliente final. */
+  vinculo: string;
   telefone: string;
   whatsapp: string;
   /** País do telefone (ISO). Define o DDI do link do WhatsApp. */
@@ -637,6 +651,10 @@ export interface AniversarioAgenda {
   idade: number;
   /** True se o aniversário é HOJE — só nesse dia a Diretoria pode enviar a mensagem. */
   hoje: boolean;
+  /**
+   * Sempre `null` em `tipo: 'cliente'`. O registro de parabéns é por CORRETOR
+   * (AniversarioSaudacao), e abrir isso para cliente seria outra funcionalidade.
+   */
   saudacao: SaudacaoAniversario | null;
 }
 

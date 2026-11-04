@@ -132,6 +132,8 @@ export interface ApiClienteFinal {
   nome: string;
   telefone: string;
   paisTelefone: string | null;
+  /** ISO completo vindo do banco; a tela usa só a parte da data. */
+  dataNascimento: string | null;
   email: string | null;
   cidade: string | null;
   uf: string | null;
@@ -242,6 +244,9 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
     nome: cf.nome,
     telefone: cf.telefone,
     paisTelefone: cf.paisTelefone ?? 'BR',
+    // Só "YYYY-MM-DD": a data é gravada como meia-noite UTC, e converter para Date local aqui
+    // escorregaria um dia dependendo do fuso — o mesmo cuidado que o backend toma ao ler o mês.
+    dataNascimento: cf.dataNascimento ? cf.dataNascimento.slice(0, 10) : undefined,
     email: cf.email ?? undefined,
     cidade: cf.cidade ?? undefined,
     uf: cf.uf ?? undefined,

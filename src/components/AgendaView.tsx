@@ -51,6 +51,39 @@ function primeiroNome(nome: string): string {
   return nome.trim().split(/\s+/)[0] || nome;
 }
 
+/** Como o aniversariante é chamado na tela. Um lugar só, para legenda e selo não divergirem. */
+const ROTULO_ANIVERSARIO: Record<AniversarioAgenda['tipo'], string> = {
+  corretor: 'Corretor',
+  cliente: 'Cliente Final',
+};
+
+/**
+ * Cor do selo de aniversário. Corretor é laranja, cliente final é rosa — famílias diferentes
+ * das já usadas na grade (azul de compromisso, violeta de evento, cinza de cancelado), para
+ * que a célula de um dia cheio continue legível.
+ *
+ * "Hoje" e "parabéns enviado" têm precedência sobre o tipo: num dia cheio, o que precisa
+ * saltar é o que exige ação hoje, não de quem é o aniversário — e o rótulo no selo diz o tipo
+ * de qualquer forma.
+ */
+function coresDoAniversario(a: AniversarioAgenda): { backgroundColor: string; color: string } {
+  if (a.saudacao) return { backgroundColor: '#f0fdf4', color: '#166534' };
+  if (a.hoje) return a.tipo === 'cliente'
+    ? { backgroundColor: '#be185d', color: '#fff' }
+    : { backgroundColor: '#d55006', color: '#fff' };
+  return a.tipo === 'cliente'
+    ? { backgroundColor: '#fdf2f8', color: '#be185d' }
+    : { backgroundColor: '#fff7ed', color: '#c2410c' };
+}
+
+function tituloDoAniversario(a: AniversarioAgenda): string {
+  const quem = `${ROTULO_ANIVERSARIO[a.tipo]}: ${a.nome}`;
+  // O envio de parabéns só existe para corretor — prometer isso num cliente seria mentira.
+  if (a.tipo === 'cliente') return `${quem}${a.vinculo ? ` — via ${a.vinculo}` : ''}`;
+  if (a.saudacao) return `${quem} — parabéns enviado`;
+  return `${quem} — ${a.hoje ? 'aniversário hoje, enviar parabéns' : 'enviar disponível no dia'}`;
+}
+
 export function AgendaView() {
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const currentUser = useStore((s) => s.currentUser);
@@ -235,8 +268,12 @@ export function AgendaView() {
   }
 
   function handleRegistered(corretorId: string, saudacao: SaudacaoAniversario) {
-    setAniversarios((prev) => prev.map((a) => (a.corretorId === corretorId ? { ...a, saudacao } : a)));
-    setSelected((cur) => (cur && cur.corretorId === corretorId ? { ...cur, saudacao } : cur));
+    // `tipo === 'corretor'` é obrigatório aqui: no cliente final, `corretorId` é o corretor que
+    // o TROUXE, não o aniversariante. Sem o recorte, registrar o parabéns de um corretor
+    // marcaria também os clientes dele como se tivessem recebido.
+    const ehEste = (a: AniversarioAgenda) => a.tipo === 'corretor' && a.corretorId === corretorId;
+    setAniversarios((prev) => prev.map((a) => (ehEste(a) ? { ...a, saudacao } : a)));
+    setSelected((cur) => (cur && ehEste(cur) ? { ...cur, saudacao } : cur));
   }
 
   // Primeira carga: mostra só a animação até a agenda do mês chegar. Trocas de mês depois
@@ -321,7 +358,10 @@ export function AgendaView() {
         {/* Legenda */}
         <div className="flex flex-wrap items-center gap-3 mb-3 text-xs text-gray-500">
           <span className="flex items-center gap-1.5">
-            <Cake size={12} style={{ color: '#c2410c' }} /> Aniversário
+            <Cake size={12} style={{ color: '#c2410c' }} /> Aniversário de corretor
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Cake size={12} style={{ color: '#be185d' }} /> Aniversário de cliente final
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: '#dbeafe' }} /> Compromisso agendado (ligação, WhatsApp, reunião, treinamento, visitas ou evento)
@@ -374,20 +414,19 @@ export function AgendaView() {
                   <div className="flex flex-col gap-1 min-w-0">
                     {doDia.map((a) => (
                       <button
-                        key={a.corretorId}
+                        key={a.id}
                         onClick={() => setSelected(a)}
-                        title={`${a.nomeCorretor} — ${a.saudacao ? 'parabéns enviado' : a.hoje ? 'aniversário hoje — enviar parabéns' : 'enviar disponível no dia'}`}
+                        title={tituloDoAniversario(a)}
                         className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-semibold text-left truncate transition-colors hover:brightness-95"
-                        style={
-                          a.saudacao
-                            ? { backgroundColor: '#f0fdf4', color: '#166534' }
-                            : a.hoje
-                              ? { backgroundColor: '#d55006', color: '#fff' }
-                              : { backgroundColor: '#fff7ed', color: '#c2410c' }
-                        }
+                        style={coresDoAniversario(a)}
                       >
                         {a.saudacao ? <Check size={11} className="flex-shrink-0" /> : <Cake size={11} className="flex-shrink-0" />}
-                        <span className="truncate">{primeiroNome(a.nomeCorretor)}</span>
+                        {/* O rótulo cabe: medido na célula real, "Cliente Final · Claudete"
+                            entra inteiro até em tela de 1280px (célula de ~137px). Nome longo
+                            trunca no fim, e o tipo — que é o que se procura — fica visível. */}
+                        <span className="truncate">
+                          {ROTULO_ANIVERSARIO[a.tipo]} · {primeiroNome(a.nome)}
+                        </span>
                       </button>
                     ))}
                     {/* Eventos primeiro: sao o compromisso que organiza o dia, e clicar neles

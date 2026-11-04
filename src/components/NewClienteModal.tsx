@@ -46,6 +46,7 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
 
   const [nome, setNome] = useState(cliente?.nome ?? '');
   const [paisTelefone, setPaisTelefone] = useState(cliente?.paisTelefone ?? PAIS_PADRAO);
+  const [dataNascimento, setDataNascimento] = useState(cliente?.dataNascimento ?? '');
   const [telefone, setTelefone] = useState(
     cliente ? maskTelefone(cliente.telefone, cliente.paisTelefone) : ''
   );
@@ -134,6 +135,9 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
       nome: nome.trim(),
       telefone: telefone.trim(),
       paisTelefone,
+      // `null` e não `undefined` quando em branco: na EDIÇÃO, `undefined` é omitido do JSON e
+      // o backend manteria a data antiga — não haveria como apagar uma data digitada errada.
+      dataNascimento: dataNascimento || null,
       email: email.trim() || undefined,
       cidade: cidade.trim() || undefined,
       uf: uf || undefined,
@@ -292,6 +296,18 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
+              </div>
+              <div>
+                <FormLabel>Data de nascimento</FormLabel>
+                <input
+                  className="form-input"
+                  type="date"
+                  value={dataNascimento}
+                  onChange={(e) => setDataNascimento(e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Preenchida, o aniversário aparece na Agenda.
+                </p>
               </div>
               <div>
                 <FormLabel>Estado</FormLabel>
