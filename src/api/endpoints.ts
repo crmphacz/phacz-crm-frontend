@@ -14,7 +14,7 @@ import {
 } from './mappers.js';
 import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, EmailTemplate, EmailCampaign,
-  Placar, CatalogoPlacar,
+  Placar, CatalogoPlacar, CatalogoIndicadores, ApuracaoBimestre, AjusteIndicador,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   StatusAprovacaoRodada,
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
@@ -241,6 +241,13 @@ export const corretoresApi = {
         modalidade: data.modalidade,
         empreendimento: data.empreendimento,
         responsavelId: data.responsavelId,
+        // Critérios do treinamento qualificado — só vêm preenchidos no treinamento, e é deles
+        // que sai o indicador do SDR.
+        trnAcimaDeTresMilhoes: data.trnAcimaDeTresMilhoes,
+        trnClienteDeCarteira: data.trnClienteDeCarteira,
+        trnVendeOTicket: data.trnVendeOTicket,
+        trnConheceARegiao: data.trnConheceARegiao,
+        trnTemFeatDaEmpresa: data.trnTemFeatDaEmpresa,
       },
     }),
 
@@ -793,4 +800,13 @@ export const placarApi = {
     downloadFile('/api/placar/export.xlsx', `placar-metas-${periodo}.xlsx`, { periodo }),
   exportarPdf: (periodo: string) =>
     downloadFile('/api/placar/export.pdf', `placar-metas-${periodo}.pdf`, { periodo }),
+
+  // ── Indicadores de Desempenho (bimestral) ───────────────────────
+  /** Catálogo: as linhas, os pesos e os critérios do treinamento qualificado. */
+  catalogoIndicadores: () => apiFetch<CatalogoIndicadores>('/api/placar/indicadores/catalogo'),
+  indicadores: (bimestre: string) =>
+    apiFetch<ApuracaoBimestre>('/api/placar/indicadores', { query: { bimestre } }),
+  /** Ajuste da apuração pela Diretoria. Devolve o bimestre inteiro recalculado. */
+  salvarIndicadores: (bimestre: string, ajustes: AjusteIndicador[]) =>
+    apiFetch<ApuracaoBimestre>('/api/placar/indicadores', { method: 'PUT', body: { bimestre, ajustes } }),
 };

@@ -15,6 +15,7 @@ import {
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
   camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
   MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO, PEDE_PERIODO, PERMITE_VARIOS_DIAS,
+  CRITERIOS_TREINAMENTO,
   PODE_CANCELAR,
   diaDeDatetimeLocal, horaDeDatetimeLocal, juntarDiaEHora, somarHorasDatetimeLocal,
   formatPeriodoAtividade, nomeDoAnexo, anexoEhAudio, ACCEPT_ANEXO_ATIVIDADE,
@@ -194,6 +195,8 @@ export function CorretorDetailPanel() {
   // apontando pra quem está logado criando o registro.
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [actType, setActType] = useState<TipoInteracao>('nota');
+  /** Critérios de perfil marcados no treinamento — ver CRITERIOS_TREINAMENTO. */
+  const [actCriterios, setActCriterios] = useState<string[]>([]);
   const [actResumo, setActResumo] = useState('');
   // Guarda o ID de quem realizou, não o nome: é o id que credita a atividade no placar de
   // metas, e nome se repete e muda.
@@ -403,9 +406,14 @@ export function CorretorDetailPanel() {
         propostaId: actType === 'proposta' && actPropostaId ? actPropostaId : undefined,
         modalidade: PEDE_MODALIDADE.has(actType) && actModalidade ? actModalidade : undefined,
         empreendimento: PEDE_EMPREENDIMENTO.has(actType) && actEmpreendimento ? actEmpreendimento : undefined,
+        // Só no treinamento: nos outros tipos as caixas nem aparecem, e mandar o que não foi
+        // perguntado gravaria critério avaliado por ninguém.
+        ...(actType === 'treinamento'
+          ? Object.fromEntries(CRITERIOS_TREINAMENTO.map((c) => [c.campo, actCriterios.includes(c.campo)]))
+          : {}),
       });
       setActResumo(''); setActType('nota'); setActResponsavelId(currentUser?.id ?? ''); setActData(nowForDatetimeLocal()); setActPropostaId('');
-      setActModalidade(''); setActEmpreendimento(''); setActDataFim('');
+      setActModalidade(''); setActEmpreendimento(''); setActDataFim(''); setActCriterios([]);
       setActAnexos([]); setActErroUpload('');
       setShowActivityForm(false);
     } catch (err) {
@@ -1427,6 +1435,44 @@ export function CorretorDetailPanel() {
                           <p className="text-[11px] text-gray-400 mt-1">Quebra a especulação por empreendimento no placar.</p>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {/* Perfil do parceiro treinado. Alimenta o indicador "Treinamentos
+                      Qualificados" do SDR, que conta o treinamento quando os cinco critérios
+                      estão marcados — por isso o contador diz quantos faltam em vez de deixar
+                      a pessoa descobrir só na apuração do bimestre. */}
+                  {actType === 'treinamento' && (
+                    <div className="rounded-xl p-3" style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a' }}>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <label className="text-xs font-semibold" style={{ color: '#92400e' }}>
+                          Perfil do parceiro
+                        </label>
+                        <span className="text-[11px] font-bold" style={{ color: actCriterios.length === CRITERIOS_TREINAMENTO.length ? '#166534' : '#92400e' }}>
+                          {actCriterios.length === CRITERIOS_TREINAMENTO.length
+                            ? 'Conta como qualificado'
+                            : `${actCriterios.length} de ${CRITERIOS_TREINAMENTO.length}`}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {CRITERIOS_TREINAMENTO.map((c) => (
+                          <label key={c.campo} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={actCriterios.includes(c.campo)}
+                              onChange={(e) =>
+                                setActCriterios((atual) =>
+                                  e.target.checked ? [...atual, c.campo] : atual.filter((x) => x !== c.campo)
+                                )
+                              }
+                            />
+                            {c.label}
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-[11px] mt-2" style={{ color: '#a16207' }}>
+                        O treinamento é registrado de qualquer forma. Os cinco critérios juntos
+                        é que o tornam <strong>qualificado</strong> no indicador do bimestre.
+                      </p>
                     </div>
                   )}
                   {actType === 'proposta' && (

@@ -78,6 +78,16 @@ export interface Interacao {
   modalidade?: ModalidadeAtividade;
   /** Empreendimento a que a atividade se refere — quebra a especulação no placar. */
   empreendimento?: string;
+  /**
+   * Critérios de perfil do TREINAMENTO. Alimentam o indicador "Treinamentos Qualificados" do
+   * SDR: o treinamento conta quando os cinco estão marcados. Só o treinamento usa; nos demais
+   * tipos o formulário nem mostra as caixas.
+   */
+  trnAcimaDeTresMilhoes?: boolean;
+  trnClienteDeCarteira?: boolean;
+  trnVendeOTicket?: boolean;
+  trnConheceARegiao?: boolean;
+  trnTemFeatDaEmpresa?: boolean;
   /** Quem REALIZOU a atividade. Nem sempre é quem registrou: a Diretoria lança pelos outros. */
   responsavelId?: string;
   responsavel: string;
@@ -906,6 +916,11 @@ export interface DefinicaoMetrica {
   /** Frase curta explicando de onde vem o número — mostrada como dica na tela. */
   explicacao: string;
   /**
+   * A linha existe só para acompanhar: tem total, não tem meta, e a tela não mostra Faltam
+   * nem %. Ver `acompanhamentoApenas` em lib/placarMetricas.ts na API.
+   */
+  acompanhamentoApenas?: boolean;
+  /**
    * Id do grupo de meta a que a linha pertence. A linha mostra o total próprio (é a quebra que
    * a Diretoria quer ver) mas não tem meta própria: a meta é do grupo, e quem a persegue é a
    * linha de soma, logo abaixo.
@@ -979,4 +994,75 @@ export interface Placar {
     gvsAtivos: number;
     porGv: number;
   };
+}
+
+// ── Indicadores de Desempenho (apuração bimestral) ───────────────────
+//
+// Eixo separado do placar mensal: o placar mostra volume de trabalho na semana, isto mostra
+// resultado no bimestre, com peso e nota ponderada. Ver lib/indicadoresDesempenho.ts na API.
+
+export interface DefinicaoIndicador {
+  chave: string;
+  label: string;
+  cargo: CargoPlacar;
+  /** Peso na nota final, em pontos percentuais. Os pesos de um cargo somam 100. */
+  peso: number;
+  formato: 'quantidade' | 'moeda' | 'percentual';
+  explicacao: string;
+  /**
+   * Quando presente, a meta é esta fração do VGV total do bimestre — não um número digitado.
+   * A tela usa para explicar por que o campo de meta não é editável nessa linha.
+   */
+  metaFracaoDoVgvTotal?: number;
+}
+
+export interface CriterioTreinamento {
+  chave: string;
+  label: string;
+}
+
+export interface CatalogoIndicadores {
+  indicadores: DefinicaoIndicador[];
+  criteriosTreinamento: CriterioTreinamento[];
+}
+
+export interface ValorIndicador {
+  chave: string;
+  /** O que vale: o ajuste da Diretoria, se houver; senão o que o CRM calculou. */
+  realizado: number;
+  /** O que o CRM calculou. Igual a `realizado` quando ninguém ajustou. */
+  calculado: number;
+  meta: number;
+  ajustado: boolean;
+  observacao: string;
+  /** 0 a 1, limitado a 1. `null` quando a meta é zero — não há régua para medir. */
+  atingimento: number | null;
+}
+
+export interface IndicadoresPessoa {
+  userId: string;
+  nome: string;
+  cargo: CargoPlacar;
+  cor: string;
+  indicadores: ValorIndicador[];
+  /** Nota ponderada de 0 a 100, considerando só os indicadores com meta definida. */
+  nota: number;
+  /** Soma dos pesos que entraram na nota. Menor que 100 quando algum ficou fora. */
+  pesoConsiderado: number;
+}
+
+export interface ApuracaoBimestre {
+  bimestre: string;
+  /** VGV total da construtora no bimestre — base das metas de canal (20% dele). */
+  vgvTotal: number;
+  pessoas: IndicadoresPessoa[];
+}
+
+export interface AjusteIndicador {
+  userId: string;
+  indicador: string;
+  /** `null` devolve a linha ao que o sistema calcula — diferente de 0. */
+  meta: number | null;
+  realizado: number | null;
+  observacao?: string;
 }

@@ -8,6 +8,7 @@ import { ApiError } from '../api/client';
 import { useStore } from '../store';
 import { formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
 import { ViewLoader } from './ViewLoader';
+import { IndicadoresDesempenho } from './IndicadoresDesempenho';
 import type {
   Placar, PlacarPessoa, DefinicaoMetrica, GrupoDeMeta, SemanaPlacar, ValorMetrica, ValorGrupoMeta,
 } from '../types';
@@ -59,6 +60,7 @@ export function PlacarMetasView() {
   const ehDiretoria = currentUser?.cargo === 'Diretora';
 
   const [periodo, setPeriodo] = useState(PERIODO_ATUAL);
+  const [aba, setAba] = useState<'placar' | 'indicadores'>('placar');
   const [placar, setPlacar] = useState<Placar | null>(null);
   const [catalogo, setCatalogo] = useState<DefinicaoMetrica[]>([]);
   const [gruposMeta, setGruposMeta] = useState<GrupoDeMeta[]>([]);
@@ -175,10 +177,26 @@ export function PlacarMetasView() {
     }
   }
 
-  if (carregando && !placar) return <ViewLoader label="Carregando placar…" />;
+  if (carregando && !placar && aba === 'placar') return <ViewLoader label="Carregando placar…" />;
+
+  // Os Indicadores de Desempenho são a outra metade desta tela, e não outra tela: quem abre o
+  // placar está perguntando "como estamos indo", e a resposta tem as duas partes — o volume de
+  // trabalho na semana e o resultado do bimestre. Em abas para não empilhar duas tabelas
+  // grandes uma sobre a outra.
+  if (aba === 'indicadores') {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <AbasDoPlacar aba={aba} onTrocar={setAba} />
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
+          <IndicadoresDesempenho />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <AbasDoPlacar aba={aba} onTrocar={setAba} />
       {/* Cabeçalho: mês, exportação e edição */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-6 py-3 border-b bg-white flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex items-center gap-2">
@@ -669,6 +687,16 @@ function BlocoMetricas({ grupo, metricas, semanas, catalogo, gruposMeta, somaDep
                     value={rascunho[idRascunho] ?? ''}
                     onChange={(e) => onRascunho(idRascunho, e.target.value)}
                   />
+                ) : def?.acompanhamentoApenas ? (
+                  // Sem meta por decisão, não por falta de preenchimento. Dizer "acompanha"
+                  // em vez de um traço evita a leitura de que alguém esqueceu de definir.
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: '#f1f5f9', color: '#475569' }}
+                    title="Esta linha é só acompanhamento: tem total, não tem meta. A cobrança está nos Indicadores de Desempenho."
+                  >
+                    acompanha
+                  </span>
                 ) : def?.metaGrupo ? (
                   // A meta desta linha é do conjunto: o campo está na linha de soma, logo
                   // abaixo. Um traço aqui, e não um campo desabilitado, porque não há nada a
@@ -772,5 +800,36 @@ function LinhaSomaDoGrupo({ soma, definicao, semanas, idRascunho, editando, rasc
         {soma.meta > 0 ? `${Math.round((soma.total / soma.meta) * 100)}%` : '—'}
       </td>
     </tr>
+  );
+}
+
+/**
+ * As duas metades do acompanhamento: o placar mensal (volume de trabalho na semana) e os
+ * Indicadores de Desempenho (resultado do bimestre, com peso e nota).
+ */
+function AbasDoPlacar({ aba, onTrocar }: { aba: 'placar' | 'indicadores'; onTrocar: (a: 'placar' | 'indicadores') => void }) {
+  const ABAS = [
+    { id: 'placar' as const, label: 'Placar de metas', sub: 'por mês' },
+    { id: 'indicadores' as const, label: 'Indicadores de Desempenho', sub: 'por bimestre' },
+  ];
+  return (
+    <div className="flex items-end gap-1 px-4 md:px-6 pt-3 border-b bg-white flex-shrink-0" style={{ borderColor: '#e5e7eb' }}>
+      {ABAS.map((a) => {
+        const ativa = aba === a.id;
+        return (
+          <button
+            key={a.id}
+            onClick={() => onTrocar(a.id)}
+            className="px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px"
+            style={ativa
+              ? { borderColor: '#d55006', color: '#d55006' }
+              : { borderColor: 'transparent', color: '#9ca3af' }}
+          >
+            {a.label}
+            <span className="ml-1.5 text-[11px] font-medium opacity-70">{a.sub}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -490,6 +490,21 @@ export const MODALIDADE_LABEL: Record<ModalidadeAtividade, string> = {
   MENSAGEM: 'Mensagem / WhatsApp',
 };
 
+/**
+ * Critérios que caracterizam um treinamento QUALIFICADO, como a cliente os descreveu. O
+ * indicador do SDR conta o treinamento quando os cinco estão marcados — a regra de "todos"
+ * mora no backend (treinamentoEhQualificado), aqui fica só o formulário.
+ *
+ * `campo` é o nome que vai no payload e no banco; a ordem é a da lista original.
+ */
+export const CRITERIOS_TREINAMENTO = [
+  { campo: 'trnAcimaDeTresMilhoes', label: 'Trabalha acima de 3 milhões' },
+  { campo: 'trnClienteDeCarteira', label: 'Tem cliente de carteira' },
+  { campo: 'trnVendeOTicket', label: 'Já vende o ticket' },
+  { campo: 'trnConheceARegiao', label: 'Já conhece ou vende a região' },
+  { campo: 'trnTemFeatDaEmpresa', label: 'Tem o feat da empresa' },
+] as const;
+
 /** Tipos de atividade em que perguntar "como aconteceu" faz diferença no placar. */
 export const PEDE_MODALIDADE = new Set<TipoInteracao>([
   'visita', 'visita_obra', 'visita_imobiliaria', 'reuniao', 'treinamento',
