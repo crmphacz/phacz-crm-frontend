@@ -243,6 +243,7 @@ export function CorretorDetailPanel() {
   const [pEmp, setPEmp] = useState('');
   const [pUnidade, setPUnidade] = useState('');
   const [pValor, setPValor] = useState('');
+  const [pPermuta, setPPermuta] = useState('');
   const [pCondicoes, setPCondicoes] = useState('');
   const [pClienteNome, setPClienteNome] = useState('');
   const [pClienteId, setPClienteId] = useState('');
@@ -441,6 +442,24 @@ export function CorretorDetailPanel() {
 
   async function handleSaveProposta() {
     if (!pEmp.trim() || !pUnidade.trim() || !pValor.trim()) return;
+
+    // `pUnidade` guarda o ID da unidade cadastrada. O número continua indo como texto: é o que
+    // aparece no extrato do SÕMMAR e nas listagens, e precisa seguir legível mesmo que a
+    // unidade saia do cadastro depois.
+    const unidadeSelecionada = pUnidades.find((u) => u.id === pUnidade);
+    const unidadeNumero = unidadeSelecionada?.numero ?? pUnidade;
+
+    // Item 6.2: permuta acima de 30% tira a negociação da apuração. O backend recusa, mas
+    // avisar aqui evita o corretor preencher a proposta inteira para levar erro no fim.
+    const valorProposta = parseCurrencyBRL(pValor) ?? 0;
+    const valorPermuta = parseCurrencyBRL(pPermuta) ?? 0;
+    if (valorPermuta > valorProposta * 0.3) {
+      window.alert(
+        'A permuta não pode passar de 30% do valor da proposta (item 6.2 da política SÕMMAR).'
+      );
+      return;
+    }
+
     setPSubmitting(true);
     try {
       await addProposta(corretor.id, {
@@ -448,19 +467,21 @@ export function CorretorDetailPanel() {
         clienteFinalNome: pClienteNome || undefined,
         data: new Date().toISOString(),
         empreendimento: pEmp.trim(),
-        unidade: pUnidade.trim(),
-        valor: parseCurrencyBRL(pValor) ?? 0,
+        unidade: unidadeNumero,
+        unidadeId: pUnidade || undefined,
+        valor: valorProposta,
+        valorPermuta,
         condicoes: pCondicoes.trim(),
         status: 'pendente',
       }, pArquivo ?? undefined);
       await addInteracao(corretor.id, {
         data: new Date().toISOString(),
         tipo: 'proposta',
-        resumo: `Proposta enviada: ${pEmp} — ${pUnidade} — ${pValor}`,
+        resumo: `Proposta enviada: ${pEmp} — ${unidadeNumero} — ${pValor}`,
         responsavel: corretor.responsavelGV || 'GV',
         etapa: corretor.etapa,
       });
-      setPEmp(''); setPEmpId(''); setPUnidades([]); setPUnidade(''); setPValor(''); setPCondicoes(''); setPClienteNome(''); setPClienteId(''); setPArquivo(null);
+      setPEmp(''); setPEmpId(''); setPUnidades([]); setPUnidade(''); setPValor(''); setPPermuta(''); setPCondicoes(''); setPClienteNome(''); setPClienteId(''); setPArquivo(null);
       setShowPropostaForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a proposta.');
@@ -1842,7 +1863,7 @@ export function CorretorDetailPanel() {
                                 : 'Selecionar unidade...'}
                         </option>
                         {pUnidadesSelecionaveis.map((u) => (
-                          <option key={u.id} value={u.numero}>
+                          <option key={u.id} value={u.id}>
                             {u.numero}{u.tipo ? ` — ${u.tipo}` : ''}{u.metragemPrivativa ? ` · ${u.metragemPrivativa} m²` : ''}
                             {/* Disponível é o caso normal e não precisa de rótulo; os outros sim,
                                 pra ninguém propor uma unidade em negociação sem perceber. */}
@@ -1854,6 +1875,24 @@ export function CorretorDetailPanel() {
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Valor *</label>
                       <input className="form-input text-sm" placeholder="R$ 0,00" value={pValor} onChange={(e) => setPValor(maskCurrencyBRLInput(e.target.value))} />
+                    </div>
+                    <div>
+                      {/* Item 6.2 do SÕMMAR: permuta sai do VGV que pontua, com teto de 30%.
+                          Opcional porque a proposta inteira em moeda corrente é o caso normal —
+                          exigir o campo faria travar o cadastro por algo que quase nunca se
+                          aplica. Em branco vale zero. */}
+                      <label className="text-xs font-semibold text-gray-500 block mb-1">
+                        Valor em permuta
+                      </label>
+                      <input
+                        className="form-input text-sm"
+                        placeholder="R$ 0,00"
+                        value={pPermuta}
+                        onChange={(e) => setPPermuta(maskCurrencyBRLInput(e.target.value))}
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Máx. 30% do valor. Não pontua no SÕMMAR.
+                      </p>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Condições de pagamento</label>

@@ -41,7 +41,8 @@ export type ViewMode =
   | 'agenda'
   | 'empreendimentos'
   | 'tabelas-empreendimentos'
-  | 'historico-acoes';
+  | 'historico-acoes'
+  | 'sommar';
 
 /**
  * Telas que carregam dados de forma assíncrona ao abrir — só nelas o toast de

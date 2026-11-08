@@ -19,6 +19,7 @@ import {
   Table2,
   FileText,
   MessageCircle,
+  Trophy,
 } from 'lucide-react';
 import { useStore, type ViewMode } from '../store';
 import { getInitials, getFirstName } from '../utils';
@@ -45,6 +46,7 @@ const NAV_MARKETING: { id: ViewMode; icon: React.ElementType; label: string }[] 
 
 const NAV_SECONDARY: { id: ViewMode; icon: React.ElementType; label: string }[] = [
   { id: 'indicadores', icon: BarChart2, label: 'Indicadores' },
+  { id: 'sommar', icon: Trophy, label: 'SÕMMAR Elite' },
   { id: 'tabelas-empreendimentos', icon: Table2, label: 'Tabelas de Custos' },
   { id: 'historico-acoes', icon: History, label: 'Histórico de Ações' },
 ];

@@ -12,6 +12,7 @@ import { UsersSettingsView } from './components/UsersSettingsView';
 import { CompanyProfileView } from './components/CompanyProfileView';
 import { PipelineRulesView } from './components/PipelineRulesView';
 import { IndicadoresView } from './components/IndicadoresView';
+import { SommarView } from './components/SommarView';
 import { LoginScreen } from './components/LoginScreen';
 import { ChangePasswordScreen } from './components/ChangePasswordScreen';
 import { ResetPasswordScreen } from './components/ResetPasswordScreen';
@@ -150,6 +151,7 @@ export default function App() {
           {view === 'config-empresa' && <CompanyProfileView />}
           {view === 'config-regras' && <PipelineRulesView />}
           {view === 'indicadores' && <IndicadoresView />}
+          {view === 'sommar' && <SommarView />}
           {view === 'email-marketing' && <EmailMarketingView />}
           {view === 'whatsapp-massa' && <WhatsappBroadcastView />}
           {view === 'phacz-ia' && <PhaczIAView />}

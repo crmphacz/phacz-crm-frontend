@@ -306,6 +306,10 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
     case 'tabelas-empreendimentos':
       // Dados financeiros: só Diretoria (+ Administrativo/Recepção, já liberados no topo).
       return false;
+    case 'sommar':
+      // Diretoria/Administrativo/Recepção já entram pela liberação do topo. Quem opera o
+      // programa no dia a dia é quem atende corretor; Marketing fica de fora.
+      return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
     default:
       return true;
   }

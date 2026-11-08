@@ -117,7 +117,18 @@ export interface Proposta {
   data: string;
   empreendimento: string;
   unidade: string;
+  /**
+   * Unidade CADASTRADA do empreendimento. É o que permite bloquear a unidade quando a venda
+   * fecha e identificar a unidade na regra de duplicidade do SÕMMAR — pelo texto não dava,
+   * porque "Apto 1502" e "apto. 1.502" são a mesma unidade escritas diferente.
+   */
+  unidadeId?: string;
   valor: number;
+  /**
+   * Parte da proposta oferecida em PERMUTA. O item 6.2 da política do SÕMMAR manda excluir
+   * permutas do VGV que pontua, com teto de 30% — então o que pontua é `valor - valorPermuta`.
+   */
+  valorPermuta?: number;
   condicoes: string;
   financiamento?: string;
   status: 'pendente' | 'aceita' | 'recusada';
