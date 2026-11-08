@@ -193,6 +193,7 @@ export interface ApiCorretor {
   ticketMedio: number | null;
   cpf: string | null;
   creci: string | null;
+  sommarAdesaoEm: string | null;
   dataNascimento: string | null;
   cidade: string | null;
   uf: string | null;
@@ -373,6 +374,7 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     ticketMedio: l.ticketMedio ?? undefined,
     cpf: l.cpf ?? undefined,
     creci: l.creci ?? undefined,
+    sommarAdesaoEm: l.sommarAdesaoEm ?? undefined,
     dataNascimento: l.dataNascimento ?? undefined,
     cidade: l.cidade ?? undefined,
     uf: l.uf ?? undefined,

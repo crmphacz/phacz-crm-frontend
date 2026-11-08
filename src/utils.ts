@@ -491,6 +491,17 @@ export const MODALIDADE_LABEL: Record<ModalidadeAtividade, string> = {
 };
 
 /**
+ * Tipos de atividade que podem ser um ATENDIMENTO QUALIFICADO do programa SÕMMAR (item 3.i):
+ * "atendimento a cliente, presencial ou online". É a partir dele que nasce o cupom de sorteio.
+ *
+ * Lista de quem PODE, e não de quem não pode: com a regra invertida, todo tipo novo de
+ * atividade nasceria podendo gerar cupom, e cupom é prêmio.
+ */
+export const PEDE_QUALIFICADO = new Set<TipoInteracao>([
+  'reuniao', 'atendimento_cliente', 'visita', 'visita_obra', 'visita_imobiliaria',
+]);
+
+/**
  * Critérios que caracterizam um treinamento QUALIFICADO, como a cliente os descreveu. O
  * indicador do SDR conta o treinamento quando os cinco estão marcados — a regra de "todos"
  * mora no backend (treinamentoEhQualificado), aqui fica só o formulário.

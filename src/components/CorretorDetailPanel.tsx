@@ -15,7 +15,7 @@ import {
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
   camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
   MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO, PEDE_PERIODO, PERMITE_VARIOS_DIAS,
-  CRITERIOS_TREINAMENTO,
+  CRITERIOS_TREINAMENTO, PEDE_QUALIFICADO,
   PODE_CANCELAR,
   diaDeDatetimeLocal, horaDeDatetimeLocal, juntarDiaEHora, somarHorasDatetimeLocal,
   formatPeriodoAtividade, nomeDoAnexo, anexoEhAudio, ACCEPT_ANEXO_ATIVIDADE,
@@ -197,6 +197,8 @@ export function CorretorDetailPanel() {
   const [actType, setActType] = useState<TipoInteracao>('nota');
   /** Critérios de perfil marcados no treinamento — ver CRITERIOS_TREINAMENTO. */
   const [actCriterios, setActCriterios] = useState<string[]>([]);
+  /** Atendimento qualificado do SÕMMAR — gera cupom de sorteio (item 8.1). */
+  const [actQualificado, setActQualificado] = useState(false);
   const [actResumo, setActResumo] = useState('');
   // Guarda o ID de quem realizou, não o nome: é o id que credita a atividade no placar de
   // metas, e nome se repete e muda.
@@ -406,6 +408,7 @@ export function CorretorDetailPanel() {
         propostaId: actType === 'proposta' && actPropostaId ? actPropostaId : undefined,
         modalidade: PEDE_MODALIDADE.has(actType) && actModalidade ? actModalidade : undefined,
         empreendimento: PEDE_EMPREENDIMENTO.has(actType) && actEmpreendimento ? actEmpreendimento : undefined,
+        atendimentoQualificado: PEDE_QUALIFICADO.has(actType) ? actQualificado : undefined,
         // Só no treinamento: nos outros tipos as caixas nem aparecem, e mandar o que não foi
         // perguntado gravaria critério avaliado por ninguém.
         ...(actType === 'treinamento'
@@ -414,6 +417,7 @@ export function CorretorDetailPanel() {
       });
       setActResumo(''); setActType('nota'); setActResponsavelId(currentUser?.id ?? ''); setActData(nowForDatetimeLocal()); setActPropostaId('');
       setActModalidade(''); setActEmpreendimento(''); setActDataFim(''); setActCriterios([]);
+      setActQualificado(false);
       setActAnexos([]); setActErroUpload('');
       setShowActivityForm(false);
     } catch (err) {
@@ -1436,6 +1440,30 @@ export function CorretorDetailPanel() {
                         </div>
                       )}
                     </div>
+                  )}
+                  {/* Atendimento qualificado do SÕMMAR. Só aparece se o corretor aderiu ao
+                      programa: marcar isso num corretor que não é participante não gera cupom
+                      nenhum, e oferecer a caixa sugeriria que gera. */}
+                  {PEDE_QUALIFICADO.has(actType) && corretor.sommarAdesaoEm && (
+                    <label
+                      className="flex items-start gap-2 rounded-xl p-3 cursor-pointer"
+                      style={{ backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe' }}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={actQualificado}
+                        onChange={(e) => setActQualificado(e.target.checked)}
+                      />
+                      <span className="text-xs" style={{ color: '#5b21b6' }}>
+                        <strong>Atendimento qualificado (SÕMMAR Elite)</strong>
+                        <span className="block mt-0.5" style={{ color: '#6d28d9' }}>
+                          Marque quando o atendimento tiver os dados mínimos do cliente e ficar
+                          registrado no histórico. A partir de 2 atendimentos no período, cada
+                          um vale um cupom de sorteio.
+                        </span>
+                      </span>
+                    </label>
                   )}
                   {/* Perfil do parceiro treinado. Alimenta o indicador "Treinamentos
                       Qualificados" do SDR, que conta o treinamento quando os cinco critérios

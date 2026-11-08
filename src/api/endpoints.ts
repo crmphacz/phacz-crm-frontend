@@ -241,6 +241,8 @@ export const corretoresApi = {
         modalidade: data.modalidade,
         empreendimento: data.empreendimento,
         responsavelId: data.responsavelId,
+        // Atendimento qualificado do SÕMMAR — gera cupom de sorteio.
+        atendimentoQualificado: data.atendimentoQualificado,
         // Critérios do treinamento qualificado — só vêm preenchidos no treinamento, e é deles
         // que sai o indicador do SDR.
         trnAcimaDeTresMilhoes: data.trnAcimaDeTresMilhoes,

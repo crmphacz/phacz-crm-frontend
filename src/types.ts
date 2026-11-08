@@ -54,6 +54,7 @@ export interface ClienteFinal {
   empreendimentoInteresse?: string;
   /** Mesma lista do canal de origem do corretor. Vazio nos clientes cadastrados antes do campo existir. */
   canalOrigem?: CanalOrigem;
+
   /** Rodada em que o cliente foi captado, quando o canal de origem é "Rodada". */
   rodadaId?: string | null;
 }
@@ -78,6 +79,11 @@ export interface Interacao {
   modalidade?: ModalidadeAtividade;
   /** Empreendimento a que a atividade se refere — quebra a especulação no placar. */
   empreendimento?: string;
+  /**
+   * Atendimento QUALIFICADO do programa SÕMMAR (item 3.i): atendimento a cliente, presencial
+   * ou online, com os dados mínimos registrados. É o que gera cupom de sorteio (item 8.1).
+   */
+  atendimentoQualificado?: boolean;
   /**
    * Critérios de perfil do TREINAMENTO. Alimentam o indicador "Treinamentos Qualificados" do
    * SDR: o treinamento conta quando os cinco estão marcados. Só o treinamento usa; nos demais
@@ -133,6 +139,11 @@ export interface Corretor {
   ticketMedio?: number;
   cpf?: string;
   creci?: string;
+  /**
+   * Quando o corretor aceitou o Termo de Adesão do SÕMMAR Elite. Ausente na maior parte da
+   * base: é este campo, e não o cadastro, que diz quem é PARTICIPANTE do programa.
+   */
+  sommarAdesaoEm?: string;
   dataNascimento?: string;
   cidade?: string;
   uf?: string;
