@@ -183,10 +183,15 @@ export function AgendaView() {
   // próprio início, como antes.
   // O compromisso CANCELADO continua aqui, riscado: quem olha a semana precisa ver que aquele
   // horário caiu, e é daqui que se desfaz um cancelamento feito por engano.
+  // Sem corte pelo relógio: o compromisso que já aconteceu CONTINUA no calendário.
+  //
+  // Havia aqui um `> Date.now()`, igual ao do backend. Juntos, faziam o compromisso sumir no
+  // instante em que acontecia: o mês corrente esvaziava ao longo dele e meses anteriores
+  // apareciam vazios, sem como conferir o que foi feito na semana passada nem reabrir um
+  // registro para corrigir. O filtro por tipo fica, para não exibir o que estiver no cache de
+  // uma versão anterior da tela.
   const compromissos = useMemo(
-    () => atividades.filter((a) =>
-      TIPOS_NA_AGENDA.has(a.tipo) && new Date(a.dataFim ?? a.data).getTime() > Date.now()
-    ),
+    () => atividades.filter((a) => TIPOS_NA_AGENDA.has(a.tipo)),
     [atividades]
   );
 
