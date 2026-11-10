@@ -1,6 +1,5 @@
 import type { UserCargo, UserProfile, Corretor } from './types';
 import type { ViewMode } from './store';
-import { ETAPA_OPORTUNIDADE_GR } from './data';
 
 /**
  * Camada central de RBAC do frontend — espelha exatamente as regras aplicadas no backend
@@ -45,14 +44,17 @@ export function canWriteCorretor(user: UserProfile | null, corretor: Corretor): 
     case 'SDR':
       // O mapper converte ausência para undefined; o backend guarda null. Vale dos dois jeitos.
       return !corretor.responsavelSDRId || corretor.responsavelSDRId === user.id;
-    // Além dos cards em que é o responsável, o GV age nos que estão parados na Oportunidade GR
-    // SEM Gerente de Vendas: essa coluna é um pool, e é dela que ele puxa trabalho para si. O
-    // "sem GV" é o que impede um GV de mexer no card já atribuído a outro.
+    // O GV age SÓ nos cards em que é o Gerente de Vendas responsável.
+    //
+    // Card sem GV vinculado ele vê, mas não edita nem move. A Oportunidade GR já foi um pool
+    // de onde o GV puxava trabalho, e isso foi desfeito a pedido do comercial: com a exceção
+    // no lugar, qualquer GV abria um card sem dono e gravava o campo de Gerente de Vendas —
+    // inclusive apontando outro GV. Quem distribui é o SDR e o GR.
+    //
+    // Espelha `canWriteCorretor` do backend. As duas precisam mudar juntas: só aqui, a tela
+    // bloquearia o que a API aceita; só lá, a tela ofereceria o que a API recusa.
     case 'GV':
-      return (
-        corretor.responsavelGVId === user.id ||
-        (corretor.etapa === ETAPA_OPORTUNIDADE_GR && !corretor.responsavelGVId)
-      );
+      return corretor.responsavelGVId === user.id;
     case 'GR':
       return corretor.responsavelGRId === user.id;
     default:
