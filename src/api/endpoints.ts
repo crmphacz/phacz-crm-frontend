@@ -20,7 +20,7 @@ import type {
   Empreendimento, EmpreendimentoDetail, CreateEmpreendimentoPayload, Unidade, CreateUnidadePayload,
   LogAcao, TipoInteracao, AniversarioAgenda, SaudacaoAniversario, CreateWhatsappCampaignPayload,
   EventoAgenda, EventoAgendaDetalhe,
-  TabelaEmpreendimentoResumo, TabelaEmpreendimentoDetalhe, CelulaAlterada,
+  TabelaEmpreendimentoResumo, TabelaEmpreendimentoDetalhe, CelulaAlterada, LembreteCompromisso,
 } from '../types';
 
 export type { CreateCorretorPayload, AppUser } from './mappers.js';
@@ -703,6 +703,22 @@ export const notificacoesApi = {
   markAllRead: (): Promise<void> => apiFetch<void>('/api/notificacoes/marcar-todas-lidas', { method: 'POST' }),
   /** Some da lista de quem apagou — cada notificação pertence a uma pessoa só. */
   remove: (id: string): Promise<void> => apiFetch<void>(`/api/notificacoes/${id}`, { method: 'DELETE' }),
+
+  /**
+   * Lembretes de compromisso que a pessoa ainda não reconheceu — alimentam o modal.
+   *
+   * Separado de `list` de propósito: a lista do sininho traz 50 itens de todos os tipos e é
+   * marcada como lida inteira ao abrir. O modal precisa só do que ainda não teve "Ciente".
+   */
+  lembretes: (): Promise<LembreteCompromisso[]> =>
+    apiFetch<LembreteCompromisso[]>('/api/notificacoes/lembretes'),
+
+  /** Encerra os lembretes informados. Manda os ids vistos, não "todos". */
+  darCiente: (ids: string[]): Promise<{ reconhecidos: number }> =>
+    apiFetch<{ reconhecidos: number }>('/api/notificacoes/lembretes/ciente', {
+      method: 'POST',
+      body: { ids },
+    }),
 };
 
 // ── Empreendimentos & Unidades ────────────────────────────────────────

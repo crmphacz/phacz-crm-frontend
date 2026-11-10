@@ -13,6 +13,7 @@ import { CompanyProfileView } from './components/CompanyProfileView';
 import { PipelineRulesView } from './components/PipelineRulesView';
 import { IndicadoresView } from './components/IndicadoresView';
 import { SommarView } from './components/SommarView';
+import { LembreteCompromissoModal } from './components/LembreteCompromissoModal';
 import { LoginScreen } from './components/LoginScreen';
 import { ChangePasswordScreen } from './components/ChangePasswordScreen';
 import { ResetPasswordScreen } from './components/ResetPasswordScreen';
@@ -171,6 +172,9 @@ export default function App() {
       {showNewCorretorModal && <NewCorretorModal />}
       {privacyModal}
       <SessionExpiredModal />
+      {/* Aviso de compromisso prestes a começar. Fica no topo da árvore, e não dentro da
+          Agenda: o lembrete precisa alcançar quem está em qualquer tela do CRM. */}
+      <LembreteCompromissoModal />
       <ToastContainer />
     </div>
   );

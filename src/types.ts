@@ -616,6 +616,28 @@ export type TipoNotificacao =
   | 'aniversario_hoje'
   | 'aniversario_enviado';
 
+/**
+ * Lembrete de um compromisso da agenda, 15 minutos antes de começar.
+ *
+ * Vem do endpoint próprio `/api/notificacoes/lembretes`, que traz só o que ainda não teve
+ * "Ciente" — e já embute o compromisso, para o modal não precisar buscar a agenda do dia.
+ */
+export interface LembreteCompromisso {
+  id: string;
+  titulo: string;
+  mensagem: string;
+  criadoEm: string;
+  interacao: {
+    id: string;
+    data: string;
+    dataFim: string | null;
+    tipo: TipoInteracao;
+    resumo: string;
+    canceladoEm: string | null;
+    corretor: { id: string; nomeCorretor: string } | null;
+  } | null;
+}
+
 export interface Notificacao {
   id: string;
   tipo: TipoNotificacao;
