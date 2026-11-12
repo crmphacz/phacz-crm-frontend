@@ -281,6 +281,16 @@ interface StoreState {
    */
   cancelarAtividade: (corretorId: string, interacaoId: string, motivo: string) => Promise<void>;
   reverterCancelamentoAtividade: (corretorId: string, interacaoId: string) => Promise<void>;
+  /**
+   * Preenche o perfil do parceiro num treinamento já registrado. Os cinco critérios só são
+   * observáveis durante o encontro, então não são pedidos no agendamento — o treinamento nasce
+   * sem eles e os recebe depois, pelo histórico.
+   */
+  salvarPerfilTreinamento: (
+    corretorId: string,
+    interacaoId: string,
+    criterios: Record<string, boolean>
+  ) => Promise<void>;
 
   // Proposta
   addProposta: (corretorId: string, proposta: Omit<Proposta, 'id'>, arquivo?: File) => Promise<void>;
@@ -805,6 +815,12 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   reverterCancelamentoAtividade: async (corretorId, interacaoId) => {
     await corretoresApi.reverterCancelamentoAtividade(corretorId, interacaoId);
+    const refreshed = await corretoresApi.get(corretorId);
+    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
+  },
+
+  salvarPerfilTreinamento: async (corretorId, interacaoId, criterios) => {
+    await corretoresApi.salvarPerfilTreinamento(corretorId, interacaoId, criterios);
     const refreshed = await corretoresApi.get(corretorId);
     set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },

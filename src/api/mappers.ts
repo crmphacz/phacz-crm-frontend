@@ -164,6 +164,13 @@ export interface ApiInteracao {
   propostaId: string | null;
   modalidade: string | null;
   empreendimento: string | null;
+  // Perfil do parceiro treinado. Vem em todo tipo de atividade (são colunas da tabela), mas só
+  // significa alguma coisa no treinamento.
+  trnAcimaDeTresMilhoes?: boolean | null;
+  trnClienteDeCarteira?: boolean | null;
+  trnVendeOTicket?: boolean | null;
+  trnConheceARegiao?: boolean | null;
+  trnTemFeatDaEmpresa?: boolean | null;
 }
 
 export interface ApiProposta {
@@ -306,8 +313,18 @@ function mapInteracaoFromApi(i: ApiInteracao): Interacao {
     canceladoEm: i.canceladoEm ?? undefined,
     motivoCancelamento: i.motivoCancelamento || undefined,
     responsavel: i.responsavel?.nome ?? 'Sistema',
+    // Quem REALIZOU a atividade. A tela usa para saber se o usuário logado é o dono do
+    // compromisso — é ele quem pode preencher o perfil do treinamento pela própria agenda,
+    // mesmo quando o card já passou para outra pessoa.
+    responsavelId: i.responsavelId ?? undefined,
     etapa: i.etapa,
     propostaId: i.propostaId ?? undefined,
+    // Perfil do parceiro treinado — preenchido DEPOIS do treinamento, no histórico.
+    trnAcimaDeTresMilhoes: i.trnAcimaDeTresMilhoes ?? false,
+    trnClienteDeCarteira: i.trnClienteDeCarteira ?? false,
+    trnVendeOTicket: i.trnVendeOTicket ?? false,
+    trnConheceARegiao: i.trnConheceARegiao ?? false,
+    trnTemFeatDaEmpresa: i.trnTemFeatDaEmpresa ?? false,
   };
 }
 

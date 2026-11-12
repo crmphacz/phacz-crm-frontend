@@ -268,6 +268,22 @@ export const corretoresApi = {
   reverterCancelamentoAtividade: (id: string, interacaoId: string) =>
     apiFetch<void>(`/api/corretores/${id}/interacoes/${interacaoId}/cancelamento`, { method: 'DELETE' }),
 
+  /**
+   * Preenche o perfil do parceiro num treinamento JÁ REGISTRADO.
+   *
+   * Os cinco critérios só são observáveis durante o encontro: quem agenda na quarta para a
+   * sexta não sabe se o parceiro tem cliente de carteira. Por isso o treinamento é marcado
+   * sem eles e volta a aceitá-los depois — é aqui que o indicador do bimestre se completa.
+   *
+   * Manda sempre os cinco: desmarcar precisa valer tanto quanto marcar, e omitir um campo
+   * seria indistinguível de desmarcá-lo.
+   */
+  salvarPerfilTreinamento: (id: string, interacaoId: string, criterios: Record<string, boolean>) =>
+    apiFetch<void>(`/api/corretores/${id}/interacoes/${interacaoId}/perfil-treinamento`, {
+      method: 'PATCH',
+      body: criterios,
+    }),
+
   addProposta: (id: string, data: Omit<Proposta, 'id'>, arquivo?: File) => {
     if (!arquivo) {
       return apiFetch(`/api/corretores/${id}/propostas`, { method: 'POST', body: data });

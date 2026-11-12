@@ -516,6 +516,30 @@ export const CRITERIOS_TREINAMENTO = [
   { campo: 'trnTemFeatDaEmpresa', label: 'Tem o feat da empresa' },
 ] as const;
 
+/**
+ * O perfil do parceiro só é perguntado depois que o treinamento começou.
+ *
+ * Quem marca o treinamento na quarta para a sexta não tem como saber se o parceiro tem cliente
+ * de carteira ou se já vende a região — essa conversa é o treinamento. Pedir no agendamento
+ * dava uma de duas coisas ruins: o treinamento nascia com as cinco caixas vazias e ninguém
+ * voltava nele (e aí nunca contava no indicador do bimestre), ou a pessoa chutava para não
+ * deixar em branco. Então o formulário de agendamento não mostra as caixas, e elas aparecem no
+ * histórico da atividade a partir do horário marcado.
+ *
+ * O corte é o INÍCIO do compromisso, não o fim: quem sai do treinamento às 11h não deveria
+ * esperar o relógio bater o término agendado para registrar o que acabou de ouvir.
+ */
+export function treinamentoJaComecou(data: string, agora: Date = new Date()): boolean {
+  const inicio = new Date(data);
+  if (Number.isNaN(inicio.getTime())) return true;
+  return inicio.getTime() <= agora.getTime();
+}
+
+/** Quantos dos cinco critérios estão marcados numa atividade de treinamento. */
+export function criteriosMarcados(inter: Record<string, unknown>): string[] {
+  return CRITERIOS_TREINAMENTO.filter((c) => inter[c.campo] === true).map((c) => c.campo);
+}
+
 /** Tipos de atividade em que perguntar "como aconteceu" faz diferença no placar. */
 export const PEDE_MODALIDADE = new Set<TipoInteracao>([
   'visita', 'visita_obra', 'visita_imobiliaria', 'reuniao', 'treinamento',

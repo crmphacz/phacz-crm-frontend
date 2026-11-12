@@ -5,7 +5,7 @@ import {
   Users, Clock, Tag, MessageSquare, FileText, Banknote,
   Plus, ExternalLink, CheckCircle2, XCircle, AlertCircle,
   Trash2, ArrowUpRight, Archive, Trophy, Link, Phone,
-  Edit3, CalendarClock, CheckCheck, Paperclip, Download,
+  Edit3, CalendarClock, CheckCheck, Paperclip, Download, Circle,
 } from 'lucide-react';
 import { useStore, useSelectedCorretor } from '../store';
 import { STAGES, CADENCIAS, ETAPA_CLIENTES_PERDIDOS, ETAPA_FECHAMENTO, ETAPA_POS_VENDA } from '../data';
@@ -15,7 +15,7 @@ import {
   validateForStageMove, formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL, maskCPF,
   camposPendentesDoErro, mensagemEtapaBloqueada, STATUS_UNIDADE_CONFIG,
   MODALIDADE_LABEL, PEDE_MODALIDADE, PEDE_EMPREENDIMENTO, PEDE_PERIODO, PERMITE_VARIOS_DIAS,
-  CRITERIOS_TREINAMENTO, PEDE_QUALIFICADO,
+  CRITERIOS_TREINAMENTO, PEDE_QUALIFICADO, treinamentoJaComecou, criteriosMarcados,
   PODE_CANCELAR,
   diaDeDatetimeLocal, horaDeDatetimeLocal, juntarDiaEHora, somarHorasDatetimeLocal,
   formatPeriodoAtividade, nomeDoAnexo, anexoEhAudio, ACCEPT_ANEXO_ATIVIDADE,
@@ -32,7 +32,7 @@ import { WhatsappSendModal } from './WhatsappSendModal';
 import { CancelarTreinamentoModal } from './CancelarTreinamentoModal';
 import { WhatsappIcon } from './WhatsappIcon';
 import { Spinner, InlineLoader } from './Spinner';
-import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade } from '../types';
+import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade, Interacao } from '../types';
 
 function alertError(err: unknown, fallback: string) {
   alert(err instanceof ApiError ? err.message : fallback);
@@ -75,6 +75,7 @@ export function CorretorDetailPanel() {
   const moveCorretor = useStore((s) => s.moveCorretor);
   const addInteracao = useStore((s) => s.addInteracao);
   const reverterCancelamentoAtividade = useStore((s) => s.reverterCancelamentoAtividade);
+  const salvarPerfilTreinamento = useStore((s) => s.salvarPerfilTreinamento);
   const removeClienteFinal = useStore((s) => s.removeClienteFinal);
   const addProposta = useStore((s) => s.addProposta);
   const updateProposta = useStore((s) => s.updateProposta);
@@ -222,6 +223,11 @@ export function CorretorDetailPanel() {
   // voltando atrás (o botão fica em "Reativando…" enquanto o servidor responde).
   const [cancelandoInteracaoId, setCancelandoInteracaoId] = useState<string | null>(null);
   const [revertendoInteracaoId, setRevertendoInteracaoId] = useState<string | null>(null);
+  // Perfil do parceiro preenchido DEPOIS do treinamento, direto no histórico: qual atividade
+  // está com as caixas abertas, o que está marcado nelas e se está salvando.
+  const [perfilInteracaoId, setPerfilInteracaoId] = useState<string | null>(null);
+  const [perfilCriterios, setPerfilCriterios] = useState<string[]>([]);
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
   useEffect(() => {
     if (showActivityForm) {
       setActResponsavelId(currentUser?.id ?? '');
@@ -350,6 +356,16 @@ export function CorretorDetailPanel() {
   const variosDias = PERMITE_VARIOS_DIAS.has(actType);
   const periodoInvalido = pedePeriodo && (!actData || !actDataFim || actDataFim <= actData);
 
+  /**
+   * O perfil do parceiro só cabe no formulário quando o treinamento já começou — isto é,
+   * quando ele está sendo REGISTRADO, não agendado. Ver treinamentoJaComecou em utils.ts.
+   *
+   * Agendar é o caso comum: o SDR marca na quarta o treinamento de sexta, e nessa hora não tem
+   * como responder se o parceiro tem cliente de carteira. As caixas voltam no histórico da
+   * atividade a partir do horário marcado.
+   */
+  const perfilNoFormulario = actType === 'treinamento' && treinamentoJaComecou(actData);
+
   /** Troca o dia mantendo as horas — e leva o fim para o mesmo dia, nos tipos de um só dia. */
   function trocarDiaDoCompromisso(dia: string) {
     const inicio = juntarDiaEHora(dia, horaDeDatetimeLocal(actData) || '09:00');
@@ -410,9 +426,11 @@ export function CorretorDetailPanel() {
         modalidade: PEDE_MODALIDADE.has(actType) && actModalidade ? actModalidade : undefined,
         empreendimento: PEDE_EMPREENDIMENTO.has(actType) && actEmpreendimento ? actEmpreendimento : undefined,
         atendimentoQualificado: PEDE_QUALIFICADO.has(actType) ? actQualificado : undefined,
-        // Só no treinamento: nos outros tipos as caixas nem aparecem, e mandar o que não foi
-        // perguntado gravaria critério avaliado por ninguém.
-        ...(actType === 'treinamento'
+        // Só quando as caixas foram realmente mostradas — treinamento já começado. Mandar o
+        // que não foi perguntado gravaria critério avaliado por ninguém; e sem a condição
+        // aqui, quem marcasse as caixas e DEPOIS empurrasse a data para a semana que vem
+        // levaria junto o que marcou, agora sem ter mais como ver nem corrigir.
+        ...(perfilNoFormulario
           ? Object.fromEntries(CRITERIOS_TREINAMENTO.map((c) => [c.campo, actCriterios.includes(c.campo)]))
           : {}),
       });
@@ -425,6 +443,36 @@ export function CorretorDetailPanel() {
       alertError(err, 'Não foi possível registrar a atividade.');
     } finally {
       setSavingActivity(false);
+    }
+  }
+
+  /** Abre as caixas do perfil já com o que estiver gravado naquele treinamento. */
+  function abrirPerfilTreinamento(inter: Interacao) {
+    setPerfilInteracaoId(inter.id);
+    setPerfilCriterios(criteriosMarcados(inter as unknown as Record<string, unknown>));
+  }
+
+  /**
+   * Grava o perfil do parceiro num treinamento já registrado.
+   *
+   * Manda sempre os cinco critérios, marcados e desmarcados: quem marcou por engano e corrige
+   * depois do encontro precisa conseguir tirar — senão o indicador do bimestre conta um
+   * treinamento qualificado que não foi.
+   */
+  async function handleSalvarPerfilTreinamento(interacaoId: string) {
+    if (salvandoPerfil) return;
+    setSalvandoPerfil(true);
+    try {
+      await salvarPerfilTreinamento(
+        corretor.id,
+        interacaoId,
+        Object.fromEntries(CRITERIOS_TREINAMENTO.map((c) => [c.campo, perfilCriterios.includes(c.campo)]))
+      );
+      setPerfilInteracaoId(null);
+    } catch (err) {
+      alertError(err, 'Não foi possível salvar o perfil do parceiro.');
+    } finally {
+      setSalvandoPerfil(false);
     }
   }
 
@@ -1486,11 +1534,28 @@ export function CorretorDetailPanel() {
                       </span>
                     </label>
                   )}
+                  {/* Treinamento AGENDADO: as caixas do perfil não cabem aqui, porque os dados
+                      vêm do encontro. Em vez de sumir sem explicação, o aviso diz onde elas
+                      vão aparecer — do contrário a pessoa acharia que o campo se perdeu. */}
+                  {actType === 'treinamento' && !perfilNoFormulario && (
+                    <div
+                      className="rounded-xl p-3 text-xs"
+                      style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af' }}
+                    >
+                      <strong>O perfil do parceiro você preenche depois do treinamento.</strong>
+                      <span className="block mt-1" style={{ color: '#1d4ed8' }}>
+                        Os cinco critérios (cliente de carteira, ticket, região…) são o que você
+                        descobre no encontro. A partir do horário marcado, eles aparecem aqui no
+                        histórico desta atividade, prontos para marcar — e é o que conta no
+                        indicador de Treinamentos Qualificados do bimestre.
+                      </span>
+                    </div>
+                  )}
                   {/* Perfil do parceiro treinado. Alimenta o indicador "Treinamentos
                       Qualificados" do SDR, que conta o treinamento quando os cinco critérios
                       estão marcados — por isso o contador diz quantos faltam em vez de deixar
                       a pessoa descobrir só na apuração do bimestre. */}
-                  {actType === 'treinamento' && (
+                  {perfilNoFormulario && (
                     <div className="rounded-xl p-3" style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a' }}>
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <label className="text-xs font-semibold" style={{ color: '#92400e' }}>
@@ -1638,6 +1703,14 @@ export function CorretorDetailPanel() {
                   const cancelado = Boolean(inter.canceladoEm);
                   const podeCancelar = PODE_CANCELAR.has(inter.tipo);
                   const revertendo = revertendoInteracaoId === inter.id;
+                  // Perfil do parceiro: só no treinamento que JÁ COMEÇOU e não foi cancelado.
+                  // No treinamento ainda por acontecer não há o que responder, e no cancelado
+                  // não houve encontro — em nenhum dos dois o perfil existe para ser observado.
+                  const pedePerfil =
+                    inter.tipo === 'treinamento' && !cancelado && treinamentoJaComecou(inter.data);
+                  const marcados = criteriosMarcados(inter as unknown as Record<string, unknown>);
+                  const perfilCompleto = marcados.length === CRITERIOS_TREINAMENTO.length;
+                  const editandoPerfil = perfilInteracaoId === inter.id;
                   return (
                     <div
                       key={inter.id}
@@ -1730,6 +1803,117 @@ export function CorretorDetailPanel() {
                             <span className="block text-[11px] mt-0.5" style={{ color: '#b91c1c' }}>
                               Cancelado {formatRelativeTime(inter.canceladoEm!)} · não conta no placar de metas
                             </span>
+                          </div>
+                        )}
+                        {/* Perfil do parceiro, preenchido DEPOIS do treinamento.
+                            É aqui que o indicador "Treinamentos Qualificados" do bimestre se
+                            completa: no agendamento as caixas não aparecem, porque os cinco
+                            critérios são justamente o que a pessoa descobre no encontro. */}
+                        {pedePerfil && (
+                          <div
+                            className="mt-2 px-2.5 py-2 rounded-lg text-xs"
+                            style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a' }}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold" style={{ color: '#92400e' }}>
+                                Perfil do parceiro
+                              </span>
+                              <span
+                                className="font-bold flex-shrink-0"
+                                style={{ color: perfilCompleto ? '#166534' : '#92400e' }}
+                              >
+                                {perfilCompleto
+                                  ? 'Conta como qualificado'
+                                  : `${marcados.length} de ${CRITERIOS_TREINAMENTO.length}`}
+                              </span>
+                            </div>
+
+                            {editandoPerfil ? (
+                              <>
+                                <div className="space-y-1.5 mt-2">
+                                  {CRITERIOS_TREINAMENTO.map((c) => (
+                                    <label
+                                      key={c.campo}
+                                      className="flex items-center gap-2 text-gray-700 cursor-pointer"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={perfilCriterios.includes(c.campo)}
+                                        onChange={(e) =>
+                                          setPerfilCriterios((atual) =>
+                                            e.target.checked
+                                              ? [...atual, c.campo]
+                                              : atual.filter((x) => x !== c.campo)
+                                          )
+                                        }
+                                      />
+                                      {c.label}
+                                    </label>
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-2 mt-2.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSalvarPerfilTreinamento(inter.id)}
+                                    disabled={salvandoPerfil}
+                                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                                    style={{ backgroundColor: '#d55006' }}
+                                  >
+                                    {salvandoPerfil && <Spinner size={11} />}
+                                    {salvandoPerfil ? 'Salvando…' : 'Salvar perfil'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPerfilInteracaoId(null)}
+                                    disabled={salvandoPerfil}
+                                    className="px-2 py-1.5 rounded-lg text-gray-500 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                {marcados.length === 0 ? (
+                                  <p className="mt-1" style={{ color: '#a16207' }}>
+                                    Ainda não preenchido. Agora que o treinamento aconteceu, marque
+                                    o que você viu do parceiro.
+                                  </p>
+                                ) : (
+                                  <ul className="mt-1.5 space-y-0.5">
+                                    {CRITERIOS_TREINAMENTO.map((c) => {
+                                      const temCriterio = marcados.includes(c.campo);
+                                      return (
+                                        <li
+                                          key={c.campo}
+                                          className="flex items-center gap-1.5"
+                                          style={{ color: temCriterio ? '#166534' : '#9ca3af' }}
+                                        >
+                                          {temCriterio ? (
+                                            <CheckCircle2 size={11} className="flex-shrink-0" />
+                                          ) : (
+                                            <Circle size={11} className="flex-shrink-0" />
+                                          )}
+                                          {c.label}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+                                {!atividadeBloqueada && (
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirPerfilTreinamento(inter)}
+                                    className="mt-2 font-semibold hover:underline"
+                                    style={{ color: '#b45309' }}
+                                  >
+                                    {marcados.length === 0
+                                      ? 'Preencher perfil do parceiro'
+                                      : 'Editar perfil do parceiro'}
+                                  </button>
+                                )}
+                              </>
+                            )}
                           </div>
                         )}
                         <p className="text-xs text-gray-400 mt-0.5">por {inter.responsavel}</p>
