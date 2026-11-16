@@ -475,6 +475,11 @@ export interface CreateCorretorPayload {
   canalOrigem: string;
   responsavelSDRId?: string;
   observacoes?: string;
+  /**
+   * Confirmação de quem está na tela para cadastrar mesmo havendo um corretor com o mesmo
+   * telefone ou CPF. Sem ela, o servidor recusa com 409 e devolve o card encontrado.
+   */
+  permitirDuplicado?: boolean;
 }
 
 export function mapCreateCorretorToApi(payload: CreateCorretorPayload) {

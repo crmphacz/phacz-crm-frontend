@@ -31,6 +31,23 @@ interface NewCorretorModalProps {
   zIndex?: number;
 }
 
+/** O corretor já cadastrado que o servidor devolve ao recusar a criação. */
+interface DuplicadoEncontrado {
+  id: string;
+  nome: string;
+  imobiliaria?: string | null;
+  etapa?: number;
+  /** Qual campo bateu: "telefone" ou "CPF". */
+  chave: string;
+}
+
+/** Lê o card existente que vem no 409; nulo quando o erro é outra coisa. */
+function duplicadoDoErro(err: unknown): DuplicadoEncontrado | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const d = (err.details as { duplicado?: DuplicadoEncontrado } | undefined)?.duplicado;
+  return d?.id ? d : null;
+}
+
 export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModalProps = {}) {
   const setShowNewCorretorModal = useStore((s) => s.setShowNewCorretorModal);
   const addCorretor = useStore((s) => s.addCorretor);
@@ -118,6 +135,17 @@ export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModa
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [imobiliariaMatches, setImobiliariaMatches] = useState<ImobiliariaMatch[]>([]);
+  /**
+   * Corretor já cadastrado com o mesmo telefone ou CPF, apontado pelo servidor.
+   *
+   * Enquanto estiver preenchido, o cadastro fica barrado e a tela mostra QUEM é e ONDE está —
+   * "já existe" sem dizer onde obriga a procurar na mão, e procurar é o passo que se pula.
+   */
+  const [duplicado, setDuplicado] = useState<DuplicadoEncontrado | null>(null);
+
+  // Corrigiu o número (ou o CPF)? O aviso sai e o botão volta a valer. Sem isto, quem digitou
+  // errado ficaria com o formulário travado até fechar e começar de novo.
+  useEffect(() => { setDuplicado(null); }, [telefone, whatsapp, cpf]);
 
   useEffect(() => {
     if (!canal && canaisOrigem.length > 0) setCanal(canaisOrigem[0].nome);
@@ -160,7 +188,7 @@ export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModa
     return e;
   }
 
-  async function handleSubmit() {
+  async function handleSubmit({ mesmoAssim = false }: { mesmoAssim?: boolean } = {}) {
     const e = validate();
     if (Object.keys(e).length > 0) {
       setErrors(e);
@@ -168,8 +196,10 @@ export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModa
     }
 
     setSubmitting(true);
+    setDuplicado(null);
     try {
       const id = await addCorretor({
+        permitirDuplicado: mesmoAssim,
         nomeCorretor: nome.trim(),
         telefoneCorretor: telefone.trim(),
         whatsappCorretor: whatsapp.trim() || telefone.trim(),
@@ -218,10 +248,25 @@ export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModa
       if (onCreated) onCreated(nome.trim());
       else setSelectedCorretor(id);
     } catch (err) {
+      // 409 com o card encontrado: não é "deu erro", é "este corretor já existe". Vira um
+      // painel dentro do formulário, com o que ele é e o que dá para fazer — um alert() diria
+      // a mesma frase e fecharia, deixando a pessoa sem nenhuma das duas saídas.
+      const achado = duplicadoDoErro(err);
+      if (achado) {
+        setDuplicado(achado);
+        return;
+      }
       alert(err instanceof ApiError ? err.message : 'Não foi possível criar o corretor. Tente novamente.');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  /** Fecha o formulário e abre o card que já existe. */
+  function abrirDuplicado() {
+    if (!duplicado) return;
+    fechar();
+    setSelectedCorretor(duplicado.id);
   }
 
   return (
@@ -525,6 +570,41 @@ export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModa
           </FormSection>
         </div>
 
+        {/* Corretor já cadastrado: o caminho principal é ABRIR o que existe, não insistir. */}
+        {duplicado && (
+          <div className="px-4 sm:px-6 py-3 border-t" style={{ borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
+            <p className="text-sm font-bold" style={{ color: '#991b1b' }}>
+              Este corretor já está cadastrado.
+            </p>
+            <p className="text-xs mt-1" style={{ color: '#b91c1c' }}>
+              Mesmo {duplicado.chave}: <strong>{duplicado.nome}</strong>
+              {duplicado.imobiliaria ? ` (${duplicado.imobiliaria})` : ''}
+              {duplicado.etapa ? ` · etapa ${duplicado.etapa}` : ''}.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 mt-2.5">
+              <button
+                type="button"
+                onClick={abrirDuplicado}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-opacity hover:opacity-90"
+                style={{ backgroundColor: '#b91c1c' }}
+              >
+                Abrir o cadastro existente
+              </button>
+              {/* Saída para o caso legítimo — homônimo com número reaproveitado acontece. Fica
+                  discreta de propósito: é a exceção, não o caminho esperado. */}
+              <button
+                type="button"
+                onClick={() => void handleSubmit({ mesmoAssim: true })}
+                disabled={submitting}
+                className="text-xs font-semibold underline disabled:opacity-50"
+                style={{ color: '#b91c1c' }}
+              >
+                {submitting ? 'Cadastrando…' : 'Não é a mesma pessoa, cadastrar assim mesmo'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-t bg-gray-50 rounded-b-2xl" style={{ borderColor: '#e5e7eb' }}>
           <button
@@ -534,8 +614,8 @@ export function NewCorretorModal({ onCreated, onClose, zIndex }: NewCorretorModa
             Cancelar
           </button>
           <button
-            onClick={handleSubmit}
-            disabled={submitting}
+            onClick={() => void handleSubmit()}
+            disabled={submitting || Boolean(duplicado)}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
             style={{ backgroundColor: '#d55006' }}
           >
