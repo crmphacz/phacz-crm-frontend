@@ -523,9 +523,19 @@ export const whatsappApi = {
 // de 24h é recusado), então a campanha sempre aponta para um template já aprovado.
 
 export const whatsappBroadcastApi = {
+  /**
+   * `configurado` responde "as credenciais da Meta existem no servidor?"; `erro` responde "a
+   * Meta aceitou a consulta?". São coisas diferentes, e misturá-las fazia a tela acusar falta
+   * de configuração quando o que havia era token sem permissão ou vencido.
+   */
   templates: () =>
-    apiFetch<{ configurado: boolean; templates: ApiWhatsappTemplate[] }>('/api/whatsapp/broadcast/templates')
-      .then((r) => ({ configurado: r.configurado, templates: r.templates.map(mapWhatsappTemplateFromApi) })),
+    apiFetch<{ configurado: boolean; templates: ApiWhatsappTemplate[]; erro?: string }>(
+      '/api/whatsapp/broadcast/templates'
+    ).then((r) => ({
+      configurado: r.configurado,
+      templates: r.templates.map(mapWhatsappTemplateFromApi),
+      erro: r.erro ?? '',
+    })),
 
   campaigns: () =>
     apiFetch<ApiWhatsappCampaign[]>('/api/whatsapp/broadcast/campaigns')

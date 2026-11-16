@@ -181,6 +181,8 @@ interface StoreState {
   whatsappTemplates: WhatsappTemplate[];
   whatsappCampaigns: WhatsappCampaign[];
   whatsappBroadcastConfigurado: boolean;
+  /** Motivo pelo qual a Meta recusou listar os templates. Vazio quando está tudo certo. */
+  whatsappBroadcastErro: string;
   whatsappBroadcastLoaded: boolean;
 
   chatMessages: ChatMessage[];
@@ -423,6 +425,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   whatsappTemplates: [],
   whatsappCampaigns: [],
   whatsappBroadcastConfigurado: false,
+  whatsappBroadcastErro: '',
   whatsappBroadcastLoaded: false,
 
   chatMessages: [],
@@ -613,6 +616,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({
       whatsappTemplates: templates.templates,
       whatsappBroadcastConfigurado: templates.configurado,
+      whatsappBroadcastErro: templates.erro,
       whatsappCampaigns: campaigns,
       whatsappBroadcastLoaded: true,
     });

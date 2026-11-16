@@ -22,6 +22,11 @@ const STATUS_CONFIG = {
 export function WhatsappBroadcastView() {
   const campanhas = useStore((s) => s.whatsappCampaigns);
   const configurado = useStore((s) => s.whatsappBroadcastConfigurado);
+  const erroMeta = useStore((s) => s.whatsappBroadcastErro);
+  // Sem template aprovado não há disparo possível: a Meta só deixa iniciar conversa por
+  // template. Vale dizer isso aqui, em vez de deixar o modal abrir numa lista vazia.
+  const templatesVazios = useStore((s) => s.whatsappTemplates.length === 0);
+  const podeDisparar = configurado && !erroMeta && !templatesVazios;
   const loadWhatsappBroadcast = useStore((s) => s.loadWhatsappBroadcast);
   const currentUser = useStore((s) => s.currentUser);
   const showToast = useStore((s) => s.showToast);
@@ -99,7 +104,7 @@ export function WhatsappBroadcastView() {
           {!somenteLeitura && (
             <button
               onClick={() => setModalAberto(true)}
-              disabled={!configurado}
+              disabled={!podeDisparar}
               className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-colors flex-shrink-0 disabled:opacity-50"
               style={{ backgroundColor: '#059669' }}
             >
@@ -108,6 +113,9 @@ export function WhatsappBroadcastView() {
           )}
         </div>
 
+        {/* Dois avisos diferentes, porque são dois problemas diferentes — e trocá-los custa
+            caro: antes, token vencido ou sem permissão caía no aviso de "falta configurar", e
+            mandava conferir variáveis de ambiente que já estavam certas. */}
         {!configurado && (
           <div className="rounded-2xl border px-4 py-3 flex items-start gap-2.5" style={{ borderColor: '#fde68a', backgroundColor: '#fffbeb' }}>
             <AlertTriangle size={16} style={{ color: '#b45309' }} className="flex-shrink-0 mt-0.5" />
@@ -116,6 +124,37 @@ export function WhatsappBroadcastView() {
               <p className="text-xs mt-1">
                 Falta preencher, no ambiente do servidor, o token da Meta, o número dedicado aos disparos e o
                 identificador da conta (WABA) de onde vêm os templates aprovados.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {configurado && erroMeta && (
+          <div className="rounded-2xl border px-4 py-3 flex items-start gap-2.5" style={{ borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
+            <AlertTriangle size={16} style={{ color: '#b91c1c' }} className="flex-shrink-0 mt-0.5" />
+            <div className="text-sm min-w-0" style={{ color: '#991b1b' }}>
+              <p className="font-semibold">As credenciais estão no servidor, mas a Meta recusou a consulta.</p>
+              <p className="text-xs mt-1 break-words">
+                Resposta da Meta: <span className="font-semibold">{erroMeta}</span>
+              </p>
+              <p className="text-xs mt-1" style={{ color: '#b91c1c' }}>
+                Os suspeitos de sempre: token temporário que venceu (ele dura 24h — o de System User
+                não vence), token sem a permissão <span className="font-semibold">whatsapp_business_management</span>,
+                que é a exigida para LISTAR templates, ou a conta (WABA) não atribuída a esse usuário do sistema.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {configurado && !erroMeta && templatesVazios && (
+          <div className="rounded-2xl border px-4 py-3 flex items-start gap-2.5" style={{ borderColor: '#fde68a', backgroundColor: '#fffbeb' }}>
+            <AlertTriangle size={16} style={{ color: '#b45309' }} className="flex-shrink-0 mt-0.5" />
+            <div className="text-sm" style={{ color: '#92400e' }}>
+              <p className="font-semibold">Nenhum template aprovado na Meta ainda.</p>
+              <p className="text-xs mt-1">
+                A conexão está funcionando, mas não há template com status <span className="font-semibold">APROVADO</span> na
+                conta. Crie e submeta no painel da Meta (Gerenciador do WhatsApp → Modelos de mensagem); a
+                aprovação costuma sair em alguns minutos.
               </p>
             </div>
           </div>
