@@ -133,14 +133,16 @@ export function WhatsappBroadcastView() {
           <div className="rounded-2xl border px-4 py-3 flex items-start gap-2.5" style={{ borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
             <AlertTriangle size={16} style={{ color: '#b91c1c' }} className="flex-shrink-0 mt-0.5" />
             <div className="text-sm min-w-0" style={{ color: '#991b1b' }}>
-              <p className="font-semibold">As credenciais estão no servidor, mas a Meta recusou a consulta.</p>
+              <p className="font-semibold">As credenciais estão no servidor, mas a consulta aos templates falhou.</p>
               <p className="text-xs mt-1 break-words">
-                Resposta da Meta: <span className="font-semibold">{erroMeta}</span>
+                O que voltou: <span className="font-semibold">{erroMeta}</span>
               </p>
               <p className="text-xs mt-1" style={{ color: '#b91c1c' }}>
-                Os suspeitos de sempre: token temporário que venceu (ele dura 24h — o de System User
-                não vence), token sem a permissão <span className="font-semibold">whatsapp_business_management</span>,
-                que é a exigida para LISTAR templates, ou a conta (WABA) não atribuída a esse usuário do sistema.
+                Se a mensagem acima falar em <span className="font-semibold">token</span> ou{' '}
+                <span className="font-semibold">permissão</span>, é com quem administra a conta na Meta: token
+                temporário vence em 24h (o de System User não vence), e LISTAR templates exige a permissão{' '}
+                <span className="font-semibold">whatsapp_business_management</span>, diferente da que o envio usa.
+                Qualquer outra mensagem é configuração do servidor, não da Meta.
               </p>
             </div>
           </div>
