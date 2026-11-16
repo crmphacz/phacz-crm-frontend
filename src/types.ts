@@ -54,7 +54,13 @@ export interface ClienteFinal {
    */
   dataNascimento?: string | null;
   email?: string;
+  /**
+   * País de RESIDÊNCIA (ISO 3166-1 alfa-2), separado de `paisTelefone`: um brasileiro que mora
+   * em Portugal tem telefone +55 e endereço português. 'BR' em todo cliente antigo.
+   */
+  pais?: string;
   cidade?: string;
+  /** Sigla da UF no Brasil ("SC"); nome do estado/província fora dele ("Lisbon District"). */
   uf?: string;
   interesse: string;
   orcamento?: number;

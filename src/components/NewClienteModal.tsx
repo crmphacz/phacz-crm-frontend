@@ -5,10 +5,11 @@ import type { ClienteFinalComContexto } from '../store';
 import type { CanalOrigem } from '../types';
 import { mensagemDeErro } from '../api/client';
 import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials, maskCPF } from '../utils';
-import { PAIS_PADRAO, maskTelefone } from '../lib/paises';
+import { PAIS_PADRAO, PAISES, maskTelefone } from '../lib/paises';
 import { TelefoneInput } from './TelefoneInput';
 import { RodadaPickerModal, rotuloDaRodada } from './RodadaPickerModal';
-import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
+import { UF_OPTIONS } from '../lib/ibge';
+import { useEstados, useCidades, ehBrasil } from '../lib/localidades';
 import { Combobox } from './Combobox';
 
 interface NewClienteModalProps {
@@ -59,9 +60,21 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
     setTelefone((t) => (t ? maskTelefone(t, iso) : t));
   }
   const [email, setEmail] = useState(cliente?.email ?? '');
+  // País de RESIDÊNCIA, separado do país do telefone: um brasileiro que mora em Portugal tem
+  // telefone +55 e endereço português.
+  const [pais, setPais] = useState(cliente?.pais ?? PAIS_PADRAO);
   const [uf, setUf] = useState(cliente?.uf ?? '');
   const [cidade, setCidade] = useState(cliente?.cidade ?? '');
-  const cidadesOptions = useCidadesPorUf(uf);
+  const estadosOptions = useEstados(pais);
+  const cidadesOptions = useCidades(pais, uf);
+  const noBrasil = ehBrasil(pais);
+
+  /** Trocar de país invalida estado e cidade: "SC" não existe em Portugal. */
+  function trocarPaisResidencia(iso: string) {
+    setPais(iso);
+    setUf('');
+    setCidade('');
+  }
   const [interesse, setInteresse] = useState(cliente?.interesse ?? '');
   const [canalOrigem, setCanalOrigem] = useState<CanalOrigem>(cliente?.canalOrigem ?? '');
   const [rodadaId, setRodadaId] = useState<string>(cliente?.rodadaId ?? '');
@@ -149,8 +162,9 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
       // o backend manteria a data antiga — não haveria como apagar uma data digitada errada.
       dataNascimento: dataNascimento || null,
       email: email.trim() || undefined,
+      pais,
       cidade: cidade.trim() || undefined,
-      uf: uf || undefined,
+      uf: uf.trim() || undefined,
       interesse: interesse.trim(),
       orcamento: orcamento ? parseCurrencyBRL(orcamento) : undefined,
       observacoes: observacoes.trim() || undefined,
@@ -336,15 +350,39 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
                 </p>
               </div>
               <div>
-                <FormLabel>Estado</FormLabel>
+                <FormLabel>País</FormLabel>
                 <select
                   className="form-input"
-                  value={uf}
-                  onChange={(e) => { setUf(e.target.value); setCidade(''); }}
+                  value={pais}
+                  onChange={(e) => trocarPaisResidencia(e.target.value)}
                 >
-                  <option value="">Selecionar...</option>
-                  {UF_OPTIONS.map((u) => <option key={u.sigla} value={u.sigla}>{u.nome}</option>)}
+                  {PAISES.map((p) => (
+                    <option key={p.iso} value={p.iso}>{p.bandeira} {p.nome}</option>
+                  ))}
                 </select>
+              </div>
+              {/* No Brasil, as 27 UFs numa lista fechada, como sempre foi. Fora dele, os estados
+                  vêm de uma API pública e o campo aceita texto livre: a lista é sugestão, e um
+                  serviço de terceiro fora do ar não pode impedir o cadastro. */}
+              <div>
+                <FormLabel>{noBrasil ? 'Estado' : 'Estado / Província'}</FormLabel>
+                {noBrasil ? (
+                  <select
+                    className="form-input"
+                    value={uf}
+                    onChange={(e) => { setUf(e.target.value); setCidade(''); }}
+                  >
+                    <option value="">Selecionar...</option>
+                    {UF_OPTIONS.map((u) => <option key={u.sigla} value={u.sigla}>{u.nome}</option>)}
+                  </select>
+                ) : (
+                  <Combobox
+                    value={uf}
+                    onChange={(v) => { setUf(v); setCidade(''); }}
+                    options={estadosOptions.map((e) => ({ id: e.valor, label: e.label }))}
+                    placeholder="Buscar ou digitar..."
+                  />
+                )}
               </div>
               <div>
                 <FormLabel>Cidade</FormLabel>
@@ -355,6 +393,11 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
                   placeholder={uf ? 'Buscar cidade...' : 'Selecione o estado primeiro'}
                   disabled={!uf}
                 />
+                {!noBrasil && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Fora do Brasil os nomes vêm em inglês. Não achou? Pode digitar.
+                  </p>
+                )}
               </div>
               <div>
                 <FormLabel>Orçamento</FormLabel>

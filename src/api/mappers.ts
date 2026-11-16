@@ -137,6 +137,8 @@ export interface ApiClienteFinal {
   /** ISO completo vindo do banco; a tela usa só a parte da data. */
   dataNascimento: string | null;
   email: string | null;
+  /** País de RESIDÊNCIA (ISO-2), não o do telefone. */
+  pais: string | null;
   cidade: string | null;
   uf: string | null;
   interesse: string;
@@ -259,6 +261,7 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
     // escorregaria um dia dependendo do fuso — o mesmo cuidado que o backend toma ao ler o mês.
     dataNascimento: cf.dataNascimento ? cf.dataNascimento.slice(0, 10) : undefined,
     email: cf.email ?? undefined,
+    pais: cf.pais || 'BR',
     cidade: cf.cidade ?? undefined,
     uf: cf.uf ?? undefined,
     interesse: cf.interesse,
