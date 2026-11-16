@@ -32,6 +32,17 @@ export interface ClienteFinal {
   id: string;
   nome: string;
   telefone: string;
+  /**
+   * CPF do comprador, só com os dígitos — a tela aplica a máscara ao digitar e ao exibir.
+   *
+   * Opcional: nulo em todo cliente cadastrado antes do campo existir, e nem todo comprador tem
+   * (a base tem clientes com telefone estrangeiro). Quando preenchido, é a chave mais forte da
+   * checagem de cliente duplicado no servidor.
+   *
+   * Aceita `null` pelo mesmo motivo de `dataNascimento`: é assim que o formulário APAGA um CPF
+   * digitado errado, já que `undefined` sai do JSON e o backend manteria o valor antigo.
+   */
+  cpf?: string | null;
   /** País do telefone (ISO 3166-1 alfa-2). Define a máscara e o DDI. Padrão 'BR'. */
   paisTelefone?: string;
   /**

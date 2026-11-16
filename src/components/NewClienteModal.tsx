@@ -4,7 +4,7 @@ import { useStore } from '../store';
 import type { ClienteFinalComContexto } from '../store';
 import type { CanalOrigem } from '../types';
 import { mensagemDeErro } from '../api/client';
-import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials } from '../utils';
+import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials, maskCPF } from '../utils';
 import { PAIS_PADRAO, maskTelefone } from '../lib/paises';
 import { TelefoneInput } from './TelefoneInput';
 import { RodadaPickerModal, rotuloDaRodada } from './RodadaPickerModal';
@@ -45,6 +45,8 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
   const [corretorId, setCorretorId] = useState(cliente?.corretorId ?? initialCorretorId ?? '');
 
   const [nome, setNome] = useState(cliente?.nome ?? '');
+  // Guardado mascarado enquanto se digita; os dígitos são extraídos só no envio.
+  const [cpf, setCpf] = useState(cliente?.cpf ? maskCPF(cliente.cpf) : '');
   const [paisTelefone, setPaisTelefone] = useState(cliente?.paisTelefone ?? PAIS_PADRAO);
   const [dataNascimento, setDataNascimento] = useState(cliente?.dataNascimento ?? '');
   const [telefone, setTelefone] = useState(
@@ -119,6 +121,11 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
     if (!corretorId) e.corretor = 'Selecione o corretor responsável';
     if (!nome.trim()) e.nome = 'Nome é obrigatório';
     if (!telefone.trim()) e.telefone = 'Telefone é obrigatório';
+    // O CPF é opcional, mas pela metade não serve: não identifica ninguém e ainda entraria na
+    // checagem de cliente duplicado como se identificasse. Avisar aqui evita mandar o
+    // formulário inteiro para voltar com erro do servidor.
+    const cpfDigitos = cpf.replace(/\D/g, '');
+    if (cpfDigitos.length > 0 && cpfDigitos.length < 11) e.cpf = 'CPF incompleto — são 11 dígitos';
     return e;
   }
 
@@ -134,6 +141,9 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
     const data = {
       nome: nome.trim(),
       telefone: telefone.trim(),
+      // Só os dígitos, e `null` quando em branco — mesmo motivo da data de nascimento abaixo:
+      // na edição, `undefined` sai do JSON e o CPF antigo ficaria lá.
+      cpf: cpf.replace(/\D/g, '') || null,
       paisTelefone,
       // `null` e não `undefined` quando em branco: na EDIÇÃO, `undefined` é omitido do JSON e
       // o backend manteria a data antiga — não haveria como apagar uma data digitada errada.
@@ -296,6 +306,22 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
+              </div>
+              {/* CPF e data de nascimento lado a lado: são os dois dados de documento do
+                  comprador, e pareá-los deixa Estado e Cidade juntos na linha seguinte. */}
+              <div>
+                <FormLabel>CPF</FormLabel>
+                <input
+                  className={`form-input ${errors.cpf ? 'border-red-400' : ''}`}
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={cpf}
+                  onChange={(e) => { setCpf(maskCPF(e.target.value)); setErrors((er) => ({ ...er, cpf: '' })); }}
+                />
+                {errors.cpf
+                  ? <p className="text-xs text-red-500 mt-1">{errors.cpf}</p>
+                  : <p className="text-xs text-gray-400 mt-1">Ajuda a identificar o mesmo cliente trazido por dois corretores.</p>}
               </div>
               <div>
                 <FormLabel>Data de nascimento</FormLabel>

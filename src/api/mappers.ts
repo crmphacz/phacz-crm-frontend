@@ -131,6 +131,8 @@ export interface ApiClienteFinal {
   corretorId: string;
   nome: string;
   telefone: string;
+  /** Só os dígitos, como o banco guarda. A máscara é aplicada na tela. */
+  cpf: string | null;
   paisTelefone: string | null;
   /** ISO completo vindo do banco; a tela usa só a parte da data. */
   dataNascimento: string | null;
@@ -251,6 +253,7 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
     id: cf.id,
     nome: cf.nome,
     telefone: cf.telefone,
+    cpf: cf.cpf ?? undefined,
     paisTelefone: cf.paisTelefone ?? 'BR',
     // Só "YYYY-MM-DD": a data é gravada como meia-noite UTC, e converter para Date local aqui
     // escorregaria um dia dependendo do fuso — o mesmo cuidado que o backend toma ao ler o mês.
