@@ -8,7 +8,7 @@ import {
   Edit3, CalendarClock, CheckCheck, Paperclip, Download, Circle,
 } from 'lucide-react';
 import { useStore, useSelectedCorretor } from '../store';
-import { STAGES, CADENCIAS, ETAPA_CLIENTES_PERDIDOS, ETAPA_FECHAMENTO, ETAPA_POS_VENDA } from '../data';
+import { STAGES, TODAS_AS_ETAPAS, CADENCIAS, ETAPA_CLIENTES_PERDIDOS, ETAPA_FECHAMENTO, ETAPA_POS_VENDA } from '../data';
 import {
   formatRelativeTime, formatCurrency, TEMPERATURA_CONFIG, labelSemVender,
   TIPO_INTERACAO_CONFIG, getInitials, nowForDatetimeLocal, datetimeLocalToISO,
@@ -309,7 +309,12 @@ export function CorretorDetailPanel() {
    */
   async function moverParaEtapa(targetEtapa: number, verbo: 'Avançou' | 'Movido') {
     if (movingStage || targetEtapa === corretor.etapa) return;
-    if (targetEtapa < 1 || targetEtapa > 10) return;
+    // Derivado de STAGES, nunca um intervalo escrito à mão. Aqui havia `targetEtapa > 10`,
+    // de quando o funil terminava na etapa 10 — depois das duas renumerações (a Distribuição
+    // virou duas etapas, e Clientes Perdidos entrou no meio) o funil passou a ter 12, e este
+    // guarda engoliu em SILÊNCIO todo movimento para Fechamento (11) e Pós-venda (12): os
+    // botões de salto apareciam, o clique não fazia nada e nenhum erro era mostrado.
+    if (!TODAS_AS_ETAPAS.includes(targetEtapa)) return;
 
     const nomeEtapa = STAGES.find((s) => s.id === targetEtapa)?.nome ?? `Etapa ${targetEtapa}`;
     const pendentes = validateForStageMove(corretor, targetEtapa);
