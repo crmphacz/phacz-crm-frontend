@@ -631,7 +631,9 @@ export type TipoNotificacao =
   | 'rodada_recusada'
   | 'rodada_correcao_solicitada'
   | 'aniversario_hoje'
-  | 'aniversario_enviado';
+  | 'aniversario_enviado'
+  /** Proposta registrada, esperando o aceite da Diretoria — só ela decide. */
+  | 'proposta_pendente_aceite';
 
 /**
  * Lembrete de um compromisso da agenda, 15 minutos antes de começar.
@@ -663,6 +665,8 @@ export interface Notificacao {
   lida: boolean;
   rodadaId?: string;
   rodadaDataInicio?: string; // "YYYY-MM-DD", usado para abrir o mês certo no calendário
+  /** Card a abrir ao clicar — hoje só nos avisos de proposta pendente de aceite. */
+  corretorId?: string;
   criadoEm: string;
 }
 

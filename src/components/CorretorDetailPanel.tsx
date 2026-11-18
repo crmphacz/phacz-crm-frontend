@@ -27,7 +27,8 @@ import { empreendimentosApi, corretoresApi } from '../api/endpoints';
 import { Combobox } from './Combobox';
 import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
-import { canWriteCorretor, canRegistrarAtividade, canDeleteLeadClienteOuCard, canWhatsappCorretor, canCreateClienteFinal } from '../permissions';
+import { canWriteCorretor, canRegistrarAtividade, canDeleteLeadClienteOuCard, canWhatsappCorretor, canCreateClienteFinal, canDecidirProposta } from '../permissions';
+import { SommarTag } from './SommarTag';
 import { WhatsappSendModal } from './WhatsappSendModal';
 import { CancelarTreinamentoModal } from './CancelarTreinamentoModal';
 import { WhatsappIcon } from './WhatsappIcon';
@@ -67,6 +68,8 @@ export function CorretorDetailPanel() {
   // (ver canCreateClienteFinal). Sem isto o botão "Adicionar" da aba Clientes ficaria morto
   // para eles em card de terceiro, mesmo com a API aceitando o cadastro.
   const podeAdicionarCliente = !isReadOnly || canCreateClienteFinal(currentUser);
+  /** Aceitar/recusar proposta é da Diretoria — registrar continua de quem trabalha o card. */
+  const podeDecidirProposta = canDecidirProposta(currentUser);
   const canDelete = canDeleteLeadClienteOuCard(currentUser);
   const canaisOrigem = useStore((s) => s.canaisOrigem);
   const imobiliariasOptions = useStore((s) => s.imobiliariasOptions);
@@ -687,6 +690,9 @@ export function CorretorDetailPanel() {
                   >
                     {nomeExibidoNoCard(corretor)}
                   </h2>
+                  {/* Mesma tag do card. Repetir aqui é de propósito: quem abre o painel para
+                      lançar proposta precisa saber, ali, que aquilo vai pontuar. */}
+                  <SommarTag aderiuEm={corretor.sommarAdesaoEm ?? parentCorretor?.sommarAdesaoEm} compact />
                 </div>
                 {isNegocio && parentCorretor && (
                   <p className="text-xs text-gray-400 truncate">
@@ -2171,7 +2177,7 @@ export function CorretorDetailPanel() {
                         <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: st.bg, color: st.text }}>
                           {st.icon} {st.label}
                         </span>
-                        {p.status === 'pendente' && (
+                        {p.status === 'pendente' && podeDecidirProposta && (
                           <div className="flex gap-1">
                             <button onClick={() => handleUpdateProposta(p.id, 'aceita')} disabled={propostaBusyId !== null} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs rounded-lg font-bold text-white disabled:opacity-60" style={{ backgroundColor: '#059669' }}>
                               {propostaBusyId === p.id && <Spinner size={11} />}Aceitar
@@ -2180,6 +2186,14 @@ export function CorretorDetailPanel() {
                               {propostaBusyId === p.id && <Spinner size={11} />}Recusar
                             </button>
                           </div>
+                        )}
+                        {/* Quem não decide vê POR QUE não há botão. Esconder calado faria quem
+                            registrou a proposta achar que a tela quebrou — e a Diretoria já
+                            foi avisada no sino e por e-mail, então não há nada a cobrar aqui. */}
+                        {p.status === 'pendente' && !podeDecidirProposta && (
+                          <p className="text-[11px] text-gray-400 text-right max-w-[150px] leading-snug">
+                            O aceite é da Diretoria, que já foi avisada.
+                          </p>
                         )}
                       </div>
                     </div>

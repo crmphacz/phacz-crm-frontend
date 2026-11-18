@@ -382,6 +382,20 @@ export function canEditClienteFinal(user: UserProfile | null): boolean {
 }
 
 /**
+ * Quem ACEITA ou RECUSA uma proposta: só a Diretoria.
+ *
+ * REGISTRAR a proposta continua sendo de quem trabalha o card — o que saiu das mãos dele é a
+ * decisão sobre ela. Aceitar e recusar andam juntos: são o mesmo campo e a mesma decisão vista
+ * dos dois lados, e deixar a recusa aberta daria o mesmo poder pelo caminho mais curto.
+ *
+ * Espelha `podeDecidirProposta` no backend (lib/permissions.ts), que é quem de fato barra —
+ * aqui é só para a tela não oferecer um botão que a API vai recusar.
+ */
+export function canDecidirProposta(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora';
+}
+
+/**
  * Quem pode pré-visualizar o Pipeline com os olhos de outro cargo: Diretoria e SDR.
  *
  * É um recurso de CONFERÊNCIA, não de acesso: serve para a Diretoria e o SDR responderem

@@ -971,6 +971,7 @@ const tipoNotificacaoMap: Record<string, TipoNotificacao> = {
   RODADA_CORRECAO_SOLICITADA: 'rodada_correcao_solicitada',
   ANIVERSARIO_HOJE: 'aniversario_hoje',
   ANIVERSARIO_ENVIADO: 'aniversario_enviado',
+  PROPOSTA_PENDENTE_ACEITE: 'proposta_pendente_aceite',
 };
 
 export interface ApiNotificacao {
@@ -981,6 +982,7 @@ export interface ApiNotificacao {
   lida: boolean;
   rodadaId: string | null;
   rodada: { id: string; dataInicio: string } | null;
+  corretorId: string | null;
   criadoEm: string;
 }
 
@@ -993,6 +995,7 @@ export function mapNotificacaoFromApi(n: ApiNotificacao): Notificacao {
     lida: n.lida,
     rodadaId: n.rodadaId ?? undefined,
     rodadaDataInicio: n.rodada?.dataInicio.slice(0, 10),
+    corretorId: n.corretorId ?? undefined,
     criadoEm: n.criadoEm,
   };
 }

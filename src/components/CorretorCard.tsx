@@ -7,6 +7,7 @@ import {
   ehCardDeCliente, nomeExibidoNoCard, subtituloDoCard, labelSemVender,
 } from '../utils';
 import { useStore } from '../store';
+import { SommarTag } from './SommarTag';
 
 interface Props {
   corretor: Corretor;
@@ -37,6 +38,23 @@ export function CorretorCard({ corretor, stage }: Props) {
 
   const vendas = corretor.totalVendas ?? 0;
 
+  /**
+   * A adesão que vale para ESTE card. Num card de negócio ela é do corretor PAI: o card filho
+   * não copia `sommarAdesaoEm` (ver a criação do negócio no backend), e está certo — o
+   * participante é a pessoa, não o negócio. Mas os pontos de uma proposta lançada no filho
+   * sobem para o pai (`participanteDoCard`), então um negócio sem tag diria o contrário do que
+   * acontece: "este não pontua", quando pontua.
+   *
+   * Se o pai não estiver na lista carregada, a tag simplesmente não aparece — some um aviso,
+   * nunca aparece um errado.
+   */
+  const adesaoSommar = useStore((s) =>
+    corretor.sommarAdesaoEm ??
+    (corretor.parentCorretorId
+      ? s.corretores.find((c) => c.id === corretor.parentCorretorId)?.sommarAdesaoEm
+      : undefined)
+  );
+
   return (
     <div
       className="corretor-card bg-white rounded-xl cursor-pointer select-none"
@@ -47,14 +65,22 @@ export function CorretorCard({ corretor, stage }: Props) {
       onClick={() => setSelectedCorretor(corretor.id)}
     >
       <div className="p-3">
-        {faltando.length > 0 && (
-          <div
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold mb-2 w-fit"
-            style={{ backgroundColor: '#fef9c3', color: '#854d0e' }}
-            title={`Cadastro simplificado — falta preencher: ${faltando.join(', ')}. Obrigatório para chegar em Monitoramento Geral.`}
-          >
-            <AlertCircle size={10} className="flex-shrink-0" />
-            Faltam {faltando.length} {faltando.length === 1 ? 'dado' : 'dados'}
+        {/* Linha de marcadores do card. Os dois badges dividem a mesma linha e quebram quando
+            não cabem — antes o de cadastro incompleto era um bloco só dele, e cada marcador
+            novo roubaria mais uma linha de altura em mil e duzentos cards. */}
+        {(faltando.length > 0 || adesaoSommar) && (
+          <div className="flex items-center flex-wrap gap-1 mb-2">
+            {faltando.length > 0 && (
+              <div
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold w-fit"
+                style={{ backgroundColor: '#fef9c3', color: '#854d0e' }}
+                title={`Cadastro simplificado — falta preencher: ${faltando.join(', ')}. Obrigatório para chegar em Monitoramento Geral.`}
+              >
+                <AlertCircle size={10} className="flex-shrink-0" />
+                Faltam {faltando.length} {faltando.length === 1 ? 'dado' : 'dados'}
+              </div>
+            )}
+            <SommarTag aderiuEm={adesaoSommar} compact />
           </div>
         )}
 

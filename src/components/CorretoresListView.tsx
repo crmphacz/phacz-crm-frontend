@@ -10,6 +10,7 @@ import {
 } from '../utils';
 import { canCreateCorretor, canDeleteLeadClienteOuCard } from '../permissions';
 import { ExcluirCorretorModal } from './ExcluirCorretorModal';
+import { SommarTag } from './SommarTag';
 import { corretoresApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { getViewCache, setViewCache } from '../lib/viewCache';
@@ -323,8 +324,9 @@ function CorretorRow({ corretor, onClick, onExcluido }: { corretor: Corretor; on
             {nomeExibidoNoCard(corretor)[0]}
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-gray-900 truncate font-questrial">
-              {nomeExibidoNoCard(corretor)}
+            <p className="font-semibold text-gray-900 truncate font-questrial flex items-center gap-1.5">
+              <span className="truncate">{nomeExibidoNoCard(corretor)}</span>
+              <SommarTag aderiuEm={corretor.sommarAdesaoEm} compact />
             </p>
             <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
               <Building2 size={10} />

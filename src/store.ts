@@ -1133,6 +1133,11 @@ export const useStore = create<StoreState>()((set, get) => ({
   abrirNotificacaoRodada: (n) => {
     if (n.tipo === 'aniversario_hoje' || n.tipo === 'aniversario_enviado') {
       set({ view: 'agenda', selectedCorretorId: null });
+    } else if (n.tipo === 'proposta_pendente_aceite' && n.corretorId) {
+      // Abre o card do corretor, onde fica a aba Propostas com os botões de aceitar/recusar.
+      // Sem `corretorId` cairia no `else` e levaria para Rodadas, que não tem nada a ver —
+      // por isso a condição exige os dois.
+      set({ view: 'pipeline', selectedCorretorId: n.corretorId });
     } else {
       // O calendário só mostra rodada APROVADA. Pendente, recusada e devolvida para correção
       // abrem direto na Lista — no calendário elas simplesmente não estariam lá.
