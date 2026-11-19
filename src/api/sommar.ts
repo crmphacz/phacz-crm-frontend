@@ -90,6 +90,19 @@ export interface SommarCupom {
   corretor?: { id: string; nomeCorretor: string; imobiliaria: string };
 }
 
+/**
+ * Participante a um passo do degrau de cupons do item 8.1 — hoje, com exatamente 1 atendimento
+ * qualificado no período. Com 1 atendimento ele tem ZERO cupom, então não aparece na lista de
+ * cupons: é por isso que a tela precisa desta lista separada.
+ */
+export interface SommarQuaseComCupom {
+  id: string;
+  nome: string;
+  imobiliaria: string;
+  atendimentosQualificados: number;
+  faltam: number;
+}
+
 export interface SommarExtrato {
   participante: {
     id: string;
@@ -164,6 +177,9 @@ export const sommarApi = {
     apiFetch<SommarExtrato>(`/api/sommar/participantes/${corretorId}/extrato`),
 
   cupons: (periodo: string) => apiFetch<SommarCupom[]>(`/api/sommar/periodos/${periodo}/cupons`),
+
+  quaseComCupom: (periodo: string) =>
+    apiFetch<SommarQuaseComCupom[]>(`/api/sommar/periodos/${periodo}/quase-com-cupom`),
 
   resgates: () => apiFetch<SommarResgate[]>('/api/sommar/resgates'),
 

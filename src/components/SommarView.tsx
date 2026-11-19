@@ -9,6 +9,7 @@ import { ApiError } from '../api/client';
 import {
   sommarApi, periodoAtual, rotuloDoPeriodo,
   type SommarRanking, type SommarExtrato, type SommarCupom, type SommarPeriodo,
+  type SommarQuaseComCupom,
   type SommarLinhaCorretor, type SommarNivel, type SommarResgate,
 } from '../api/sommar';
 
@@ -89,6 +90,7 @@ export function SommarView() {
   const [periodos, setPeriodos] = useState<SommarPeriodo[]>([]);
   const [ranking, setRanking] = useState<SommarRanking | null>(null);
   const [cupons, setCupons] = useState<SommarCupom[]>([]);
+  const [quaseComCupom, setQuaseComCupom] = useState<SommarQuaseComCupom[]>([]);
   const [extrato, setExtrato] = useState<SommarExtrato | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -114,6 +116,9 @@ export function SommarView() {
   useEffect(() => {
     if (aba !== 'cupons') return;
     sommarApi.cupons(periodo).then(setCupons).catch(() => setCupons([]));
+    // Lista separada porque quem está a um passo tem ZERO cupom: ele não existe na resposta de
+    // cupons, por definição. Falhar aqui não pode esvaziar os cupons já carregados.
+    sommarApi.quaseComCupom(periodo).then(setQuaseComCupom).catch(() => setQuaseComCupom([]));
   }, [aba, periodo]);
 
   const consolidado = ranking?.consolidadoEm ?? null;
@@ -273,6 +278,7 @@ export function SommarView() {
         {aba === 'cupons' && (
           <PainelCupons
             cupons={cupons}
+            quaseComCupom={quaseComCupom}
             periodo={periodo}
             sorteioEm={sorteioDoPeriodo}
             podeSortear={ehDiretora}
@@ -428,12 +434,14 @@ function RankingImobiliarias({
 
 function PainelCupons({
   cupons,
+  quaseComCupom,
   periodo,
   sorteioEm,
   podeSortear,
   onSortear,
 }: {
   cupons: SommarCupom[];
+  quaseComCupom: SommarQuaseComCupom[];
   periodo: string;
   sorteioEm: string | null;
   podeSortear: boolean;
@@ -497,6 +505,53 @@ function PainelCupons({
                     ) : (
                       '—'
                     )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Quem está a UM atendimento do degrau.
+          Lista separada por necessidade, não por escolha: com 1 atendimento o participante tem
+          ZERO cupom, então ele não existe na tabela acima — e na tela fica idêntico a quem não
+          fez nada no mês. É justamente quem está a um passo que a Diretoria precisa enxergar
+          antes de o período fechar. */}
+      {quaseComCupom.length > 0 && (
+        <div className="bg-violet-50 rounded-2xl border border-violet-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-violet-200">
+            <p className="text-sm font-semibold text-violet-900">
+              A um atendimento dos cupons ({quaseComCupom.length})
+            </p>
+            <p className="text-xs text-violet-800 mt-0.5">
+              Estes participantes têm 1 atendimento qualificado em {rotuloDoPeriodo(periodo)} e,
+              por isso, <strong>nenhum cupom</strong>. Mais um atendimento e cada um ganha{' '}
+              <strong>2 cupons de uma vez</strong> — o degrau conta também os dois primeiros.
+            </p>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-violet-100/60 text-xs text-violet-800 uppercase">
+              <tr>
+                <th className="text-left font-medium px-4 py-2">Participante</th>
+                <th className="text-left font-medium px-4 py-2 w-40">Atendimentos</th>
+                <th className="text-left font-medium px-4 py-2 w-32">Falta</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-violet-200">
+              {quaseComCupom.map((p) => (
+                <tr key={p.id}>
+                  <td className="px-4 py-2.5">
+                    <p className="font-medium text-gray-900">{p.nome}</p>
+                    {p.imobiliaria && <p className="text-xs text-gray-500">{p.imobiliaria}</p>}
+                  </td>
+                  <td className="px-4 py-2.5 tabular-nums text-gray-700">
+                    {p.atendimentosQualificados} de 2
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-violet-200 text-violet-900">
+                      +{p.faltam}
+                    </span>
                   </td>
                 </tr>
               ))}
