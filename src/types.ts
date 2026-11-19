@@ -1,4 +1,6 @@
 export type Temperatura = 'quente' | 'morno' | 'frio';
+/** As quatro faixas do item 7 da política SÕMMAR, da menor para a maior. */
+export type SommarNivelChave = 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND';
 export type StatusCorretor = 'ativo' | 'nutricao' | 'arquivado' | 'ganho' | 'perdido';
 export type TipoInteracao =
   | 'ligacao' | 'whatsapp' | 'email'
@@ -173,6 +175,11 @@ export interface Corretor {
    * base: é este campo, e não o cadastro, que diz quem é PARTICIPANTE do programa.
    */
   sommarAdesaoEm?: string;
+  /**
+   * Faixa CONFIRMADA do participante (a que as vendas sustentam). Vem calculada do
+   * livro-razão na listagem; ausente em quem não é participante.
+   */
+  sommarNivel?: SommarNivelChave;
   dataNascimento?: string;
   cidade?: string;
   uf?: string;

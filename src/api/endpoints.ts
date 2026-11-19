@@ -98,6 +98,12 @@ export interface CorretoresPagedParams {
   search?: string;
   sort?: 'nomeCorretor' | 'etapa' | 'temperatura' | 'dataUltimaInteracao' | 'dataEntrada';
   dir?: 'asc' | 'desc';
+  /**
+   * `'participantes'` deixa só quem aderiu ao SÕMMAR. Vai ao SERVIDOR porque esta tela pagina
+   * de verdade: filtrar na página já carregada devolveria "300 de 1568" com três participantes
+   * à vista, e a contagem mentiria.
+   */
+  sommar?: 'participantes';
 }
 
 export interface CorretoresPagedResult {

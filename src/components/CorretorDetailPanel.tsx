@@ -710,7 +710,11 @@ export function CorretorDetailPanel() {
                   </h2>
                   {/* Mesma tag do card. Repetir aqui é de propósito: quem abre o painel para
                       lançar proposta precisa saber, ali, que aquilo vai pontuar. */}
-                  <SommarTag aderiuEm={corretor.sommarAdesaoEm ?? parentCorretor?.sommarAdesaoEm} compact />
+                  <SommarTag
+                    aderiuEm={corretor.sommarAdesaoEm ?? parentCorretor?.sommarAdesaoEm}
+                    nivel={corretor.sommarAdesaoEm ? corretor.sommarNivel : parentCorretor?.sommarNivel}
+                    compact
+                  />
                 </div>
                 {isNegocio && parentCorretor && (
                   <p className="text-xs text-gray-400 truncate">

@@ -120,10 +120,18 @@ export interface PipelineFiltros {
   // uma busca antiga eles caem no padrão em vez de virarem `undefined` e sumirem do filtro.
   filterVendas?: FiltroVendas;
   filterDiasSemVender?: number | 'all';
+  filterSommar?: FiltroSommar;
 }
 
 /** Recorte por histórico de venda do corretor — ver `totalVendas` em types.ts. */
 export type FiltroVendas = 'all' | 'ja_vendeu' | 'nunca_vendeu';
+
+/**
+ * Recorte por adesao ao SOMMAR. Participante e quem tem `sommarAdesaoEm` preenchido; no
+ * pipeline o recorte alcanca tambem os cards de NEGOCIO do participante, que nao tem adesao
+ * propria — ver `useFilteredCorretores`.
+ */
+export type FiltroSommar = 'all' | 'participantes' | 'nao_participantes';
 
 interface StoreState {
   corretores: Corretor[];
@@ -154,6 +162,7 @@ interface StoreState {
    */
   pipelinePreviewCargo: UserCargo | null;
   filterVendas: FiltroVendas;
+  filterSommar: FiltroSommar;
   /** Mínimo de dias sem vender. Quem nunca vendeu não entra: não há data para medir. */
   filterDiasSemVender: number | 'all';
   searchQuery: string;
@@ -253,6 +262,7 @@ interface StoreState {
   /** Pré-visualização de colunas por cargo — só muda o que aparece, não o que pode. */
   setPipelinePreviewCargo: (c: UserCargo | null) => void;
   setFilterVendas: (v: FiltroVendas) => void;
+  setFilterSommar: (v: FiltroSommar) => void;
   setFilterDiasSemVender: (d: number | 'all') => void;
   clearAdvancedFilters: () => void;
 
@@ -404,6 +414,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   pipelinePreviewCargo: null,
   filterVendas: 'all',
   filterDiasSemVender: 'all',
+  filterSommar: 'all',
   searchQuery: '',
   pipelineFunnel: 'todos',
   savedSearches: [],
@@ -714,6 +725,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   setFilterTipoInteracao: (t) => set({ filterTipoInteracao: t }),
   setPipelinePreviewCargo: (c) => set({ pipelinePreviewCargo: c }),
   setFilterVendas: (v) => set({ filterVendas: v }),
+  setFilterSommar: (v) => set({ filterSommar: v }),
   setFilterDiasSemVender: (d) => set({ filterDiasSemVender: d }),
   setSearchQuery: (q) => set({ searchQuery: q }),
   setPipelineFunnel: (f) => set({ pipelineFunnel: f }),
@@ -721,7 +733,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   clearAdvancedFilters: () =>
     set({
       filterEtapa: 'all', filterResponsavel: 'all', filterCanalOrigem: 'all', filterTipoInteracao: 'all',
-      filterVendas: 'all', filterDiasSemVender: 'all',
+      filterVendas: 'all', filterDiasSemVender: 'all', filterSommar: 'all',
     }),
 
   addCorretor: async (corretorData) => {
@@ -1018,11 +1030,11 @@ export const useStore = create<StoreState>()((set, get) => ({
   createSavedSearch: async (nome) => {
     const {
       searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem, filterTipoInteracao,
-      filterVendas, filterDiasSemVender,
+      filterVendas, filterDiasSemVender, filterSommar,
     } = get();
     const filtros: PipelineFiltros = {
       searchQuery, filterTemperatura, filterEtapa, filterResponsavel, filterCanalOrigem, filterTipoInteracao,
-      filterVendas, filterDiasSemVender,
+      filterVendas, filterDiasSemVender, filterSommar,
     };
     const saved = await savedSearchesApi.create(nome, filtros as unknown as Record<string, unknown>);
     set((state) => ({ savedSearches: [saved, ...state.savedSearches] }));
@@ -1044,6 +1056,9 @@ export const useStore = create<StoreState>()((set, get) => ({
       filterCanalOrigem: filtros.filterCanalOrigem ?? 'all',
       // Busca salva antes deste filtro existir não traz o campo — cai em 'all'.
       filterTipoInteracao: filtros.filterTipoInteracao ?? 'all',
+      filterVendas: filtros.filterVendas ?? 'all',
+      filterDiasSemVender: filtros.filterDiasSemVender ?? 'all',
+      filterSommar: filtros.filterSommar ?? 'all',
     });
   },
 
@@ -1193,8 +1208,23 @@ export const useFilteredCorretores = () => {
   const filterCanalOrigem = useStore((s) => s.filterCanalOrigem);
   const filterTipoInteracao = useStore((s) => s.filterTipoInteracao);
   const filterVendas = useStore((s) => s.filterVendas);
+  const filterSommar = useStore((s) => s.filterSommar);
   const filterDiasSemVender = useStore((s) => s.filterDiasSemVender);
   const searchQuery = useStore((s) => s.searchQuery);
+
+  /**
+   * Quem é participante do SÕMMAR, para o filtro alcançar também os cards de NEGÓCIO.
+   *
+   * O card filho não tem `sommarAdesaoEm` — o participante é a pessoa, não o negócio —, então
+   * filtrar só pelo campo esconderia justamente as negociações de quem participa. O Set é
+   * montado uma vez por render, e não dentro do `.filter`, que faria uma varredura da lista
+   * inteira por card.
+   */
+  const participantesSommar = new Set(
+    corretores.filter((c) => c.sommarAdesaoEm).map((c) => c.id)
+  );
+  const participaDoSommar = (l: Corretor) =>
+    Boolean(l.sommarAdesaoEm) || (l.parentCorretorId ? participantesSommar.has(l.parentCorretorId) : false);
 
   return corretores.filter((l) => {
     // Perdido CONTINUA na lista: ele alimenta a coluna "Perdidos" do pipeline. Quem tira o
@@ -1208,6 +1238,8 @@ export const useFilteredCorretores = () => {
     // Histórico de venda do CORRETOR (card raiz + negócios gerados), não deste card.
     if (filterVendas === 'ja_vendeu' && (l.totalVendas ?? 0) === 0) return false;
     if (filterVendas === 'nunca_vendeu' && (l.totalVendas ?? 0) > 0) return false;
+    if (filterSommar === 'participantes' && !participaDoSommar(l)) return false;
+    if (filterSommar === 'nao_participantes' && participaDoSommar(l)) return false;
     if (filterDiasSemVender !== 'all') {
       const dias = diasSemVender(l);
       // Quem nunca vendeu fica de fora deste corte: não há data a partir da qual contar. Para

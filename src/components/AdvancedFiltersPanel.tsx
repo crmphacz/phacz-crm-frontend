@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal, Bookmark, Trash2, X, Check } from 'lucide-react';
-import { useStore, type FiltroVendas } from '../store';
+import { useStore, type FiltroVendas, type FiltroSommar } from '../store';
 import { STAGES } from '../data';
 import { TIPO_INTERACAO_CONFIG } from '../utils';
 import type { TipoInteracao } from '../types';
@@ -20,6 +20,8 @@ export function AdvancedFiltersPanel() {
   const setFilterTipoInteracao = useStore((s) => s.setFilterTipoInteracao);
   const filterVendas = useStore((s) => s.filterVendas);
   const setFilterVendas = useStore((s) => s.setFilterVendas);
+  const filterSommar = useStore((s) => s.filterSommar);
+  const setFilterSommar = useStore((s) => s.setFilterSommar);
   const filterDiasSemVender = useStore((s) => s.filterDiasSemVender);
   const setFilterDiasSemVender = useStore((s) => s.setFilterDiasSemVender);
   const clearAdvancedFilters = useStore((s) => s.clearAdvancedFilters);
@@ -40,7 +42,7 @@ export function AdvancedFiltersPanel() {
 
   const activeCount = [
     filterEtapa !== 'all', filterResponsavel !== 'all', filterCanalOrigem !== 'all', filterTipoInteracao !== 'all',
-    filterVendas !== 'all', filterDiasSemVender !== 'all',
+    filterVendas !== 'all', filterDiasSemVender !== 'all', filterSommar !== 'all',
   ].filter(Boolean).length;
 
   useEffect(() => {
@@ -192,6 +194,22 @@ export function AdvancedFiltersPanel() {
               </select>
               <p className="text-[11px] text-gray-400 mt-1">
                 Só quem já vendeu alguma vez — quem nunca vendeu não tem data para contar.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 block mb-1">SÕMMAR Elite</label>
+              <select
+                className="form-input"
+                value={filterSommar}
+                onChange={(e) => setFilterSommar(e.target.value as FiltroSommar)}
+              >
+                <option value="all">Todos</option>
+                <option value="participantes">Só participantes</option>
+                <option value="nao_participantes">Só quem não aderiu</option>
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Participante é quem aceitou o Termo de Adesão. Os negócios gerados a partir dele
+                entram no recorte junto.
               </p>
             </div>
           </div>

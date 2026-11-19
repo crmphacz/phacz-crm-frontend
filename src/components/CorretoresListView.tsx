@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Building2, Users, Trash2 } from 'lucide-react';
+import { Plus, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Building2, Users, Trash2, Award } from 'lucide-react';
 import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
@@ -27,6 +27,7 @@ interface CorretoresListCache {
   total: number;
   page: number;
   statusFilter: string;
+  sommarFilter?: boolean;
   sortField: SortField;
   sortDir: 'asc' | 'desc';
   searchInput: string;
@@ -55,6 +56,7 @@ export function CorretoresListView() {
   const [total, setTotal] = useState(saved?.total ?? 0);
   const [page, setPage] = useState(saved?.page ?? 1);
   const [statusFilter, setStatusFilter] = useState<string>(saved?.statusFilter ?? 'ativo');
+  const [sommarFilter, setSommarFilter] = useState<boolean>(saved?.sommarFilter ?? false);
   const [sortField, setSortField] = useState<SortField>(saved?.sortField ?? 'dataUltimaInteracao');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(saved?.sortDir ?? 'desc');
   const [loading, setLoading] = useState(true);
@@ -93,15 +95,18 @@ export function CorretoresListView() {
 
   useEffect(() => {
     if (!primeiraCargaFeita) return;
-    setViewCache<CorretoresListCache>(CACHE_KEY, { rows, total, page, statusFilter, sortField, sortDir, searchInput, search });
-  }, [primeiraCargaFeita, rows, total, page, statusFilter, sortField, sortDir, searchInput, search]);
+    setViewCache<CorretoresListCache>(CACHE_KEY, { rows, total, page, statusFilter, sommarFilter, sortField, sortDir, searchInput, search });
+  }, [primeiraCargaFeita, rows, total, page, statusFilter, sommarFilter, sortField, sortDir, searchInput, search]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError('');
     corretoresApi
-      .listPaged({ page, pageSize: PAGE_SIZE, status: statusFilter, search: search || undefined, sort: sortField, dir: sortDir })
+      .listPaged({
+        page, pageSize: PAGE_SIZE, status: statusFilter, search: search || undefined,
+        sort: sortField, dir: sortDir, sommar: sommarFilter ? 'participantes' : undefined,
+      })
       .then((res) => {
         if (cancelled) return;
         setRows(res.corretores);
@@ -120,7 +125,7 @@ export function CorretoresListView() {
     return () => {
       cancelled = true;
     };
-  }, [statusFilter, search, sortField, sortDir, page, reloadTick]);
+  }, [statusFilter, sommarFilter, search, sortField, sortDir, page, reloadTick]);
 
   // Editar/criar/excluir acontece via o painel de detalhe e o modal de novo corretor, que
   // escrevem em `store.corretores` — não nesta página carregada à parte. Ao fechar qualquer um
@@ -194,6 +199,25 @@ export function CorretoresListView() {
                 <option value="perdido">Perdidos</option>
                 <option value="arquivado">Arquivados</option>
               </select>
+
+              {/* Botão, e não mais um <select>: é uma pergunta de sim/não, e o estado ligado
+                  precisa ficar visível sem abrir nada — senão a pessoa esquece que a lista
+                  está recortada e estranha o total. */}
+              <button
+                type="button"
+                onClick={() => { setSommarFilter((v) => !v); setPage(1); }}
+                aria-pressed={sommarFilter}
+                title="Mostrar só os corretores que aderiram ao SÕMMAR Elite"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border flex-shrink-0 transition-colors"
+                style={
+                  sommarFilter
+                    ? { backgroundColor: '#eef2ff', color: '#4338ca', borderColor: '#c7d2fe' }
+                    : { backgroundColor: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }
+                }
+              >
+                <Award size={14} />
+                <span className="hidden sm:inline">SÕMMAR</span>
+              </button>
 
               {!isReadOnly && (
                 <button
@@ -326,7 +350,7 @@ function CorretorRow({ corretor, onClick, onExcluido }: { corretor: Corretor; on
           <div className="min-w-0">
             <p className="font-semibold text-gray-900 truncate font-questrial flex items-center gap-1.5">
               <span className="truncate">{nomeExibidoNoCard(corretor)}</span>
-              <SommarTag aderiuEm={corretor.sommarAdesaoEm} compact />
+              <SommarTag aderiuEm={corretor.sommarAdesaoEm} nivel={corretor.sommarNivel} compact />
             </p>
             <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
               <Building2 size={10} />

@@ -48,12 +48,12 @@ export function CorretorCard({ corretor, stage }: Props) {
    * Se o pai não estiver na lista carregada, a tag simplesmente não aparece — some um aviso,
    * nunca aparece um errado.
    */
-  const adesaoSommar = useStore((s) =>
-    corretor.sommarAdesaoEm ??
-    (corretor.parentCorretorId
-      ? s.corretores.find((c) => c.id === corretor.parentCorretorId)?.sommarAdesaoEm
-      : undefined)
-  );
+  const participanteSommar = useStore((s) => {
+    if (corretor.sommarAdesaoEm) return corretor;
+    if (!corretor.parentCorretorId) return undefined;
+    return s.corretores.find((c) => c.id === corretor.parentCorretorId);
+  });
+  const adesaoSommar = participanteSommar?.sommarAdesaoEm;
 
   return (
     <div
@@ -80,7 +80,7 @@ export function CorretorCard({ corretor, stage }: Props) {
                 Faltam {faltando.length} {faltando.length === 1 ? 'dado' : 'dados'}
               </div>
             )}
-            <SommarTag aderiuEm={adesaoSommar} compact />
+            <SommarTag aderiuEm={adesaoSommar} nivel={participanteSommar?.sommarNivel} compact />
           </div>
         )}
 

@@ -1,5 +1,6 @@
 import type {
   Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, Temperatura, StatusCorretor, TipoInteracao,
+  SommarNivelChave,
   DestinatarioTipo, EmailTemplate, EmailCampaign,
   ChatMessage, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao, TipoNotificacao,
   Empreendimento, EmpreendimentoDetail, Unidade, StatusUnidade, AtividadeAgenda,
@@ -206,6 +207,7 @@ export interface ApiCorretor {
   cpf: string | null;
   creci: string | null;
   sommarAdesaoEm: string | null;
+  sommarNivel: SommarNivelChave | null;
   dataNascimento: string | null;
   cidade: string | null;
   uf: string | null;
@@ -399,6 +401,7 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     cpf: l.cpf ?? undefined,
     creci: l.creci ?? undefined,
     sommarAdesaoEm: l.sommarAdesaoEm ?? undefined,
+    sommarNivel: l.sommarNivel ?? undefined,
     dataNascimento: l.dataNascimento ?? undefined,
     cidade: l.cidade ?? undefined,
     uf: l.uf ?? undefined,

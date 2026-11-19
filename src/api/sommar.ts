@@ -1,4 +1,7 @@
 import { apiFetch } from './client';
+import type { SommarNivelChave } from '../types';
+
+export type { SommarNivelChave };
 
 /**
  * Programa SÕMMAR Elite.
@@ -11,6 +14,18 @@ import { apiFetch } from './client';
  * se pode resgatar vêm todos prontos do backend — regra duplicada na tela diverge do servidor
  * na primeira mudança, e aí o corretor vê um número na tela e outro no extrato.
  */
+
+/**
+ * Nome e cores de cada faixa, para a tag do card e a tela do SÕMMAR falarem a mesma língua.
+ * Sem isto, a faixa no quadro e a faixa no extrato poderiam divergir de cor — e cor é o que a
+ * equipe usa para reconhecer a faixa de relance.
+ */
+export const NIVEL_VISUAL: Record<SommarNivelChave, { nome: string; fundo: string; texto: string; borda: string }> = {
+  SILVER: { nome: 'Silver', fundo: '#f1f5f9', texto: '#475569', borda: '#cbd5e1' },
+  GOLD: { nome: 'Gold', fundo: '#fef3c7', texto: '#92400e', borda: '#fcd34d' },
+  PLATINUM: { nome: 'Platinum', fundo: '#e5e7eb', texto: '#374151', borda: '#9ca3af' },
+  DIAMOND: { nome: 'Diamond', fundo: '#ffedd5', texto: '#9a3412', borda: '#fb923c' },
+};
 
 export interface SommarNivel {
   ordem: number;

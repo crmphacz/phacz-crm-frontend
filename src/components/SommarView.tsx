@@ -8,6 +8,7 @@ import { formatCurrency } from '../utils';
 import { ApiError } from '../api/client';
 import {
   sommarApi, periodoAtual, rotuloDoPeriodo,
+  NIVEL_VISUAL,
   type SommarRanking, type SommarExtrato, type SommarCupom, type SommarPeriodo,
   type SommarQuaseComCupom,
   type SommarLinhaCorretor, type SommarNivel, type SommarResgate,
@@ -31,16 +32,11 @@ const ABAS: { id: Aba; label: string; icone: typeof Trophy }[] = [
   { id: 'resgates', label: 'Resgates', icone: Gift },
 ];
 
-/** Cores das faixas, na mesma leitura visual dos cartões da política. */
-const COR_NIVEL: Record<SommarNivel['chave'], { fundo: string; texto: string; borda: string }> = {
-  SILVER: { fundo: '#f1f5f9', texto: '#475569', borda: '#cbd5e1' },
-  GOLD: { fundo: '#fef3c7', texto: '#92400e', borda: '#fcd34d' },
-  PLATINUM: { fundo: '#e5e7eb', texto: '#374151', borda: '#9ca3af' },
-  DIAMOND: { fundo: '#ffedd5', texto: '#9a3412', borda: '#fb923c' },
-};
+// As cores das faixas moram em api/sommar.ts (NIVEL_VISUAL), e não aqui: a tag do card no
+// pipeline usa as mesmas, e duas tabelas de cor divergiriam na primeira troca de paleta.
 
 function NivelTag({ nivel }: { nivel: SommarNivel }) {
-  const cor = COR_NIVEL[nivel.chave] ?? COR_NIVEL.SILVER;
+  const cor = NIVEL_VISUAL[nivel.chave] ?? NIVEL_VISUAL.SILVER;
   return (
     <span
       className="text-xs px-2.5 py-1 rounded-full font-semibold border whitespace-nowrap"
