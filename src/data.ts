@@ -239,3 +239,32 @@ export const COLUNAS_DO_PIPELINE: number[][] = STAGES.reduce<number[][]>((grupos
   else grupos.push([etapa.id]);
   return grupos;
 }, []);
+
+// ── Etapas que o quadro mostra em duas colunas, pelo tipo do card ───────────
+
+/** O que um card é: o cadastro do parceiro, ou um negócio com um comprador. */
+export type TipoDeCard = 'corretor' | 'cliente';
+
+/**
+ * Etapas cujo quadro se divide em DUAS colunas pelo TIPO do card.
+ *
+ * Hoje só a Negociação: o card do corretor fica na Negociação e o card de cliente final vai
+ * para a coluna Leads. Quando um negócio é gerado a partir de um corretor, o card filho nasce
+ * na etapa 9 — e é essa divisão que faz pai e filho aparecerem em colunas diferentes sozinhos,
+ * sem ninguém arrastar nada.
+ *
+ * NÃO é etapa nova. As duas colunas são a MESMA etapa 9 no banco, com o mesmo SLA, a mesma
+ * validação e a mesma automação — o que muda é só onde o card é desenhado. Fazer disto uma
+ * etapa obrigaria a renumerar tudo que vem depois (já aconteceu duas vezes, e nas duas sobrou
+ * número velho escrito à mão pelo código) e a migrar `etapa` e `etapaTimestamps` em mais de
+ * mil cards, para separar na tela o que o dado já separava sozinho.
+ *
+ * A consequência, que é real: nos indicadores e nos relatórios os dois lados continuam sendo
+ * "Negociação". Para separá-los ali seria preciso a etapa de verdade.
+ */
+export const COLUNAS_POR_TIPO_DE_CARD: Record<number, Record<TipoDeCard, { nome: string; cor: string; corBg: string }>> = {
+  [ETAPA_NEGOCIACAO]: {
+    corretor: { nome: 'Negociação', cor: '#d55006', corBg: '#fff7ed' },
+    cliente: { nome: 'Leads', cor: '#0284c7', corBg: '#f0f9ff' },
+  },
+};

@@ -216,6 +216,8 @@ export const TIPO_INTERACAO_CONFIG = {
   reuniao: { label: 'Reunião', icon: '🤝' },
   atendimento_cliente: { label: 'Atendimento cliente (Phacz)', icon: '🙋' },
   atendimento_corretor: { label: 'Atendimento corretor (Phacz)', icon: '🧑‍💼' },
+  atendimento_cliente_online: { label: 'Atendimento cliente (online)', icon: '💻' },
+  videochamada: { label: 'Videochamada / call', icon: '📹' },
   nota: { label: 'Nota', icon: '📝' },
   proposta: { label: 'Proposta', icon: '📄' },
   especulacao: { label: 'Especulação', icon: '💭' },
@@ -306,8 +308,17 @@ export function subtituloDoCard(
   return [corretor.nomeCorretor, corretor.imobiliaria].filter(Boolean).join(' · ');
 }
 
-/** Campos do cadastro completo que ainda estão em branco neste corretor. */
+/**
+ * Campos do cadastro completo que ainda estão em branco neste corretor.
+ *
+ * Vazio para card de CLIENTE FINAL: os quatro campos descrevem um corretor, e a validação de
+ * etapa também não os cobra ali (ver `validateForStageMove`). Sem esta saída, o card de um
+ * cliente exibiria "Faltam 4 dados" no quadro — um aviso sobre uma exigência que nunca vai
+ * valer para ele.
+ */
 export function camposFaltandoNoCadastro(corretor: Corretor): string[] {
+  if (ehCardDeCliente(corretor)) return [];
+
   const labels: Record<string, string> = {
     imobiliaria: 'Imobiliária', cpf: 'CPF', creci: 'CRECI', dataNascimento: 'Data de nascimento',
   };
@@ -322,8 +333,16 @@ export function validateForStageMove(corretor: Corretor, toEtapa: number): strin
   // que o negócio não fechou deixaria o card preso na Negociação, inflando o funil com algo
   // que já morreu — e é justamente o cadastro incompleto que costuma explicar a perda.
   // Espelha validation.ts no backend, que é quem de fato barra.
+  //
+  // E nunca é cobrado de um card de CLIENTE FINAL. Os quatro campos — imobiliária, CPF, CRECI
+  // e data de nascimento — descrevem um CORRETOR. Num card de cliente final nenhum deles é
+  // sobre a pessoa do card: a imobiliária, quando existe, é a do corretor que trouxe o
+  // negócio, e CRECI o cliente não tem. Cobrá-los ali travava o card na Pós-venda pedindo um
+  // registro profissional de quem está comprando um apartamento.
   const exigeCadastroCompleto =
-    toEtapa >= ETAPA_EXIGE_CADASTRO_COMPLETO && toEtapa !== ETAPA_CLIENTES_PERDIDOS;
+    toEtapa >= ETAPA_EXIGE_CADASTRO_COMPLETO &&
+    toEtapa !== ETAPA_CLIENTES_PERDIDOS &&
+    !ehCardDeCliente(corretor);
   const required = [
     ...getMandatoryFieldsForStage(toEtapa),
     ...(exigeCadastroCompleto ? CAMPOS_DO_CADASTRO_COMPLETO : []),
@@ -499,6 +518,11 @@ export const MODALIDADE_LABEL: Record<ModalidadeAtividade, string> = {
  */
 export const PEDE_QUALIFICADO = new Set<TipoInteracao>([
   'reuniao', 'atendimento_cliente', 'visita', 'visita_obra', 'visita_imobiliaria',
+  // O item 3.i diz "atendimento a cliente, presencial OU ONLINE" — o atendimento online é
+  // atendimento a cliente com todas as letras do texto da política, então gera cupom igual.
+  'atendimento_cliente_online',
+  // `videochamada` fica de fora: é uma call com o PARCEIRO, não atendimento a cliente. Quem
+  // atende um cliente à distância registra `atendimento_cliente_online`, que está logo acima.
 ]);
 
 /**
@@ -544,6 +568,9 @@ export function criteriosMarcados(inter: Record<string, unknown>): string[] {
 export const PEDE_MODALIDADE = new Set<TipoInteracao>([
   'visita', 'visita_obra', 'visita_imobiliaria', 'reuniao', 'treinamento',
   'atendimento_cliente', 'atendimento_corretor',
+  // Videochamada e atendimento online NAO entram: o tipo ja diz como aconteceu, e perguntar
+  // a modalidade depois seria pedir a mesma informacao duas vezes — com a chance de as duas
+  // respostas se contradizerem no mesmo registro.
 ]);
 
 /**

@@ -106,6 +106,18 @@ export interface SommarExtrato {
   temPendencia: boolean;
   saldoResgatavel: number;
   pontosBloqueadosPorSinal: number;
+  /**
+   * O degrau de cupons do item 8.1 no mês CORRENTE — não no período selecionado na tela.
+   *
+   * `faltam` é o que o aviso mostra, e é zero tanto para quem já destravou quanto para quem
+   * não fez atendimento nenhum no mês: no segundo caso não há progresso a comunicar.
+   */
+  cupomDoPeriodo: {
+    periodo: string;
+    atendimentosQualificados: number;
+    cupons: number;
+    faltam: number;
+  };
   lancamentos: SommarLancamento[];
   cupons: SommarCupom[];
 }

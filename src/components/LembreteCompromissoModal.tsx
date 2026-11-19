@@ -26,6 +26,8 @@ const ROTULO_TIPO: Record<string, string> = {
   treinamento: 'Treinamento',
   atendimento_cliente: 'Atendimento ao cliente',
   atendimento_corretor: 'Atendimento ao corretor',
+  atendimento_cliente_online: 'Atendimento ao cliente (online)',
+  videochamada: 'Videochamada / call',
   visita: 'Visita',
   visita_obra: 'Visita na obra',
   visita_imobiliaria: 'Visita na imobiliária',

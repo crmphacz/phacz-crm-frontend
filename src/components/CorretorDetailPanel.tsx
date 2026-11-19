@@ -258,6 +258,22 @@ export function CorretorDetailPanel() {
   const [pClienteId, setPClienteId] = useState('');
   const [pArquivo, setPArquivo] = useState<File | null>(null);
   const [pSubmitting, setPSubmitting] = useState(false);
+
+  /**
+   * Quanto da proposta é permuta, e se isso passa do teto de 30% do item 6.2.
+   *
+   * Passar do teto não impede salvar: muda o que pontua no SÕMMAR — a proposta pontua sobre a
+   * parte em moeda corrente, a venda fica fora da apuração. O cálculo vive aqui, e não só na
+   * hora de salvar, porque o aviso precisa aparecer enquanto a pessoa digita.
+   */
+  const pValorNumero = parseCurrencyBRL(pValor) ?? 0;
+  const pPermutaNumero = parseCurrencyBRL(pPermuta) ?? 0;
+  const percentualDaPermuta = pValorNumero > 0 ? (pPermutaNumero / pValorNumero) * 100 : 0;
+  // Meio centavo de tolerância, igual ao backend: 300.000,01 em 1.000.000,00 é erro de
+  // digitação, não negociação fora da regra — e um aviso disparando por um centavo ensina a
+  // equipe a ignorar o aviso.
+  const permutaAcimaDoTeto = pPermutaNumero - pValorNumero * 0.3 > 0.005;
+
   // Empreendimento (id do selecionado) + unidades/condições de pagamento carregadas sob demanda desse empreendimento.
   const [pEmpId, setPEmpId] = useState('');
   const [pUnidades, setPUnidades] = useState<Unidade[]>([]);
@@ -505,14 +521,16 @@ export function CorretorDetailPanel() {
     const unidadeSelecionada = pUnidades.find((u) => u.id === pUnidade);
     const unidadeNumero = unidadeSelecionada?.numero ?? pUnidade;
 
-    // Item 6.2: permuta acima de 30% tira a negociação da apuração. O backend recusa, mas
-    // avisar aqui evita o corretor preencher a proposta inteira para levar erro no fim.
-    const valorProposta = parseCurrencyBRL(pValor) ?? 0;
-    const valorPermuta = parseCurrencyBRL(pPermuta) ?? 0;
-    if (valorPermuta > valorProposta * 0.3) {
-      window.alert(
-        'A permuta não pode passar de 30% do valor da proposta (item 6.2 da política SÕMMAR).'
-      );
+    // Permuta acima de 30% NÃO barra mais a proposta — o negócio é real e o CRM precisa
+    // registrá-lo. O que muda é o que pontua, e isso o formulário já avisa em cima do campo
+    // (ver `permutaAcimaDoTeto`). O que continua barrado é permuta maior que o valor total,
+    // que não é negociação com muita permuta: é dado errado.
+    //
+    // Os números vêm de `pValorNumero`/`pPermutaNumero`, os MESMOS que decidem o aviso na
+    // tela. Reconverter aqui abriria espaço para o aviso dizer uma coisa e o que é gravado
+    // ser outra.
+    if (pPermutaNumero > pValorNumero) {
+      window.alert('A permuta não pode ser maior que o valor total da proposta.');
       return;
     }
 
@@ -525,8 +543,8 @@ export function CorretorDetailPanel() {
         empreendimento: pEmp.trim(),
         unidade: unidadeNumero,
         unidadeId: pUnidade || undefined,
-        valor: valorProposta,
-        valorPermuta,
+        valor: pValorNumero,
+        valorPermuta: pPermutaNumero,
         condicoes: pCondicoes.trim(),
         status: 'pendente',
       }, pArquivo ?? undefined);
@@ -2085,9 +2103,28 @@ export function CorretorDetailPanel() {
                         value={pPermuta}
                         onChange={(e) => setPPermuta(maskCurrencyBRLInput(e.target.value))}
                       />
-                      <p className="text-[11px] text-gray-400 mt-1">
-                        Máx. 30% do valor. Não pontua no SÕMMAR.
-                      </p>
+                      {/* Passar do teto não impede salvar — muda o que pontua. O aviso aparece
+                          ANTES de salvar, e não depois, porque descobrir isso na conferência do
+                          fechamento é o pior momento possível. */}
+                      {permutaAcimaDoTeto ? (
+                        <div
+                          className="mt-1.5 p-2 rounded-lg border text-[11px] leading-snug"
+                          style={{ backgroundColor: '#fffbeb', borderColor: '#fcd34d', color: '#92400e' }}
+                        >
+                          <p className="font-bold">
+                            Permuta de {percentualDaPermuta.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% — acima do teto de 30%
+                          </p>
+                          <p className="mt-0.5">
+                            Dá para salvar normalmente. No SÕMMAR, <strong>a proposta pontua</strong> sobre
+                            a parte em moeda corrente; a <strong>venda não pontuará</strong> se este negócio
+                            fechar (item 6.2).
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          A permuta não pontua no SÕMMAR. Acima de 30%, a venda também deixa de pontuar.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Condições de pagamento</label>

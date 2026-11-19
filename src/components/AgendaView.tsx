@@ -27,7 +27,7 @@ import type { AniversarioAgenda, SaudacaoAniversario, AtividadeAgenda, TipoInter
  */
 const TIPOS_NA_AGENDA = new Set<TipoInteracao>([
   'ligacao', 'whatsapp', 'reuniao', 'treinamento',
-  'atendimento_cliente', 'atendimento_corretor',
+  'atendimento_cliente', 'atendimento_corretor', 'atendimento_cliente_online', 'videochamada',
   'visita', 'visita_obra', 'visita_imobiliaria', 'almoco', 'evento',
 ]);
 

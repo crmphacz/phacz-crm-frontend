@@ -734,6 +734,28 @@ function ExtratoPainel({
             <h3 className="text-sm font-semibold text-gray-900 mb-2">
               Cupons ({extrato.cupons.length})
             </h3>
+
+            {/* Item 8.1: o degrau. Parado em 1 atendimento o participante tem ZERO cupom, e
+                falta um único para ganhar DOIS — a lista de cupons vazia não dizia isso, e era
+                justamente quem está a um passo que não ficava sabendo. */}
+            {extrato.cupomDoPeriodo.faltam > 0 && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 mb-3">
+                <p>
+                  <strong>
+                    Falta {extrato.cupomDoPeriodo.faltam} atendimento
+                    {extrato.cupomDoPeriodo.faltam > 1 ? 's' : ''} qualificado
+                    {extrato.cupomDoPeriodo.faltam > 1 ? 's' : ''}
+                  </strong>{' '}
+                  em {rotuloDoPeriodo(extrato.cupomDoPeriodo.periodo)} para destravar os cupons.
+                </p>
+                <p className="mt-1 text-violet-800">
+                  São {extrato.cupomDoPeriodo.atendimentosQualificados} até agora. Ao chegar em 2,
+                  nascem <strong>2 cupons de uma vez</strong> — o degrau conta também os dois
+                  primeiros. Daí em diante é um cupom por atendimento.
+                </p>
+              </div>
+            )}
+
             {extrato.cupons.length === 0 ? (
               <p className="text-sm text-gray-500">Nenhum cupom até agora.</p>
             ) : (

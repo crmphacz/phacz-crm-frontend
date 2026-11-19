@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Plus, Search, X, Zap, GripVertical, XCircle, Eye, Trash2 } from 'lucide-react';
 import {
   DndContext,
@@ -16,9 +16,12 @@ import { useStore, useFilteredCorretores, type PipelineFunnel } from '../store';
 import { useCorretoresQuery } from '../queries/corretores';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
-import { STAGES, FUNIS_DO_PIPELINE, TODAS_AS_ETAPAS, COLUNAS_DO_PIPELINE } from '../data';
+import {
+  STAGES, FUNIS_DO_PIPELINE, TODAS_AS_ETAPAS, COLUNAS_DO_PIPELINE,
+  COLUNAS_POR_TIPO_DE_CARD, type TipoDeCard,
+} from '../data';
 import { ApiError } from '../api/client';
-import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada, nomeExibidoNoCard } from '../utils';
+import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada, nomeExibidoNoCard, ehCardDeCliente } from '../utils';
 import { CorretorCard } from './CorretorCard';
 import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
 import {
@@ -63,6 +66,43 @@ const ALL_STAGE_COLUMNS = COLUNAS_DO_PIPELINE;
  * Um é o fim do relacionamento, o outro é o fim de uma venda.
  */
 const COLUNA_PERDIDOS = 'coluna-perdidos';
+
+/**
+ * Identificador de uma coluna no arrastar-e-soltar.
+ *
+ * `stage-9` numa etapa normal; `stage-9--cliente` e `stage-9--corretor` nas etapas que o
+ * quadro divide por tipo de card. O sufixo é necessário porque as duas metades são a MESMA
+ * etapa: sem ele as duas colunas teriam o mesmo id de drop e o dnd-kit não saberia distingui-las.
+ */
+function idDaColuna(etapa: number, tipo?: TipoDeCard): string {
+  return tipo ? `stage-${etapa}--${tipo}` : `stage-${etapa}`;
+}
+
+function lerIdDaColuna(overId: string): { etapa: number; tipo: TipoDeCard | null } | null {
+  if (!overId.startsWith('stage-')) return null;
+  const [etapaTexto, tipo] = overId.slice('stage-'.length).split('--');
+  const etapa = Number(etapaTexto);
+  if (!Number.isFinite(etapa) || etapaTexto === '') return null;
+  return { etapa, tipo: tipo === 'corretor' || tipo === 'cliente' ? tipo : null };
+}
+
+/** O que este card é — é isso, e não a posição no quadro, que decide a coluna. */
+function tipoDoCard(corretor: Corretor): TipoDeCard {
+  return ehCardDeCliente(corretor) ? 'cliente' : 'corretor';
+}
+
+/**
+ * Por que o card não pode ser solto nesta metade.
+ *
+ * A coluna é decidida pelo TIPO do card, não por arraste: um card de corretor não vira negócio
+ * sendo puxado para Leads. A mensagem diz onde ele fica, em vez de só recusar — recusar calado
+ * faz parecer que o quadro travou.
+ */
+function mensagemDeColunaErrada(destino: TipoDeCard): string {
+  return destino === 'cliente'
+    ? 'Leads mostra só os cards de cliente final. O card do corretor fica na Negociação — o negócio aparece aqui sozinho quando é gerado a partir dele.'
+    : 'A Negociação mostra só os cards de corretor. Este é um negócio com cliente final: o lugar dele é a coluna Leads.';
+}
 
 export function PipelineView() {
   const setShowNewCorretorModal = useStore((s) => s.setShowNewCorretorModal);
@@ -162,10 +202,21 @@ export function PipelineView() {
       return;
     }
 
-    if (!overId.startsWith('stage-')) return;
-    const toEtapa = Number(overId.replace('stage-', ''));
+    const alvo = lerIdDaColuna(overId);
+    if (!alvo) return;
+    const toEtapa = alvo.etapa;
     const corretor = corretores.find((l) => l.id === active.id);
-    if (!corretor || corretor.etapa === toEtapa || isNaN(toEtapa)) return;
+    if (!corretor) return;
+
+    // Coluna dividida por tipo de card: a metade de destino tem que casar com o que o card é.
+    // Vale também quando o card já está na etapa — é o caso de arrastar da Negociação para
+    // Leads, que é onde a regra mais precisa ser explicada.
+    if (alvo.tipo && alvo.tipo !== tipoDoCard(corretor)) {
+      showToast(mensagemDeColunaErrada(alvo.tipo), 'error');
+      return;
+    }
+
+    if (corretor.etapa === toEtapa) return;
     if (!canWriteCorretor(currentUser, corretor)) return;
 
     // Antes o card só voltava pro lugar, sem explicar por quê. Agora o toast diz exatamente
@@ -407,11 +458,38 @@ export function PipelineView() {
               if (filteredGroup.length === 1) {
                 const stageId = filteredGroup[0];
                 const stage = STAGES.find((s) => s.id === stageId)!;
+                const daEtapa = corretoresByStage[stageId] ?? [];
+                const divisao = COLUNAS_POR_TIPO_DE_CARD[stageId];
+
+                // Etapa dividida por tipo de card (hoje só a Negociação): duas colunas lado a
+                // lado, a MESMA etapa no banco. Quem decide o lado é o tipo do card, por isso
+                // não há "mover" entre elas — ver `mensagemDeColunaErrada`.
+                if (divisao) {
+                  return (
+                    <Fragment key={stageId}>
+                      <DroppableStageColumn
+                        stage={{ ...stage, ...divisao.corretor }}
+                        tipo="corretor"
+                        corretores={daEtapa.filter((c) => tipoDoCard(c) === 'corretor')}
+                        showAddButton={showAddOnEmpty}
+                        onAdd={() => setShowNewCorretorModal(true, stageId)}
+                      />
+                      {/* Sem "+ Adicionar": o que se cadastra à mão é corretor, e o card de
+                          cliente final nasce de um corretor existente, nunca do zero aqui. */}
+                      <DroppableStageColumn
+                        stage={{ ...stage, ...divisao.cliente }}
+                        tipo="cliente"
+                        corretores={daEtapa.filter((c) => tipoDoCard(c) === 'cliente')}
+                      />
+                    </Fragment>
+                  );
+                }
+
                 return (
                   <DroppableStageColumn
                     key={stageId}
                     stage={stage}
-                    corretores={corretoresByStage[stageId] ?? []}
+                    corretores={daEtapa}
                     showAddButton={showAddOnEmpty}
                     onAdd={() => setShowNewCorretorModal(true, stageId)}
                   />
@@ -484,6 +562,7 @@ export function PipelineView() {
 function DroppableStageColumn({
   stage,
   corretores,
+  tipo,
   noBorderRight,
   noBorderLeft,
   showAddButton,
@@ -491,12 +570,14 @@ function DroppableStageColumn({
 }: {
   stage: StageConfig;
   corretores: Corretor[];
+  /** Presente só nas metades de uma etapa dividida por tipo de card (Negociação × Leads). */
+  tipo?: TipoDeCard;
   noBorderRight?: boolean;
   noBorderLeft?: boolean;
   showAddButton?: boolean;
   onAdd?: () => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `stage-${stage.id}` });
+  const { setNodeRef, isOver } = useDroppable({ id: idDaColuna(stage.id, tipo) });
 
   return (
     <div
@@ -567,7 +648,9 @@ function DroppableStageColumn({
         {corretores.length === 0 && !isOver ? (
           <div className="py-8 text-center">
             <div className="text-2xl mb-2 opacity-20">○</div>
-            <p className="text-xs" style={{ color: '#9ca3af' }}>Nenhum corretor</p>
+            <p className="text-xs" style={{ color: '#9ca3af' }}>
+              {tipo === 'cliente' ? 'Nenhum lead' : 'Nenhum corretor'}
+            </p>
           </div>
         ) : (
           corretores.map((corretor) => (

@@ -4,7 +4,8 @@ export type TipoInteracao =
   | 'ligacao' | 'whatsapp' | 'email'
   // 'visita' é a "Visita em clientes" — o valor não mudou, só o rótulo (ver TIPO_INTERACAO_CONFIG).
   | 'visita' | 'visita_obra' | 'visita_imobiliaria' | 'almoco' | 'evento'
-  | 'reuniao' | 'atendimento_cliente' | 'atendimento_corretor'
+  | 'reuniao' | 'atendimento_cliente' | 'atendimento_corretor' | 'atendimento_cliente_online'
+  | 'videochamada'
   | 'nota' | 'proposta' | 'especulacao' | 'treinamento';
 export type TipoInteresse = string;
 export type CanalOrigem = string;
