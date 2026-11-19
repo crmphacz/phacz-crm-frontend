@@ -1,5 +1,5 @@
 import { Building2, Users, Link, AlertCircle, Trophy } from 'lucide-react';
-import type { Corretor } from '../types';
+import type { Corretor, SommarNivelChave } from '../types';
 import type { StageConfig } from '../types';
 import {
   TEMPERATURA_CONFIG, getSlaStatus, getSlaLabel, getInitials,
@@ -9,12 +9,19 @@ import {
 import { useStore } from '../store';
 import { SommarTag } from './SommarTag';
 
+/** A adesão e a faixa já resolvidas para este card — ver `participantesSommarPorCard`. */
+export interface SommarDoCard {
+  aderiuEm?: string;
+  nivel?: SommarNivelChave;
+}
+
 interface Props {
   corretor: Corretor;
   stage: StageConfig;
+  sommar?: SommarDoCard;
 }
 
-export function CorretorCard({ corretor, stage }: Props) {
+export function CorretorCard({ corretor, stage, sommar }: Props) {
   const setSelectedCorretor = useStore((s) => s.setSelectedCorretor);
   const slaStatus = getSlaStatus(corretor, stage);
   const slaLabel = getSlaLabel(corretor, stage);
@@ -39,21 +46,16 @@ export function CorretorCard({ corretor, stage }: Props) {
   const vendas = corretor.totalVendas ?? 0;
 
   /**
-   * A adesão que vale para ESTE card. Num card de negócio ela é do corretor PAI: o card filho
-   * não copia `sommarAdesaoEm` (ver a criação do negócio no backend), e está certo — o
-   * participante é a pessoa, não o negócio. Mas os pontos de uma proposta lançada no filho
-   * sobem para o pai (`participanteDoCard`), então um negócio sem tag diria o contrário do que
-   * acontece: "este não pontua", quando pontua.
+   * A adesão que vale para ESTE card, resolvida pelo PAI quando é card de negócio — o filho
+   * não copia `sommarAdesaoEm`, e está certo: o participante é a pessoa, não o negócio.
    *
-   * Se o pai não estiver na lista carregada, a tag simplesmente não aparece — some um aviso,
-   * nunca aparece um errado.
+   * Vem PRONTA de cima, por `sommar`, e não de uma busca aqui dentro. A primeira versão disto
+   * era um seletor do store que varria a lista inteira à procura do pai; como o zustand roda
+   * todo seletor inscrito a cada mudança do store, e o quadro tem mais de mil cards, aquilo
+   * custava mais de um milhão de comparações a cada lead que entrava pela automação. O pai é
+   * procurado UMA vez, em PipelineView, num mapa.
    */
-  const participanteSommar = useStore((s) => {
-    if (corretor.sommarAdesaoEm) return corretor;
-    if (!corretor.parentCorretorId) return undefined;
-    return s.corretores.find((c) => c.id === corretor.parentCorretorId);
-  });
-  const adesaoSommar = participanteSommar?.sommarAdesaoEm;
+  const adesaoSommar = sommar?.aderiuEm;
 
   return (
     <div
@@ -80,7 +82,7 @@ export function CorretorCard({ corretor, stage }: Props) {
                 Faltam {faltando.length} {faltando.length === 1 ? 'dado' : 'dados'}
               </div>
             )}
-            <SommarTag aderiuEm={adesaoSommar} nivel={participanteSommar?.sommarNivel} compact />
+            <SommarTag aderiuEm={adesaoSommar} nivel={sommar?.nivel} compact />
           </div>
         )}
 

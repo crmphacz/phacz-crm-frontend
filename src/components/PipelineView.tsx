@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, X, Zap, GripVertical, XCircle, Eye, Trash2 } from 'lucide-react';
 import {
   DndContext,
@@ -22,7 +22,7 @@ import {
 } from '../data';
 import { ApiError } from '../api/client';
 import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada, nomeExibidoNoCard, ehCardDeCliente } from '../utils';
-import { CorretorCard } from './CorretorCard';
+import { CorretorCard, type SommarDoCard } from './CorretorCard';
 import { AdvancedFiltersPanel } from './AdvancedFiltersPanel';
 import {
   canCreateCorretor, canWriteCorretor, getHiddenPipelineStages,
@@ -84,6 +84,49 @@ function lerIdDaColuna(overId: string): { etapa: number; tipo: TipoDeCard | null
   const etapa = Number(etapaTexto);
   if (!Number.isFinite(etapa) || etapaTexto === '') return null;
   return { etapa, tipo: tipo === 'corretor' || tipo === 'cliente' ? tipo : null };
+}
+
+/**
+ * Quantos cards cada coluna desenha de uma vez.
+ *
+ * O quadro não é virtualizado: sem teto, a coluna "Novo Corretor" sozinha monta mais de mil
+ * componentes no DOM, e TODOS eles re-renderizam a cada mudança do store — inclusive a cada
+ * lead que a automação insere, de 15 em 15 segundos. O contador do cabeçalho continua mostrando
+ * o total real; o que o teto limita é só o que é desenhado.
+ *
+ * 60 cobre com folga o que cabe na tela mais alta antes de rolar, e o botão no rodapé da coluna
+ * carrega o próximo lote para quem precisa ir além.
+ */
+const CARDS_POR_LOTE = 60;
+
+/**
+ * Para cada card, a adesão e a faixa do SÕMMAR que valem para ele — subindo ao corretor-pai
+ * quando o card é de negócio, que não tem adesão própria.
+ *
+ * Calculado UMA vez por render da tela, e não dentro de cada card. A versão anterior fazia a
+ * busca do pai num seletor do zustand dentro do CorretorCard: como o zustand roda todo seletor
+ * inscrito a cada mudança do store, mil cards varrendo uma lista de mil davam mais de um milhão
+ * de comparações por atualização.
+ */
+function participantesSommarPorCard(corretores: Corretor[]): Map<string, SommarDoCard> {
+  const participantes = new Map<string, SommarDoCard>();
+  for (const c of corretores) {
+    if (c.sommarAdesaoEm) participantes.set(c.id, { aderiuEm: c.sommarAdesaoEm, nivel: c.sommarNivel });
+  }
+
+  const porCard = new Map<string, SommarDoCard>();
+  for (const c of corretores) {
+    const proprio = participantes.get(c.id);
+    if (proprio) {
+      porCard.set(c.id, proprio);
+      continue;
+    }
+    // Card de negócio: herda do pai. Se o pai não estiver na lista carregada, fica sem tag —
+    // some um aviso, nunca aparece um errado.
+    const doPai = c.parentCorretorId ? participantes.get(c.parentCorretorId) : undefined;
+    if (doPai) porCard.set(c.id, doPai);
+  }
+  return porCard;
 }
 
 /** O que este card é — é isso, e não a posição no quadro, que decide a coluna. */
@@ -174,6 +217,9 @@ export function PipelineView() {
   // Busca sem nenhum resultado em qualquer funil: cada coluna oferece "+ Adicionar corretor",
   // já abrindo o cadastro na etapa da coluna clicada.
   const showAddOnEmpty = canCreate && searchQuery.trim() !== '' && emAndamento.length === 0;
+
+  // Uma passada sobre a lista, não uma busca por card — ver `participantesSommarPorCard`.
+  const sommarPorCard = useMemo(() => participantesSommarPorCard(corretores), [corretores]);
 
   const visibleColumns = ALL_STAGE_COLUMNS.filter((group) =>
     group.some((id) => visibleStageIds.includes(id))
@@ -469,6 +515,7 @@ export function PipelineView() {
                     <Fragment key={stageId}>
                       <DroppableStageColumn
                         stage={{ ...stage, ...divisao.corretor }}
+                        sommarPorCard={sommarPorCard}
                         tipo="corretor"
                         corretores={daEtapa.filter((c) => tipoDoCard(c) === 'corretor')}
                         showAddButton={showAddOnEmpty}
@@ -478,6 +525,7 @@ export function PipelineView() {
                           cliente final nasce de um corretor existente, nunca do zero aqui. */}
                       <DroppableStageColumn
                         stage={{ ...stage, ...divisao.cliente }}
+                        sommarPorCard={sommarPorCard}
                         tipo="cliente"
                         corretores={daEtapa.filter((c) => tipoDoCard(c) === 'cliente')}
                       />
@@ -490,6 +538,7 @@ export function PipelineView() {
                     key={stageId}
                     stage={stage}
                     corretores={daEtapa}
+                    sommarPorCard={sommarPorCard}
                     showAddButton={showAddOnEmpty}
                     onAdd={() => setShowNewCorretorModal(true, stageId)}
                   />
@@ -516,6 +565,7 @@ export function PipelineView() {
                   <DroppableStageColumn
                     stage={stage6}
                     corretores={corretoresByStage[id6] ?? []}
+                    sommarPorCard={sommarPorCard}
                     noBorderRight
                     showAddButton={showAddOnEmpty}
                     onAdd={() => setShowNewCorretorModal(true, id6)}
@@ -523,6 +573,7 @@ export function PipelineView() {
                   <DroppableStageColumn
                     stage={stage7}
                     corretores={corretoresByStage[id7] ?? []}
+                    sommarPorCard={sommarPorCard}
                     noBorderLeft
                     showAddButton={showAddOnEmpty}
                     onAdd={() => setShowNewCorretorModal(true, id7)}
@@ -539,7 +590,7 @@ export function PipelineView() {
         <DragOverlay>
           {activeCorretor && activeStage ? (
             <div style={{ opacity: 0.9, transform: 'rotate(2deg)' }}>
-              <CorretorCard corretor={activeCorretor} stage={activeStage} />
+              <CorretorCard corretor={activeCorretor} stage={activeStage} sommar={sommarPorCard.get(activeCorretor.id)} />
             </div>
           ) : null}
         </DragOverlay>
@@ -562,6 +613,7 @@ export function PipelineView() {
 function DroppableStageColumn({
   stage,
   corretores,
+  sommarPorCard,
   tipo,
   noBorderRight,
   noBorderLeft,
@@ -570,6 +622,8 @@ function DroppableStageColumn({
 }: {
   stage: StageConfig;
   corretores: Corretor[];
+  /** A adesão/faixa do SÕMMAR já resolvida por card — ver `participantesSommarPorCard`. */
+  sommarPorCard: Map<string, SommarDoCard>;
   /** Presente só nas metades de uma etapa dividida por tipo de card (Negociação × Leads). */
   tipo?: TipoDeCard;
   noBorderRight?: boolean;
@@ -578,6 +632,14 @@ function DroppableStageColumn({
   onAdd?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: idDaColuna(stage.id, tipo) });
+
+  /**
+   * Quantos cards desta coluna estão desenhados. Volta ao primeiro lote sempre que o RECORTE
+   * muda — trocar de filtro e continuar vendo 300 cards de um filtro anterior seria pior do
+   * que recomeçar. `corretores.length` é o gatilho: é o que muda quando o filtro muda.
+   */
+  const [visiveis, setVisiveis] = useState(CARDS_POR_LOTE);
+  useEffect(() => { setVisiveis(CARDS_POR_LOTE); }, [corretores.length]);
 
   return (
     <div
@@ -653,16 +715,36 @@ function DroppableStageColumn({
             </p>
           </div>
         ) : (
-          corretores.map((corretor) => (
-            <DraggableCorretorCard key={corretor.id} corretor={corretor} stage={stage} />
-          ))
+          <>
+            {corretores.slice(0, visiveis).map((corretor) => (
+              <DraggableCorretorCard
+                key={corretor.id}
+                corretor={corretor}
+                stage={stage}
+                sommar={sommarPorCard.get(corretor.id)}
+              />
+            ))}
+            {corretores.length > visiveis && (
+              <button
+                type="button"
+                onClick={() => setVisiveis((n) => n + CARDS_POR_LOTE)}
+                className="w-full py-2 text-xs font-semibold rounded-lg border border-dashed hover:opacity-80 transition-opacity"
+                style={{ color: stage.cor, borderColor: stage.cor, backgroundColor: stage.corBg }}
+              >
+                Mostrar mais {Math.min(CARDS_POR_LOTE, corretores.length - visiveis)} de{' '}
+                {corretores.length - visiveis}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function DraggableCorretorCard({ corretor, stage }: { corretor: Corretor; stage: StageConfig }) {
+function DraggableCorretorCard(
+  { corretor, stage, sommar }: { corretor: Corretor; stage: StageConfig; sommar?: SommarDoCard }
+) {
   const currentUser = useStore((s) => s.currentUser);
   const isReadOnly = !canWriteCorretor(currentUser, corretor);
   const podeExcluir = canDeleteLeadClienteOuCard(currentUser);
@@ -709,7 +791,7 @@ function DraggableCorretorCard({ corretor, stage }: { corretor: Corretor; stage:
           <Trash2 size={13} />
         </button>
       )}
-      <CorretorCard corretor={corretor} stage={stage} />
+      <CorretorCard corretor={corretor} stage={stage} sommar={sommar} />
       {confirmandoExclusao && (
         // O modal é `fixed`, mas ainda é descendente do card no DOM: sem segurar o clique
         // aqui, mexer nele abriria o painel do corretor por baixo.
@@ -777,7 +859,9 @@ function ColunaPerdidos({ corretores }: { corretores: Corretor[] }) {
         {corretores.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-10">Nenhum corretor perdido</p>
         ) : (
-          corretores.map((c) => (
+          // Mesmo teto das colunas de etapa: a lista de perdidos cresce para sempre, e nunca
+          // foi feita para ser lida inteira rolando.
+          corretores.slice(0, CARDS_POR_LOTE).map((c) => (
             <button
               key={c.id}
               onClick={() => setSelectedCorretor(c.id)}
