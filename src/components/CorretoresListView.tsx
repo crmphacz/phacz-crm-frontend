@@ -106,6 +106,9 @@ export function CorretoresListView() {
       .listPaged({
         page, pageSize: PAGE_SIZE, status: statusFilter, search: search || undefined,
         sort: sortField, dir: sortDir, sommar: sommarFilter ? 'participantes' : undefined,
+        // Só cards de CORRETOR. Os cards de cliente final têm tela própria — Leads enquanto
+        // não compraram, Nossos clientes depois — e apareciam aqui como se fossem parceiros.
+        tipo: 'corretor',
       })
       .then((res) => {
         if (cancelled) return;

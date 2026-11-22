@@ -100,31 +100,21 @@ function lerIdDaColuna(overId: string): { etapa: number; tipo: TipoDeCard | null
 const CARDS_POR_LOTE = 60;
 
 /**
- * Para cada card, a adesão e a faixa do SÕMMAR que valem para ele — subindo ao corretor-pai
- * quando o card é de negócio, que não tem adesão própria.
+ * Para cada card, a adesão e a faixa do SÕMMAR — só nos cards de CORRETOR.
  *
- * Calculado UMA vez por render da tela, e não dentro de cada card. A versão anterior fazia a
- * busca do pai num seletor do zustand dentro do CorretorCard: como o zustand roda todo seletor
- * inscrito a cada mudança do store, mil cards varrendo uma lista de mil davam mais de um milhão
- * de comparações por atualização.
+ * O card de cliente final NÃO herda a tag do corretor-pai, por decisão da Diretoria: quem
+ * participa do programa é o parceiro, e marcar o comprador com a faixa dele confundia quem lê
+ * o quadro. Os pontos continuam subindo para o pai normalmente — isso é apuração, não tela.
+ *
+ * Calculado UMA vez por render, e não dentro de cada card. A versão anterior buscava num
+ * seletor do zustand dentro do CorretorCard: como o zustand roda todo seletor inscrito a cada
+ * mudança do store, mil cards varrendo uma lista de mil davam mais de um milhão de
+ * comparações por atualização.
  */
 function participantesSommarPorCard(corretores: Corretor[]): Map<string, SommarDoCard> {
-  const participantes = new Map<string, SommarDoCard>();
-  for (const c of corretores) {
-    if (c.sommarAdesaoEm) participantes.set(c.id, { aderiuEm: c.sommarAdesaoEm, nivel: c.sommarNivel });
-  }
-
   const porCard = new Map<string, SommarDoCard>();
   for (const c of corretores) {
-    const proprio = participantes.get(c.id);
-    if (proprio) {
-      porCard.set(c.id, proprio);
-      continue;
-    }
-    // Card de negócio: herda do pai. Se o pai não estiver na lista carregada, fica sem tag —
-    // some um aviso, nunca aparece um errado.
-    const doPai = c.parentCorretorId ? participantes.get(c.parentCorretorId) : undefined;
-    if (doPai) porCard.set(c.id, doPai);
+    if (c.sommarAdesaoEm) porCard.set(c.id, { aderiuEm: c.sommarAdesaoEm, nivel: c.sommarNivel });
   }
   return porCard;
 }

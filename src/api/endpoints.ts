@@ -104,6 +104,11 @@ export interface CorretoresPagedParams {
    * à vista, e a contagem mentiria.
    */
   sommar?: 'participantes';
+  /**
+   * `'corretor'` tira da lista os cards de CLIENTE FINAL. O Pipeline NÃO manda isto — lá os
+   * cards de negócio são a coluna Leads.
+   */
+  tipo?: 'corretor';
 }
 
 export interface CorretoresPagedResult {

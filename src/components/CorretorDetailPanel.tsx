@@ -27,13 +27,13 @@ import { empreendimentosApi, corretoresApi } from '../api/endpoints';
 import { Combobox } from './Combobox';
 import { NewClienteModal } from './NewClienteModal';
 import { UF_OPTIONS, useCidadesPorUf } from '../lib/ibge';
-import { canWriteCorretor, canRegistrarAtividade, canDeleteLeadClienteOuCard, canWhatsappCorretor, canCreateClienteFinal, canDecidirProposta } from '../permissions';
+import { canWriteCorretor, canRegistrarAtividade, canDeleteLeadClienteOuCard, canWhatsappCorretor, canCreateClienteFinal, canEditClienteFinal, canDecidirProposta } from '../permissions';
 import { SommarTag } from './SommarTag';
 import { WhatsappSendModal } from './WhatsappSendModal';
 import { CancelarTreinamentoModal } from './CancelarTreinamentoModal';
 import { WhatsappIcon } from './WhatsappIcon';
 import { Spinner, InlineLoader } from './Spinner';
-import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade, Interacao } from '../types';
+import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade, Interacao, ClienteFinal } from '../types';
 
 function alertError(err: unknown, fallback: string) {
   alert(err instanceof ApiError ? err.message : fallback);
@@ -710,11 +710,9 @@ export function CorretorDetailPanel() {
                   </h2>
                   {/* Mesma tag do card. Repetir aqui é de propósito: quem abre o painel para
                       lançar proposta precisa saber, ali, que aquilo vai pontuar. */}
-                  <SommarTag
-                    aderiuEm={corretor.sommarAdesaoEm ?? parentCorretor?.sommarAdesaoEm}
-                    nivel={corretor.sommarAdesaoEm ? corretor.sommarNivel : parentCorretor?.sommarNivel}
-                    compact
-                  />
+                  {/* Só no card do CORRETOR: o cliente final não carrega a tag do parceiro.
+                      Os pontos continuam subindo para o corretor — isso é apuração, não tela. */}
+                  <SommarTag aderiuEm={corretor.sommarAdesaoEm} nivel={corretor.sommarNivel} compact />
                 </div>
                 {isNegocio && parentCorretor && (
                   <p className="text-xs text-gray-400 truncate">
@@ -911,7 +909,19 @@ export function CorretorDetailPanel() {
 
               <fieldset disabled={isReadOnly || !editingGeral} className="border-0 m-0 min-w-0 px-5 pb-5 pt-3 space-y-5">
               {/* Corretor */}
-              <Section title={isNegocio ? 'Dados do Cliente' : 'Dados do Corretor'} icon={<Building2 size={14} style={{ color: '#d55006' }} />}>
+              {/* Num card de NEGÓCIO, os campos de corretor deste card guardam uma CÓPIA
+                  dos dados do corretor-pai — é assim que o card nasce. Mostrá-los sob "Dados
+                  do Cliente" exibia o telefone e o CPF do corretor como se fossem do cliente.
+                  Os dados de verdade vêm de `clienteFinalVinculado`, e são editados pela rota
+                  do cliente, não pela do card. */}
+              {isNegocio ? (
+                <DadosDoClienteFinal
+                  cliente={corretor.clienteFinalVinculado}
+                  corretorDeOrigem={parentCorretor?.nomeCorretor ?? corretor.nomeCorretor}
+                  podeEditar={!isReadOnly && canEditClienteFinal(currentUser)}
+                />
+              ) : (
+              <Section title="Dados do Corretor" icon={<Building2 size={14} style={{ color: '#d55006' }} />}>
                 <div className="space-y-3">
                   <EditField
                     label="Nome completo"
@@ -967,10 +977,8 @@ export function CorretorDetailPanel() {
                     type="email"
                     disabled={isReadOnly || !editingGeral}
                   />
-                  {/* Imobiliaria, ticket medio e CRECI sao dados de CORRETOR. Num card de
-                      cliente eles nao se aplicam: ou ficam vazios, ou (no negocio gerado a
-                      partir de um corretor) repetem o que o cabecalho ja diz em "via X". */}
-                  {!isNegocio && (
+                  {/* Imobiliária, ticket médio e CRECI são dados de CORRETOR — e esta
+                      seção inteira só existe no card de corretor. */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-gray-400 mb-1">Imobiliária</p>
@@ -1000,8 +1008,7 @@ export function CorretorDetailPanel() {
                       disabled={isReadOnly || !editingGeral}
                     />
                   </div>
-                  )}
-                  {/* O CPF continua: e do titular do card, corretor ou cliente. */}
+                  {/* O CPF é do titular do card — aqui, sempre um corretor. */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <EditField
                       label="CPF"
@@ -1010,15 +1017,13 @@ export function CorretorDetailPanel() {
                       placeholder="000.000.000-00"
                       disabled={isReadOnly || !editingGeral}
                     />
-                    {!isNegocio && (
-                      <EditField
-                        label="CRECI"
-                        value={shown('creci') ?? ''}
-                        onChange={(v) => patchDraft({ creci: v })}
-                        placeholder="Ex: 123456-F"
-                        disabled={isReadOnly || !editingGeral}
-                      />
-                    )}
+                    <EditField
+                      label="CRECI"
+                      value={shown('creci') ?? ''}
+                      onChange={(v) => patchDraft({ creci: v })}
+                      placeholder="Ex: 123456-F"
+                      disabled={isReadOnly || !editingGeral}
+                    />
                   </div>
                   <EditField
                     label="Data de nascimento"
@@ -1053,6 +1058,7 @@ export function CorretorDetailPanel() {
                   </div>
                 </div>
               </Section>
+              )}
 
               {/* Qualificação — some no card de cliente: tipo de interesse, potencial de
                   investimento e treinamento sao perguntas que se faz a um CORRETOR parceiro,
@@ -2015,27 +2021,46 @@ export function CorretorDetailPanel() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="sm:col-span-2">
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Cliente final</label>
-                      <select
-                        className="form-input text-sm"
-                        value={pClienteId}
-                        disabled={corretor.clientesFinais.length === 0}
-                        onChange={(e) => {
-                          const cf = corretor.clientesFinais.find((c) => c.id === e.target.value);
-                          setPClienteId(cf?.id ?? '');
-                          setPClienteNome(cf?.nome ?? '');
-                        }}
-                      >
-                        <option value="">
-                          {corretor.clientesFinais.length === 0
-                            ? 'Nenhum cliente cadastrado na aba Clientes'
-                            : 'Selecionar cliente...'}
-                        </option>
-                        {corretor.clientesFinais.map((cf) => (
-                          <option key={cf.id} value={cf.id}>
-                            {cf.nome}{cf.telefone ? ` — ${cf.telefone}` : ''}
+                      {/* Num card de NEGÓCIO o cliente é o próprio card — não há o que
+                          escolher, e um seletor vazio dizendo "Nenhum cliente cadastrado"
+                          sugeria que faltava cadastrar alguém. O vínculo é gravado no
+                          servidor (ver clienteFinalImplicitoDoCard). */}
+                      {isNegocio ? (
+                        <div
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 border text-sm"
+                          style={{ borderColor: '#e5e7eb', backgroundColor: '#fff' }}
+                        >
+                          <Users size={13} className="text-gray-400 flex-shrink-0" />
+                          <span className="font-medium text-gray-800 truncate">
+                            {nomeExibidoNoCard(corretor)}
+                          </span>
+                          <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">
+                            também aparece no corretor
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          className="form-input text-sm"
+                          value={pClienteId}
+                          disabled={corretor.clientesFinais.length === 0}
+                          onChange={(e) => {
+                            const cf = corretor.clientesFinais.find((c) => c.id === e.target.value);
+                            setPClienteId(cf?.id ?? '');
+                            setPClienteNome(cf?.nome ?? '');
+                          }}
+                        >
+                          <option value="">
+                            {corretor.clientesFinais.length === 0
+                              ? 'Nenhum cliente cadastrado na aba Clientes'
+                              : 'Selecionar cliente...'}
                           </option>
-                        ))}
-                      </select>
+                          {corretor.clientesFinais.map((cf) => (
+                            <option key={cf.id} value={cf.id}>
+                              {cf.nome}{cf.telefone ? ` — ${cf.telefone}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1">Empreendimento *</label>
@@ -2193,6 +2218,17 @@ export function CorretorDetailPanel() {
                           <div className="flex items-center gap-1.5 mb-2">
                             <Users size={11} className="text-gray-400" />
                             <span className="text-xs text-gray-500">{p.clienteFinalNome}</span>
+                          </div>
+                        )}
+                        {/* A MESMA proposta aparece no card do corretor e no do cliente final
+                            — é uma linha só, vista dos dois lados. Sem dizer de onde ela veio,
+                            quem abre o segundo card acha que a proposta foi duplicada. */}
+                        {p.corretorId && p.corretorId !== corretor.id && (
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Link size={11} style={{ color: '#6b7280' }} />
+                            <span className="text-xs text-gray-500">
+                              {isNegocio ? 'Registrada no card do corretor' : 'Registrada no card do cliente'}
+                            </span>
                           </div>
                         )}
                         <p className="font-bold text-sm text-gray-900" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
@@ -2430,6 +2466,97 @@ export function CorretorDetailPanel() {
 }
 
 // ── Sub-components ──
+
+/**
+ * Os dados do CLIENTE FINAL num card de negócio.
+ *
+ * O card de negócio nasce copiando nome, telefone, e-mail e CPF do corretor-pai (ver
+ * POST /:id/negocios no backend) — é por isso que o painel mostrava os dados da Rakel sob o
+ * título "Dados do Cliente" no card da Eduarda. Os dados de verdade vêm do registro de
+ * ClienteFinal vinculado ao card.
+ *
+ * Somente leitura aqui de propósito: o cliente já tem um formulário próprio, com checagem de
+ * duplicidade por CPF e troca de corretor responsável (ver NewClienteModal). Reconstruí-lo
+ * aqui criaria um segundo caminho de edição para o mesmo registro, com outra validação.
+ */
+function DadosDoClienteFinal({
+  cliente,
+  corretorDeOrigem,
+  podeEditar,
+}: {
+  cliente?: ClienteFinal;
+  corretorDeOrigem: string;
+  podeEditar: boolean;
+}) {
+  if (!cliente) {
+    return (
+      <Section title="Dados do Cliente" icon={<Users size={14} style={{ color: '#d55006' }} />}>
+        <p className="text-sm text-gray-500">
+          Este card não tem um cadastro de cliente vinculado — é o caso dos clientes importados
+          antes do vínculo existir. Os dados aparecem na tela <strong>Nossos clientes</strong>.
+        </p>
+      </Section>
+    );
+  }
+
+  const linhas: { rotulo: string; valor: string; href?: string }[] = [
+    { rotulo: 'Nome completo', valor: cliente.nome },
+    {
+      rotulo: 'Telefone',
+      valor: maskTelefone(cliente.telefone, cliente.paisTelefone ?? 'BR'),
+      href: `tel:+${paraFormatoInternacional(cliente.telefone, cliente.paisTelefone) ?? ''}`,
+    },
+    ...(cliente.email ? [{ rotulo: 'E-mail', valor: cliente.email, href: `mailto:${cliente.email}` }] : []),
+    ...(cliente.cpf ? [{ rotulo: 'CPF', valor: maskCPF(cliente.cpf) }] : []),
+    ...(cliente.dataNascimento
+      ? [{ rotulo: 'Data de nascimento', valor: new Date(cliente.dataNascimento).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) }]
+      : []),
+    ...(cliente.cidade || cliente.uf
+      ? [{ rotulo: 'Cidade / Estado', valor: [cliente.cidade, cliente.uf].filter(Boolean).join(' / ') }]
+      : []),
+    ...(cliente.interesse ? [{ rotulo: 'Interesse', valor: cliente.interesse }] : []),
+    ...(cliente.empreendimentoInteresse
+      ? [{ rotulo: 'Empreendimento de interesse', valor: cliente.empreendimentoInteresse }]
+      : []),
+    { rotulo: 'Veio pelo corretor', valor: corretorDeOrigem },
+  ];
+
+  return (
+    <Section title="Dados do Cliente" icon={<Users size={14} style={{ color: '#d55006' }} />}>
+      <div className="space-y-3">
+        {linhas.map((l) => (
+          <div key={l.rotulo}>
+            <p className="text-xs text-gray-400 mb-1">{l.rotulo}</p>
+            {l.href ? (
+              <a
+                href={l.href}
+                className="text-sm font-medium hover:underline"
+                style={{ color: '#d55006' }}
+              >
+                {l.valor}
+              </a>
+            ) : (
+              <p className="text-sm font-medium text-gray-900">{l.valor}</p>
+            )}
+          </div>
+        ))}
+        {cliente.observacoes && (
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Observações</p>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{cliente.observacoes}</p>
+          </div>
+        )}
+        {podeEditar && (
+          <p className="text-[11px] text-gray-400 pt-1">
+            Para alterar estes dados, abra o cliente em <strong>Nossos clientes</strong> ou na
+            aba <strong>Clientes</strong> do card do corretor — é lá que fica o formulário, com
+            a checagem de cliente duplicado.
+          </p>
+        )}
+      </div>
+    </Section>
+  );
+}
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (

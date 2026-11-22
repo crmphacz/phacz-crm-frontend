@@ -104,7 +104,13 @@ function mergeCorretoresLista(atuais: Corretor[], recebidos: Corretor[]): Corret
     if (novo.detalheCarregado) return novo;
     const antigo = detalhados.get(novo.id);
     if (!antigo) return novo;
-    return { ...novo, interacoes: antigo.interacoes, propostas: antigo.propostas, detalheCarregado: true };
+    return {
+      ...novo,
+      interacoes: antigo.interacoes,
+      propostas: antigo.propostas,
+      clienteFinalVinculado: antigo.clienteFinalVinculado,
+      detalheCarregado: true,
+    };
   });
 }
 
@@ -308,6 +314,8 @@ interface StoreState {
   addProposta: (corretorId: string, proposta: Omit<Proposta, 'id'>, arquivo?: File) => Promise<void>;
   updateProposta: (corretorId: string, propostaId: string, updates: Partial<Proposta>) => Promise<void>;
   downloadPropostaAnexo: (corretorId: string, propostaId: string, filename: string) => Promise<void>;
+  /** Recarrega o card e invalida o detalhe dos cards da mesma família — ver a implementação. */
+  recarregarCardEParentes: (corretorId: string) => Promise<void>;
 
   // Gerar negócio (split)
   gerarNegocio: (parentCorretorId: string, clienteFinalId: string) => Promise<string>;
@@ -843,14 +851,41 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   addProposta: async (corretorId, propostaData, arquivo) => {
     await corretoresApi.addProposta(corretorId, propostaData, arquivo);
-    const refreshed = await corretoresApi.get(corretorId);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
+    await get().recarregarCardEParentes(corretorId);
   },
 
   updateProposta: async (corretorId, propostaId, updates) => {
     await corretoresApi.updateProposta(corretorId, propostaId, updates);
+    await get().recarregarCardEParentes(corretorId);
+  },
+
+  /**
+   * Recarrega o card alterado e INVALIDA o detalhe dos cards do outro lado da família.
+   *
+   * A mesma proposta aparece no card do corretor e no do cliente final (ver propostasDoCard.ts
+   * no backend). Recarregar só o card aberto deixaria o outro mostrando a lista antiga até a
+   * página ser recarregada — aceitar uma proposta pelo card do cliente e abrir o do corretor
+   * ainda mostraria "Aguardando retorno".
+   *
+   * Invalida em vez de rebuscar: são até dezenas de negócios num corretor, e buscar todos
+   * agora para talvez nenhum ser aberto é trabalho jogado fora. Marcar `detalheCarregado`
+   * como falso faz o painel rebuscar sozinho quando (e se) o card for aberto.
+   */
+  recarregarCardEParentes: async (corretorId) => {
     const refreshed = await corretoresApi.get(corretorId);
-    set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
+    set((state) => {
+      const alterado = state.corretores.find((l) => l.id === corretorId);
+      const raiz = alterado?.parentCorretorId ?? corretorId;
+      const daFamilia = (l: Corretor) =>
+        l.id !== corretorId && (l.id === raiz || l.parentCorretorId === raiz);
+
+      return {
+        corretores: state.corretores.map((l) => {
+          if (l.id === corretorId) return comCamposDaListagem(refreshed, l);
+          return daFamilia(l) ? { ...l, detalheCarregado: false } : l;
+        }),
+      };
+    });
   },
 
   downloadPropostaAnexo: (corretorId, propostaId, filename) =>

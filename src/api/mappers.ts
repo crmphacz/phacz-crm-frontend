@@ -251,6 +251,7 @@ export interface ApiCorretor {
   // corretor completo. Ver corretorListInclude no backend.
   interacoes?: ApiInteracao[];
   propostas?: ApiProposta[];
+  clienteFinalVinculado?: ApiClienteFinal | null;
 }
 
 function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
@@ -377,6 +378,7 @@ function mapPropostaFromApi(p: ApiProposta): Proposta {
     clienteFinalId: p.clienteFinalId ?? undefined,
     clienteFinalNome: p.clienteFinalNome ?? undefined,
     data: p.data,
+    corretorId: p.corretorId ?? undefined,
     empreendimento: p.empreendimento,
     unidade: p.unidade,
     valor: p.valor,
@@ -443,6 +445,9 @@ export function mapCorretorFromApi(l: ApiCorretor): Corretor {
     interacoes: (l.interacoes ?? []).map(mapInteracaoFromApi),
     propostas: (l.propostas ?? []).map(mapPropostaFromApi),
     detalheCarregado: l.interacoes !== undefined && l.propostas !== undefined,
+    clienteFinalVinculado: l.clienteFinalVinculado
+      ? mapClienteFinalFromApi(l.clienteFinalVinculado)
+      : undefined,
     parentCorretorId: l.parentCorretorId ?? undefined,
     clienteFinalNome: l.clienteFinalNome ?? undefined,
     observacoes: l.observacoes,
@@ -495,6 +500,9 @@ export function mapCorretorUpdateToApi(updates: Partial<Corretor>): Record<strin
   const {
     responsavelSDR: _sdr, responsavelGV: _gv, responsavelGR: _gr,
     clientesFinais: _cf, interacoes: _int, propostas: _prop, detalheCarregado: _dc,
+    // Leitura, nunca escrita: o cliente vinculado é editado pela rota dele
+    // (PATCH /:id/clientes/:cfId), não pelo PATCH do card.
+    clienteFinalVinculado: _cfv,
     id: _id, etapaTimestamps: _et,
     ...rest
   } = updates;

@@ -132,6 +132,15 @@ export interface Interacao {
 
 export interface Proposta {
   id: string;
+  /**
+   * Em qual card a proposta foi REGISTRADA.
+   *
+   * Nem sempre é o card aberto: a mesma proposta aparece no card do corretor e no card do
+   * cliente final (ver propostasDoCard.ts no backend). Comparar este campo com o id do card
+   * aberto é o que permite dizer "registrada no card do corretor" em vez de a pessoa achar
+   * que a proposta foi duplicada.
+   */
+  corretorId?: string;
   clienteFinalId?: string;
   clienteFinalNome?: string;
   data: string;
@@ -255,6 +264,13 @@ export interface Corretor {
 
   /** `true` quando `interacoes`/`propostas` vieram do backend (GET /:id ou mutação); `false`/ausente na listagem leve, onde ambos são só `[]` placeholder. */
   detalheCarregado?: boolean;
+  /**
+   * O registro de CLIENTE FINAL deste card, quando ele é um card de negócio.
+   *
+   * Os campos de corretor do card (nome, telefone, e-mail, CPF) guardam uma CÓPIA dos dados
+   * do corretor-pai — é assim que o card nasce. Os dados do cliente de verdade estão aqui.
+   */
+  clienteFinalVinculado?: ClienteFinal;
 
   // Negócio derivado
   parentCorretorId?: string;
