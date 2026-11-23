@@ -18,8 +18,9 @@ import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import {
   STAGES, FUNIS_DO_PIPELINE, TODAS_AS_ETAPAS, COLUNAS_DO_PIPELINE,
-  COLUNAS_POR_TIPO_DE_CARD, type TipoDeCard,
+  COLUNAS_POR_TIPO_DE_CARD, ETAPA_POS_VENDA, type TipoDeCard,
 } from '../data';
+import { MarcarGanhoModal } from './MarcarGanhoModal';
 import { ApiError } from '../api/client';
 import { validateForStageMove, camposPendentesDoErro, mensagemEtapaBloqueada, nomeExibidoNoCard, ehCardDeCliente } from '../utils';
 import { CorretorCard, type SommarDoCard } from './CorretorCard';
@@ -223,6 +224,8 @@ export function PipelineView() {
 
   /** Card sendo marcado como perdido — guarda o nome só para o texto do modal. */
   const [marcandoPerdido, setMarcandoPerdido] = useState<{ id: string; nome: string } | null>(null);
+  /** Card arrastado para a Pós-venda que ainda precisa ter a venda registrada. */
+  const [marcandoGanho, setMarcandoGanho] = useState<{ id: string; nome: string } | null>(null);
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
@@ -267,6 +270,23 @@ export function PipelineView() {
     const pendentes = validateForStageMove(corretor, toEtapa);
     if (pendentes.length > 0) {
       showToast(mensagemEtapaBloqueada(nomeEtapa, pendentes), 'error');
+      return;
+    }
+
+    /**
+     * Arrastar para a Pós-venda é dizer que vendeu — então abre o registro da venda, em vez
+     * de só mover o card.
+     *
+     * Antes o card ia para a coluna dos vendidos e nada mais acontecia: sem valor, sem data,
+     * sem pontuar no SÕMMAR e sem bloquear a unidade no cadastro. O card parecia vendido, a
+     * meta do GV continuava zerada, e nada na tela explicava a diferença.
+     *
+     * O diálogo já sugere o valor da proposta aceita; mover o card é o que acontece DEPOIS de
+     * confirmar, junto com o resto. Quem já está em GANHO passa direto: a venda existe, e o
+     * movimento é só reorganização dentro da coluna.
+     */
+    if (toEtapa === ETAPA_POS_VENDA && corretor.status !== 'ganho') {
+      setMarcandoGanho({ id: corretor.id, nome: nomeExibidoNoCard(corretor) });
       return;
     }
 
@@ -591,6 +611,14 @@ export function PipelineView() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {marcandoGanho && (
+        <MarcarGanhoModal
+          corretorId={marcandoGanho.id}
+          nome={marcandoGanho.nome}
+          onClose={() => setMarcandoGanho(null)}
+        />
+      )}
 
       {marcandoPerdido && (
         <MotivoPerdaModal

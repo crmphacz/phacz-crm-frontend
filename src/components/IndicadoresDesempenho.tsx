@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Info, Save, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info, Save, RotateCcw, Download, FileText } from 'lucide-react';
 import { useStore } from '../store';
 import { placarApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
@@ -141,6 +141,25 @@ export function IndicadoresDesempenho() {
               Bimestre atual
             </button>
           )}
+
+          {/* Separados da navegação por uma borda: exportar não é navegar, e os dois grupos
+              encostados viravam uma fileira só de botões sem hierarquia. */}
+          <div className="flex items-center gap-2 pl-2 ml-1 border-l" style={{ borderColor: '#e5e7eb' }}>
+            <button
+              onClick={() => placarApi.exportarIndicadoresXlsx(bimestre)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border text-gray-600 hover:bg-gray-50 transition-colors"
+              style={{ borderColor: '#e5e7eb' }}
+            >
+              <Download size={13} /> Excel
+            </button>
+            <button
+              onClick={() => placarApi.exportarIndicadoresPdf(bimestre)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border text-gray-600 hover:bg-gray-50 transition-colors"
+              style={{ borderColor: '#e5e7eb' }}
+            >
+              <FileText size={13} /> PDF
+            </button>
+          </div>
         </div>
 
         {ehDiretoria && temRascunho && (

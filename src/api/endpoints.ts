@@ -883,6 +883,11 @@ export const placarApi = {
   // ── Indicadores de Desempenho (bimestral) ───────────────────────
   /** Catálogo: as linhas, os pesos e os critérios do treinamento qualificado. */
   catalogoIndicadores: () => apiFetch<CatalogoIndicadores>('/api/placar/indicadores/catalogo'),
+  // O mesmo recorte da tela: a Diretoria exporta todo mundo, os demais só a própria folha.
+  exportarIndicadoresXlsx: (bimestre: string) =>
+    downloadFile('/api/placar/indicadores/export.xlsx', `indicadores-${bimestre}.xlsx`, { bimestre }),
+  exportarIndicadoresPdf: (bimestre: string) =>
+    downloadFile('/api/placar/indicadores/export.pdf', `indicadores-${bimestre}.pdf`, { bimestre }),
   indicadores: (bimestre: string) =>
     apiFetch<ApuracaoBimestre>('/api/placar/indicadores', { query: { bimestre } }),
   /** Ajuste da apuração pela Diretoria. Devolve o bimestre inteiro recalculado. */

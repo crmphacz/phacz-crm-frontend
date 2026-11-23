@@ -33,6 +33,8 @@ import { WhatsappSendModal } from './WhatsappSendModal';
 import { CancelarTreinamentoModal } from './CancelarTreinamentoModal';
 import { WhatsappIcon } from './WhatsappIcon';
 import { Spinner, InlineLoader } from './Spinner';
+import { ConfirmModal } from './ConfirmModal';
+import { MarcarGanhoModal } from './MarcarGanhoModal';
 import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade, Interacao, ClienteFinal } from '../types';
 
 function alertError(err: unknown, fallback: string) {
@@ -85,7 +87,6 @@ export function CorretorDetailPanel() {
   const downloadPropostaAnexo = useStore((s) => s.downloadPropostaAnexo);
   const gerarNegocio = useStore((s) => s.gerarNegocio);
   const archiveCorretor = useStore((s) => s.archiveCorretor);
-  const markAsWon = useStore((s) => s.markAsWon);
   const corretores = useStore((s) => s.corretores);
   const users = useStore((s) => s.users);
   const hydrateCorretorDetail = useStore((s) => s.hydrateCorretorDetail);
@@ -115,7 +116,6 @@ export function CorretorDetailPanel() {
   const [movingStage, setMovingStage] = useState(false);
   const [savingActivity, setSavingActivity] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [markingWon, setMarkingWon] = useState(false);
   const [gerandoNegocioId, setGerandoNegocioId] = useState<string | null>(null);
   const [removingClienteId, setRemovingClienteId] = useState<string | null>(null);
   const [propostaBusyId, setPropostaBusyId] = useState<string | null>(null);
@@ -192,7 +192,6 @@ export function CorretorDetailPanel() {
   const [stageError, setStageError] = useState<string[]>([]);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showWonConfirm, setShowWonConfirm] = useState(false);
-  const [wonValue, setWonValue] = useState('');
   const [archiveReason, setArchiveReason] = useState('');
 
   // Atividade form — "Quem realizou" é um select dos usuários do sistema e sempre abre já
@@ -598,21 +597,6 @@ export function CorretorDetailPanel() {
       alertError(err, 'Não foi possível atualizar a proposta.');
     } finally {
       setPropostaBusyId(null);
-    }
-  }
-
-  async function handleWon() {
-    if (markingWon) return;
-    const v = parseCurrencyBRL(wonValue) ?? 0;
-    setMarkingWon(true);
-    try {
-      await markAsWon(corretor.id, v);
-      setShowWonConfirm(false);
-      setSelectedCorretor(null);
-    } catch (err) {
-      alertError(err, 'Não foi possível marcar o corretor como ganho.');
-    } finally {
-      setMarkingWon(false);
     }
   }
 
@@ -2446,22 +2430,14 @@ export function CorretorDetailPanel() {
       )}
 
       {showWonConfirm && (
-        <ConfirmModal
-          title="🏆 Marcar como Ganho!"
-          description="Confirme o valor da venda para registrar o fechamento e notificar a Diretoria."
-          confirmLabel="Confirmar Ganho"
-          confirmColor="#059669"
-          onConfirm={handleWon}
-          onCancel={() => setShowWonConfirm(false)}
-          loading={markingWon}
-        >
-          <input
-            className="form-input mt-3"
-            placeholder="R$ 0,00"
-            value={wonValue}
-            onChange={(e) => setWonValue(maskCurrencyBRLInput(e.target.value))}
-          />
-        </ConfirmModal>
+        // O mesmo diálogo que o arrasto do card para a Pós-venda abre, para os dois caminhos
+        // registrarem a venda do mesmo jeito — e já sugerindo o valor da proposta aceita.
+        <MarcarGanhoModal
+          corretorId={corretor.id}
+          nome={nomeExibidoNoCard(corretor)}
+          onClose={() => setShowWonConfirm(false)}
+          onDone={() => setSelectedCorretor(null)}
+        />
       )}
     </>
   );
@@ -2670,27 +2646,4 @@ function EmptyState({ icon, title, description }: { icon: React.ReactNode; title
   );
 }
 
-function ConfirmModal({ title, description, confirmLabel, confirmColor, onConfirm, onCancel, loading = false, children }: {
-  title: string; description: string; confirmLabel: string; confirmColor: string;
-  onConfirm: () => void; onCancel: () => void; loading?: boolean; children?: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <div className="bg-white rounded-2xl p-6 w-96 shadow-2xl">
-        <h3 className="font-bold text-lg text-gray-900 mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{title}</h3>
-        <p className="text-sm text-gray-500">{description}</p>
-        {children}
-        <div className="flex gap-2 mt-5">
-          <button onClick={onConfirm} disabled={loading} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-70" style={{ backgroundColor: confirmColor }}>
-            {loading && <Spinner size={14} />}
-            {loading ? 'Aguarde…' : confirmLabel}
-          </button>
-          <button onClick={onCancel} disabled={loading} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 border transition-colors disabled:opacity-50" style={{ borderColor: '#e5e7eb' }}>
-            Cancelar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
