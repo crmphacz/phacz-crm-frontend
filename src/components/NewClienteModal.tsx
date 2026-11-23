@@ -44,6 +44,14 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
 
   const [corretorSearch, setCorretorSearch] = useState('');
   const [corretorId, setCorretorId] = useState(cliente?.corretorId ?? initialCorretorId ?? '');
+  /**
+   * Lead que chega direto na PHACZ, sem parceiro envolvido ainda.
+   *
+   * Abrindo a edição de um cliente que já está sem vínculo, começa marcado: é o estado real
+   * dele, e desmarcado o formulário exigiria escolher um corretor para salvar qualquer
+   * correção — trocar um telefone digitado errado viraria uma vinculação forçada.
+   */
+  const [semCorretor, setSemCorretor] = useState(Boolean(cliente) && !cliente?.corretorId);
 
   const [nome, setNome] = useState(cliente?.nome ?? '');
   // Guardado mascarado enquanto se digita; os dígitos são extraídos só no envio.
@@ -131,7 +139,7 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!corretorId) e.corretor = 'Selecione o corretor responsável';
+    if (!corretorId && !semCorretor) e.corretor = 'Selecione o corretor responsável';
     if (!nome.trim()) e.nome = 'Nome é obrigatório';
     if (!telefone.trim()) e.telefone = 'Telefone é obrigatório';
     // O CPF é opcional, mas pela metade não serve: não identifica ninguém e ainda entraria na
@@ -172,10 +180,12 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
       rodadaId: canalEhRodada && rodadaId ? rodadaId : null,
     };
     try {
+      // `null`, e não string vazia: é o que leva a chamada para a rota sem corretor.
+      const vinculo = semCorretor ? null : corretorId;
       if (cliente) {
-        await updateClienteFinal(cliente.corretorId, cliente.id, data, corretorId);
+        await updateClienteFinal(cliente.corretorId, cliente.id, data, vinculo || undefined);
       } else {
-        await addClienteFinal(corretorId, data);
+        await addClienteFinal(vinculo, data);
       }
       onCreated?.(corretorId);
       onClose();
@@ -227,7 +237,26 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
         <fieldset disabled={!editing} className="border-0 m-0 p-0 min-w-0 space-y-5">
           {/* Corretor */}
           <FormSection title="Corretor responsável">
-            {selectedCorretor ? (
+            {semCorretor ? (
+              /* Lead direto da PHACZ. O aviso diz o que isso significa na prática, porque a
+                 consequência não é óbvia: sem corretor, o cliente fica em Leads e não pode
+                 ir para "Nossos clientes" — não há parceiro de quem a venda pudesse sair. */
+              <div className="rounded-xl border p-3" style={{ borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }}>
+                <p className="text-sm font-semibold text-gray-800">Sem corretor vinculado</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  O cliente fica em Leads e aparece para toda a equipe. Você pode vincular um
+                  corretor depois, sem perder o histórico.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSemCorretor(false)}
+                  className="text-xs font-semibold mt-2"
+                  style={{ color: '#d55006' }}
+                >
+                  {cliente ? 'Vincular um corretor agora' : 'Escolher um corretor'}
+                </button>
+              </div>
+            ) : selectedCorretor ? (
               <div
                 className="flex items-center gap-3 p-2.5 rounded-xl border"
                 style={{ borderColor: '#d55006', backgroundColor: '#fff7ed' }}
@@ -283,6 +312,13 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
                   ))}
                 </div>
                 {errors.corretor && <p className="text-xs text-red-500 mt-1">{errors.corretor}</p>}
+                <button
+                  type="button"
+                  onClick={() => { setSemCorretor(true); setErrors((er) => ({ ...er, corretor: '' })); }}
+                  className="text-xs font-semibold mt-2 text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Cadastrar sem corretor vinculado
+                </button>
               </div>
             )}
           </FormSection>

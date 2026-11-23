@@ -282,9 +282,12 @@ interface StoreState {
   deleteCorretor: (id: string) => Promise<void>;
 
   // ClienteFinal CRUD
-  addClienteFinal: (corretorId: string, cf: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado'>) => Promise<void>;
+  // `corretorId` nulo cadastra o lead sem vínculo (ver corretoresApi.addCliente).
+  addClienteFinal: (corretorId: string | null, cf: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado'>) => Promise<void>;
+  // `corretorId` nulo = cliente ainda sem vínculo; com `novoCorretorId` junto, é o que o
+  // vincula pela primeira vez (ver corretoresApi.updateCliente).
   updateClienteFinal: (
-    corretorId: string,
+    corretorId: string | null,
     cfId: string,
     cf: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>,
     novoCorretorId?: string
@@ -801,6 +804,9 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   addClienteFinal: async (corretorId, cfData) => {
     await corretoresApi.addCliente(corretorId, cfData);
+    // Sem corretor não há card para recarregar: o cliente não entrou na lista de ninguém. A
+    // tela de Clientes busca a própria página do servidor, então ele aparece lá sozinho.
+    if (!corretorId) return;
     const refreshed = await corretoresApi.get(corretorId);
     set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },
@@ -809,7 +815,11 @@ export const useStore = create<StoreState>()((set, get) => ({
     await corretoresApi.updateCliente(corretorId, cfId, cfData, novoCorretorId);
     // Se o cliente mudou de corretor, os dois lados do vínculo mudaram (o antigo perdeu o
     // cliente, o novo ganhou) — atualiza ambos. Se não mudou, só o próprio corretor.
-    const idsParaAtualizar = novoCorretorId && novoCorretorId !== corretorId ? [corretorId, novoCorretorId] : [corretorId];
+    // Só recarrega card que existe: o cliente sem vínculo não estava em nenhum. Quando ele
+    // acaba de ganhar um corretor, é o card do DESTINO que mudou, e é só ele que entra aqui.
+    const idsParaAtualizar = (
+      novoCorretorId && novoCorretorId !== corretorId ? [corretorId, novoCorretorId] : [corretorId]
+    ).filter((id): id is string => id !== null);
     const atualizados = await Promise.all(idsParaAtualizar.map((id) => corretoresApi.get(id)));
     set((state) => ({
       corretores: state.corretores.map((l) => (() => { const a = atualizados.find((x) => x.id === l.id); return a ? comCamposDaListagem(a, l) : l; })()),

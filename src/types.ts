@@ -284,11 +284,14 @@ export interface Corretor {
 
 /** ClienteFinal + contexto do corretor responsável — usado na tela de Clientes (lista achatada, um cliente por linha). */
 export interface ClienteFinalComContexto extends ClienteFinal {
-  corretorId: string;
-  nomeCorretor: string;
+  // NULO = lead que chegou direto na PHACZ, sem parceiro envolvido ainda. Os campos de
+  // contexto abaixo vêm do corretor, então acompanham: sem vínculo, não há etapa nem status
+  // de card para mostrar. Pode ganhar um corretor depois, sem perder histórico.
+  corretorId: string | null;
+  nomeCorretor: string | null;
   imobiliaria: string;
-  etapaCorretor: number;
-  statusCorretor: StatusCorretor;
+  etapaCorretor: number | null;
+  statusCorretor: StatusCorretor | null;
   // Donos do card do corretor. Vêm na listagem para a tela saber quem pode EDITAR este
   // cliente — a edição passa pela posse do card no servidor (ver canEditClienteFinal).
   responsavelSDRId?: string;

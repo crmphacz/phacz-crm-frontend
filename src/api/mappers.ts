@@ -286,10 +286,11 @@ function mapClienteFinalFromApi(cf: ApiClienteFinal): ClienteFinal {
 // do array inteiro de corretores pra montar isso no client.
 
 export interface ApiClienteFinalComContexto extends ApiClienteFinal {
+  // Nulo quando o cliente não tem corretor vinculado — o lead que chega direto na PHACZ.
   corretor: {
     id: string; nomeCorretor: string; imobiliaria: string; etapa: number; status: string;
     responsavelSDRId?: string | null; responsavelGVId?: string | null; responsavelGRId?: string | null;
-  };
+  } | null;
   comprou: boolean;
 }
 
@@ -298,14 +299,14 @@ export function mapClienteFinalComContextoFromApi(
 ): ClienteFinalComContexto & { comprou: boolean } {
   return {
     ...mapClienteFinalFromApi(cf),
-    corretorId: cf.corretorId,
-    nomeCorretor: cf.corretor.nomeCorretor,
-    imobiliaria: cf.corretor.imobiliaria,
-    etapaCorretor: cf.corretor.etapa,
-    statusCorretor: statusCorretorMap.toApp(cf.corretor.status),
-    responsavelSDRId: cf.corretor.responsavelSDRId ?? undefined,
-    responsavelGVId: cf.corretor.responsavelGVId ?? undefined,
-    responsavelGRId: cf.corretor.responsavelGRId ?? undefined,
+    corretorId: cf.corretorId ?? null,
+    nomeCorretor: cf.corretor?.nomeCorretor ?? null,
+    imobiliaria: cf.corretor?.imobiliaria ?? '',
+    etapaCorretor: cf.corretor?.etapa ?? null,
+    statusCorretor: cf.corretor ? statusCorretorMap.toApp(cf.corretor.status) : null,
+    responsavelSDRId: cf.corretor?.responsavelSDRId ?? undefined,
+    responsavelGVId: cf.corretor?.responsavelGVId ?? undefined,
+    responsavelGRId: cf.corretor?.responsavelGRId ?? undefined,
     comprou: cf.comprou,
   };
 }

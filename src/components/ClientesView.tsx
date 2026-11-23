@@ -141,7 +141,10 @@ export function ClientesView({ modo = 'clientes' }: ClientesViewProps) {
   // Quem edita abre a edição; quem só lê cai no Pipeline, no card do corretor — que é o que
   // a tela já fazia para esses perfis.
   function handleRowClick(cliente: ClienteComComprou) {
+    // Sem corretor não existe card no Pipeline para abrir — mandar para lá deixaria a tela
+    // num estado vazio, parecendo que o clique falhou. Quem só lê fica onde está.
     if (!podeEditar) {
+      if (!cliente.corretorId) return;
       setView('pipeline');
       setSelectedCorretor(cliente.corretorId);
     } else {
@@ -276,11 +279,19 @@ export function ClientesView({ modo = 'clientes' }: ClientesViewProps) {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <p className="text-gray-800 truncate">{c.nomeCorretor}</p>
-                    <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
-                      <Building2 size={10} />
-                      {c.imobiliaria || '—'}
-                    </p>
+                    {c.nomeCorretor ? (
+                      <>
+                        <p className="text-gray-800 truncate">{c.nomeCorretor}</p>
+                        <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
+                          <Building2 size={10} />
+                          {c.imobiliaria || '—'}
+                        </p>
+                      </>
+                    ) : (
+                      /* Lead direto da PHACZ. Dizer isso é melhor do que uma célula vazia, que
+                         pareceria cadastro incompleto em vez de uma situação prevista. */
+                      <p className="text-xs text-gray-400 italic">Sem corretor vinculado</p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {stage && (

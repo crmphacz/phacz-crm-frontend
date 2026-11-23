@@ -198,17 +198,29 @@ export const corretoresApi = {
   gerarNegocio: (id: string, clienteFinalId: string): Promise<Corretor> =>
     apiFetch<ApiCorretor>(`/api/corretores/${id}/gerar-negocio`, { method: 'POST', body: { clienteFinalId } }).then(mapCorretorFromApi),
 
-  addCliente: (id: string, data: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>) =>
-    apiFetch(`/api/corretores/${id}/clientes`, { method: 'POST', body: data }),
+  // `id` nulo cadastra o lead SEM corretor vinculado — o que chega direto na PHACZ. A rota é
+  // outra, sem o corretor no caminho: lá é o corretor da URL que autoriza a operação, e aqui
+  // não existe corretor nenhum de quem herdar permissão.
+  addCliente: (
+    id: string | null,
+    data: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>
+  ) =>
+    apiFetch(id ? `/api/corretores/${id}/clientes` : '/api/corretores/clientes', {
+      method: 'POST',
+      body: data,
+    }),
 
   // `novoCorretorId` reatribui o cliente a outro corretor; omitido mantém o atual.
+  // `id` nulo é o cliente que ainda não tem corretor; passar `novoCorretorId` junto é o que
+  // o VINCULA pela primeira vez. É a mesma linha que continua — nada é recriado, então data
+  // de cadastro, rodada e observações seguem como estavam.
   updateCliente: (
-    id: string,
+    id: string | null,
     cfId: string,
     data: Omit<ClienteFinal, 'id' | 'dataAdicionado' | 'negocioGerado' | 'negocioCorretorId'>,
     novoCorretorId?: string
   ) =>
-    apiFetch(`/api/corretores/${id}/clientes/${cfId}`, {
+    apiFetch(id ? `/api/corretores/${id}/clientes/${cfId}` : `/api/corretores/clientes/${cfId}`, {
       method: 'PATCH',
       body: { ...data, ...(novoCorretorId ? { corretorId: novoCorretorId } : {}) },
     }),
