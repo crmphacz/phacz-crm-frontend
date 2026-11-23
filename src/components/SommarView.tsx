@@ -4,6 +4,8 @@ import {
   AlertTriangle, Dices, X,
 } from 'lucide-react';
 import { useStore } from '../store';
+import { useViewReady } from '../navLoading';
+import { ViewLoader } from './ViewLoader';
 import { formatCurrency } from '../utils';
 import { ApiError } from '../api/client';
 import {
@@ -87,9 +89,31 @@ export function SommarView() {
   const [ranking, setRanking] = useState<SommarRanking | null>(null);
   const [cupons, setCupons] = useState<SommarCupom[]>([]);
   const [quaseComCupom, setQuaseComCupom] = useState<SommarQuaseComCupom[]>([]);
+  /** A aba de Cupons busca as próprias listas, fora de `carregar` — e por isso tem o próprio sinal. */
+  const [cuponsCarregando, setCuponsCarregando] = useState(false);
   const [extrato, setExtrato] = useState<SommarExtrato | null>(null);
-  const [carregando, setCarregando] = useState(false);
+  /** O extrato é buscado no clique da linha e demora — sem isto, o clique não respondia nada. */
+  const [extratoCarregando, setExtratoCarregando] = useState(false);
+  /**
+   * Começa em `true`: a busca é disparada no efeito de montagem, então o primeiro quadro desta
+   * tela é um carregamento, não um resultado.
+   *
+   * Com `false`, a tela nascia afirmando coisas que ninguém tinha verificado — "Período em
+   * andamento", "Nenhum participante pontuou neste período ainda" — e se desdizia dois segundos
+   * depois, quando o ranking chegava.
+   */
+  const [carregando, setCarregando] = useState(true);
+  /**
+   * A primeira carga terminou — a partir daí existe conteúdo na tela.
+   *
+   * Separado de `carregando` porque os dois respondem perguntas diferentes: "ainda não há nada
+   * para mostrar" e "há uma busca em andamento". Trocar o período usa o segundo e deixa o
+   * ranking anterior no lugar até o novo chegar, em vez de piscar a tela inteira.
+   */
+  const [primeiraCargaFeita, setPrimeiraCargaFeita] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  useViewReady(primeiraCargaFeita);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -102,6 +126,9 @@ export function SommarView() {
       setErro(e instanceof ApiError ? e.message : 'Não foi possível carregar o ranking');
     } finally {
       setCarregando(false);
+      // Também quando dá erro: a tela precisa sair do carregador para conseguir mostrar o aviso
+      // de falha. Presa no loader, a pessoa ficaria esperando por algo que não vem mais.
+      setPrimeiraCargaFeita(true);
     }
   }, [periodo]);
 
@@ -111,10 +138,24 @@ export function SommarView() {
 
   useEffect(() => {
     if (aba !== 'cupons') return;
-    sommarApi.cupons(periodo).then(setCupons).catch(() => setCupons([]));
-    // Lista separada porque quem está a um passo tem ZERO cupom: ele não existe na resposta de
-    // cupons, por definição. Falhar aqui não pode esvaziar os cupons já carregados.
-    sommarApi.quaseComCupom(periodo).then(setQuaseComCupom).catch(() => setQuaseComCupom([]));
+    let cancelado = false;
+    setCuponsCarregando(true);
+    // As duas listas são buscadas em paralelo e cada uma cai para vazia por conta própria:
+    // quem está a um passo tem ZERO cupom, logo não existe na resposta de cupons, e uma falha
+    // numa das chamadas não pode esvaziar o que a outra trouxe.
+    void Promise.all([
+      sommarApi.cupons(periodo).catch(() => [] as SommarCupom[]),
+      sommarApi.quaseComCupom(periodo).catch(() => [] as SommarQuaseComCupom[]),
+    ]).then(([listaCupons, listaQuase]) => {
+      // Trocar de período antes da resposta chegar descartava o pedido antigo em cima do novo.
+      if (cancelado) return;
+      setCupons(listaCupons);
+      setQuaseComCupom(listaQuase);
+      setCuponsCarregando(false);
+    });
+    return () => {
+      cancelado = true;
+    };
   }, [aba, periodo]);
 
   const consolidado = ranking?.consolidadoEm ?? null;
@@ -162,6 +203,12 @@ export function SommarView() {
       setErro(e instanceof ApiError ? e.message : 'Não foi possível realizar o sorteio');
     }
   }
+
+  // Mesmo padrão das outras telas que buscam ao abrir (ClientesView, Dashboard, Pipeline):
+  // enquanto não há nada carregado, a tela inteira é o carregador. Montar cabeçalho, abas e
+  // painéis sobre dados vazios é o que fazia a tela dar uma resposta errada antes de ter a
+  // resposta.
+  if (!primeiraCargaFeita) return <ViewLoader label="Carregando SÕMMAR Elite…" />;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -264,7 +311,12 @@ export function SommarView() {
             linhas={ranking?.corretores ?? []}
             carregando={carregando}
             onAbrirExtrato={(id) => {
-              sommarApi.extrato(id).then(setExtrato).catch(() => setExtrato(null));
+              setExtratoCarregando(true);
+              sommarApi
+                .extrato(id)
+                .then(setExtrato)
+                .catch(() => setExtrato(null))
+                .finally(() => setExtratoCarregando(false));
             }}
           />
         )}
@@ -275,6 +327,7 @@ export function SommarView() {
           <PainelCupons
             cupons={cupons}
             quaseComCupom={quaseComCupom}
+            carregando={cuponsCarregando}
             periodo={periodo}
             sorteioEm={sorteioDoPeriodo}
             podeSortear={ehDiretora}
@@ -284,6 +337,17 @@ export function SommarView() {
 
         {aba === 'resgates' && <PainelResgates />}
       </div>
+
+      {/* O extrato vem de outra chamada, disparada no clique da linha. Sem aviso, o clique não
+          devolvia nada por cerca de um segundo e parecia que não tinha funcionado. */}
+      {extratoCarregando && !extrato && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/20">
+          <div className="flex items-center gap-2 rounded-2xl bg-white px-5 py-4 text-sm text-gray-600 shadow-lg">
+            <RefreshCw size={14} className="animate-spin" />
+            Carregando extrato…
+          </div>
+        </div>
+      )}
 
       {extrato && (
         <ExtratoPainel
@@ -431,6 +495,7 @@ function RankingImobiliarias({
 function PainelCupons({
   cupons,
   quaseComCupom,
+  carregando,
   periodo,
   sorteioEm,
   podeSortear,
@@ -438,11 +503,17 @@ function PainelCupons({
 }: {
   cupons: SommarCupom[];
   quaseComCupom: SommarQuaseComCupom[];
+  carregando: boolean;
   periodo: string;
   sorteioEm: string | null;
   podeSortear: boolean;
   onSortear: () => void;
 }) {
+  // Esta aba busca ao ser aberta, e as duas listas chegam vazias até a resposta: sem esta
+  // saída, a primeira coisa que a pessoa lia era "Nenhum cupom gerado neste período" — a
+  // afirmação oposta à que apareceria um instante depois.
+  if (carregando) return <Vazio texto="Carregando cupons…" />;
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
