@@ -6,7 +6,7 @@ import { ViewLoader } from './ViewLoader';
 import { STAGES } from '../data';
 import {
   TEMPERATURA_CONFIG, formatRelativeTime, formatCurrency,
-  nomeExibidoNoCard, subtituloDoCard,
+  nomeExibidoNoCard, subtituloDoCard, ehCardDeCliente,
 } from '../utils';
 import { canCreateCorretor, canDeleteLeadClienteOuCard } from '../permissions';
 import { ExcluirCorretorModal } from './ExcluirCorretorModal';
@@ -353,7 +353,9 @@ function CorretorRow({ corretor, onClick, onExcluido }: { corretor: Corretor; on
           <div className="min-w-0">
             <p className="font-semibold text-gray-900 truncate font-questrial flex items-center gap-1.5">
               <span className="truncate">{nomeExibidoNoCard(corretor)}</span>
-              <SommarTag aderiuEm={corretor.sommarAdesaoEm} nivel={corretor.sommarNivel} compact />
+              {!ehCardDeCliente(corretor) && (
+                <SommarTag aderiuEm={corretor.sommarAdesaoEm} nivel={corretor.sommarNivel} compact />
+              )}
             </p>
             <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
               <Building2 size={10} />

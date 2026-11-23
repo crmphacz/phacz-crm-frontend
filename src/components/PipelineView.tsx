@@ -114,7 +114,13 @@ const CARDS_POR_LOTE = 60;
 function participantesSommarPorCard(corretores: Corretor[]): Map<string, SommarDoCard> {
   const porCard = new Map<string, SommarDoCard>();
   for (const c of corretores) {
-    if (c.sommarAdesaoEm) porCard.set(c.id, { aderiuEm: c.sommarAdesaoEm, nivel: c.sommarNivel });
+    // `ehCardDeCliente` e não só `sommarAdesaoEm`: a adesão da landing page já foi carimbada
+    // em card de NEGÓCIO (que copia telefone e e-mail do corretor-pai), e o card do cliente
+    // aparecia com a tag. A origem foi corrigida no backend; esta checagem é a defesa, para o
+    // dado errado que já está no banco não voltar à tela.
+    if (c.sommarAdesaoEm && !ehCardDeCliente(c)) {
+      porCard.set(c.id, { aderiuEm: c.sommarAdesaoEm, nivel: c.sommarNivel });
+    }
   }
   return porCard;
 }

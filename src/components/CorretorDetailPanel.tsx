@@ -712,7 +712,9 @@ export function CorretorDetailPanel() {
                       lançar proposta precisa saber, ali, que aquilo vai pontuar. */}
                   {/* Só no card do CORRETOR: o cliente final não carrega a tag do parceiro.
                       Os pontos continuam subindo para o corretor — isso é apuração, não tela. */}
-                  <SommarTag aderiuEm={corretor.sommarAdesaoEm} nivel={corretor.sommarNivel} compact />
+                  {!isNegocio && (
+                    <SommarTag aderiuEm={corretor.sommarAdesaoEm} nivel={corretor.sommarNivel} compact />
+                  )}
                 </div>
                 {isNegocio && parentCorretor && (
                   <p className="text-xs text-gray-400 truncate">
