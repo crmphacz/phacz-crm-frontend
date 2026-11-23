@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X, Send, Paperclip, Info, Loader2 } from 'lucide-react';
 import { useStore } from '../store';
 import { ApiError } from '../api/client';
@@ -20,6 +20,30 @@ function aplicarVariaveis(corpo: string, valores: string[]): string {
   return corpo.replace(/\{\{(\d+)\}\}/g, (_, n) => valores[Number(n) - 1] || `{{${n}}}`);
 }
 
+/**
+ * O token que o servidor troca pelo nome de CADA destinatário, no momento do envio.
+ *
+ * Sem ele, o que se digita aqui vai igual para a base inteira: num template que começa com
+ * "Olá, {{1}}!", ou a mensagem sai impessoal, ou sai com o nome de uma pessoa só para todo
+ * mundo. Tem de ser idêntico ao TOKEN_NOME do backend (lib/variaveisDisparo.ts).
+ */
+const TOKEN_NOME = '[nome]';
+
+/**
+ * O pedaço do template em volta de uma variável, para a pessoa saber o que escrever ali.
+ *
+ * É a diferença entre "Valor da variável 1" — que não diz nada — e ver "Olá, {{1}}! Aqui é a
+ * PHACZ", que mostra na hora que ali vai um nome.
+ */
+function trechoDaVariavel(corpo: string, indice: number): string {
+  const marca = `{{${indice + 1}}}`;
+  const posicao = corpo.indexOf(marca);
+  if (posicao === -1) return '';
+  const inicio = Math.max(0, posicao - 40);
+  const fim = Math.min(corpo.length, posicao + marca.length + 40);
+  return `${inicio > 0 ? '…' : ''}${corpo.slice(inicio, fim).trim()}${fim < corpo.length ? '…' : ''}`;
+}
+
 export function WhatsappBroadcastModal({ onClose, onSent }: Props) {
   const templates = useStore((s) => s.whatsappTemplates);
   const corretores = useStore((s) => s.corretores);
@@ -32,6 +56,29 @@ export function WhatsappBroadcastModal({ onClose, onSent }: Props) {
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
 
+  /**
+   * Quantos clientes o público escolhido alcança. Vem do servidor: diferente da lista de
+   * corretores, a de clientes é paginada e a tela não a tem em memória para contar sozinha.
+   * `null` enquanto carrega — zero e "ainda não sei" precisam parecer coisas diferentes.
+   */
+  const [totalClientes, setTotalClientes] = useState<number | null>(null);
+  const [publicoPermitido, setPublicoPermitido] = useState(true);
+
+  const ehPublicoDeCliente = publico.tipo === 'leads' || publico.tipo === 'nossos_clientes';
+
+  useEffect(() => {
+    if (!ehPublicoDeCliente) return;
+    let cancelado = false;
+    setTotalClientes(null);
+    whatsappBroadcastApi
+      .publicoCliente(publico.tipo === 'leads' ? 'LEADS' : 'NOSSOS_CLIENTES')
+      // Uma resposta que chega depois de a pessoa já ter trocado de público mostraria o número
+      // do público anterior — por isso a resposta de uma busca cancelada é descartada.
+      .then((r) => { if (!cancelado) { setTotalClientes(r.total); setPublicoPermitido(r.permitido); } })
+      .catch(() => { if (!cancelado) { setTotalClientes(0); setPublicoPermitido(true); } });
+    return () => { cancelado = true; };
+  }, [publico.tipo, ehPublicoDeCliente]);
+
   const template: WhatsappTemplate | undefined = templates.find((t) => t.nome === templateNome);
   const elegiveis = useMemo(() => corretoresElegiveis(corretores, 'whatsapp'), [corretores]);
   const destinatarios = useMemo(() => resolveDestinatarios(elegiveis, publico), [elegiveis, publico]);
@@ -39,7 +86,14 @@ export function WhatsappBroadcastModal({ onClose, onSent }: Props) {
   const precisaMidia = template?.midiaCabecalho === 'IMAGE' || template?.midiaCabecalho === 'VIDEO';
   const tipoMidia = template?.midiaCabecalho === 'VIDEO' ? 'video' : 'image';
   const faltaVariavel = template ? variaveis.slice(0, template.totalVariaveis).some((v) => !v?.trim()) || variaveis.length < template.totalVariaveis : true;
-  const podeEnviar = Boolean(template) && !faltaVariavel && destinatarios.length > 0 && (!precisaMidia || Boolean(midiaUrl)) && !enviando;
+  /** Nome fictício só para a prévia — ver o comentário no bloco "Como vai chegar". */
+  const exemploDeNome = 'Maria';
+  const usaNomeEmAlgumaVariavel = variaveis.some((v) => (v ?? '').toLowerCase().includes(TOKEN_NOME));
+
+  const quantosRecebem = ehPublicoDeCliente ? (totalClientes ?? 0) : destinatarios.length;
+  const podeEnviar =
+    Boolean(template) && !faltaVariavel && quantosRecebem > 0 && publicoPermitido
+    && (!precisaMidia || Boolean(midiaUrl)) && !enviando;
 
   function trocarTemplate(nome: string) {
     setTemplateNome(nome);
@@ -76,6 +130,8 @@ export function WhatsappBroadcastModal({ onClose, onSent }: Props) {
         etapaAlvo: publico.tipo === 'funil' ? publico.etapaAlvo : undefined,
         funilAlvo: publico.tipo === 'grupo_funil' ? publico.funilAlvo : undefined,
         tipoInteresseAlvo: publico.tipo === 'empreendimento' ? publico.tipoInteresseAlvo : undefined,
+        // Os públicos de cliente não levam critério nenhum junto: o recorte é o próprio
+        // público, e quem o aplica é o servidor.
         corretorIds: publico.tipo === 'individual' ? publico.corretorIds : undefined,
       });
       onSent();
@@ -133,25 +189,64 @@ export function WhatsappBroadcastModal({ onClose, onSent }: Props) {
               {template && (
                 <>
                   {template.totalVariaveis > 0 && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block">
-                        Variáveis da mensagem
-                      </label>
-                      {Array.from({ length: template.totalVariaveis }, (_, i) => (
-                        <div key={i}>
-                          <label className="text-xs font-semibold text-gray-500 block mb-1">{`{{${i + 1}}}`}</label>
-                          <input
-                            className="form-input"
-                            placeholder={`Valor da variável ${i + 1}`}
-                            value={variaveis[i] ?? ''}
-                            onChange={(e) => {
-                              const proximo = [...variaveis];
-                              proximo[i] = e.target.value;
-                              setVariaveis(proximo);
-                            }}
-                          />
-                        </div>
-                      ))}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block">
+                          O que entra na mensagem
+                        </label>
+                        <p className="text-xs text-gray-400 mt-1">
+                          O template tem {template.totalVariaveis === 1 ? 'uma lacuna' : `${template.totalVariaveis} lacunas`} para
+                          preencher. O texto abaixo de cada campo mostra onde ela aparece.
+                        </p>
+                      </div>
+                      {Array.from({ length: template.totalVariaveis }, (_, i) => {
+                        const trecho = trechoDaVariavel(template.corpo, i);
+                        const usaNome = (variaveis[i] ?? '').toLowerCase().includes(TOKEN_NOME);
+                        return (
+                          <div key={i} className="rounded-xl border p-3" style={{ borderColor: '#e5e7eb' }}>
+                            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                              <label className="text-xs font-bold text-gray-600">
+                                Lacuna {i + 1} de {template.totalVariaveis}
+                              </label>
+                              {/* O botão existe porque digitar "[nome]" à mão não ocorreria a
+                                  ninguém — e é justamente o que faz a mensagem chegar
+                                  personalizada em vez de igual para a base inteira. */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const proximo = [...variaveis];
+                                  proximo[i] = TOKEN_NOME;
+                                  setVariaveis(proximo);
+                                }}
+                                className="text-xs font-semibold flex-shrink-0"
+                                style={{ color: '#16a34a' }}
+                              >
+                                Usar o nome de cada um
+                              </button>
+                            </div>
+                            {trecho && (
+                              <p className="text-xs text-gray-500 mb-1.5 italic">
+                                Aparece em: “{trecho}”
+                              </p>
+                            )}
+                            <input
+                              className="form-input"
+                              placeholder="Ex.: Parceiro, ou um texto fixo para todos"
+                              value={variaveis[i] ?? ''}
+                              onChange={(e) => {
+                                const proximo = [...variaveis];
+                                proximo[i] = e.target.value;
+                                setVariaveis(proximo);
+                              }}
+                            />
+                            <p className="text-xs mt-1.5" style={{ color: usaNome ? '#16a34a' : '#9ca3af' }}>
+                              {usaNome
+                                ? 'Cada pessoa recebe com o próprio nome.'
+                                : 'Este texto vai igual para todos os destinatários.'}
+                            </p>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -189,14 +284,43 @@ export function WhatsappBroadcastModal({ onClose, onSent }: Props) {
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-2">Como vai chegar</label>
                     <div className="rounded-xl px-3 py-3 text-sm text-gray-700 whitespace-pre-line" style={{ backgroundColor: '#ecfdf5' }}>
-                      {aplicarVariaveis(template.corpo, variaveis) || 'Este template não tem corpo de texto.'}
+                      {/* O token é trocado por um nome de exemplo na prévia. Mostrar "[nome]"
+                          cru deixaria a dúvida de se é assim que a mensagem chega. */}
+                      {aplicarVariaveis(template.corpo, variaveis.map((v) => v?.replace(/\[nome\]/gi, exemploDeNome) ?? v))
+                        || 'Este template não tem corpo de texto.'}
                     </div>
+                    {usaNomeEmAlgumaVariavel && (
+                      <p className="text-xs text-gray-400 mt-1.5">
+                        “{exemploDeNome}” é só um exemplo — cada pessoa recebe com o próprio nome.
+                      </p>
+                    )}
                   </div>
                 </>
               )}
 
               <div className="border-t pt-4" style={{ borderColor: '#f3f4f6' }}>
                 <PublicoAlvoPicker canal="whatsapp" elegiveis={elegiveis} valor={publico} onChange={setPublico} />
+
+                {ehPublicoDeCliente && (
+                  <div className="rounded-xl border px-3 py-3 mt-3" style={{ borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }}>
+                    {!publicoPermitido ? (
+                      <p className="text-xs" style={{ color: '#1e40af' }}>
+                        Seu perfil não pode disparar para este público.
+                      </p>
+                    ) : totalClientes === null ? (
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                        <Loader2 size={12} className="animate-spin" /> Contando quantos vão receber…
+                      </p>
+                    ) : (
+                      <p className="text-xs" style={{ color: '#1e40af' }}>
+                        <strong>{totalClientes}</strong>{' '}
+                        {totalClientes === 1 ? 'cliente' : 'clientes'} em{' '}
+                        {publico.tipo === 'leads' ? 'Leads' : 'Nossos clientes'}. Quem pediu para não
+                        receber já está fora da conta.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -215,7 +339,7 @@ export function WhatsappBroadcastModal({ onClose, onSent }: Props) {
             style={{ backgroundColor: '#059669' }}
           >
             {enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            {enviando ? 'Criando…' : `Disparar para ${destinatarios.length}`}
+            {enviando ? 'Criando…' : `Disparar para ${quantosRecebem}`}
           </button>
         </div>
       </div>

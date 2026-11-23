@@ -580,6 +580,18 @@ export const whatsappBroadcastApi = {
 
   remover: (id: string) => apiFetch<void>(`/api/whatsapp/broadcast/campaigns/${id}`, { method: 'DELETE' }),
 
+  /**
+   * Quantos clientes receberiam este disparo.
+   *
+   * Vem do servidor porque a tela não tem a lista de clientes carregada — ela é paginada, ao
+   * contrário da de corretores. `permitido: false` significa que o perfil não alcança aquele
+   * público, e não que ele está vazio: a tela precisa dizer coisas diferentes nos dois casos.
+   */
+  publicoCliente: (tipo: 'LEADS' | 'NOSSOS_CLIENTES') =>
+    apiFetch<{ total: number; permitido: boolean }>('/api/whatsapp/broadcast/publico-cliente', {
+      query: { tipo },
+    }),
+
   optOuts: () => apiFetch<ApiWhatsappOptOut[]>('/api/whatsapp/broadcast/opt-outs').then((rows) => rows.map(mapWhatsappOptOutFromApi)),
 
   /** Sobe a imagem/vídeo do cabeçalho e devolve a URL pública que a Meta vai baixar. */

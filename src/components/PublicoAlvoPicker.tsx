@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Users, Filter, Tag, Search, Layers } from 'lucide-react';
+import { Users, Filter, Tag, Search, Layers, UserPlus, Heart } from 'lucide-react';
 import { useStore } from '../store';
 import { STAGES } from '../data';
 import { getInitials } from '../utils';
@@ -68,12 +68,29 @@ export function PublicoAlvoPicker({ canal, elegiveis: elegiveisRecebidos, valor,
     { tipo: 'empreendimento', icone: <Tag size={16} />, label: 'Perfil de qualificação' },
   ];
 
+  /**
+   * Públicos de CLIENTE FINAL, separados dos de corretor porque são outra coisa: o corretor é
+   * parceiro, o cliente é comprador. Misturar os seis botões numa fileira só faria escolher o
+   * público errado parecer um deslize de clique — e um disparo não tem como voltar.
+   *
+   * Só no WhatsApp: o e-mail em massa ainda não tem o caminho de cliente no servidor.
+   */
+  const opcoesDeCliente: { tipo: PublicoAlvo['tipo']; icone: React.ReactNode; label: string }[] =
+    canal === 'whatsapp'
+      ? [
+          { tipo: 'leads', icone: <UserPlus size={16} />, label: 'Leads' },
+          { tipo: 'nossos_clientes', icone: <Heart size={16} />, label: 'Nossos clientes' },
+        ]
+      : [];
+
   const selecionados = resolveDestinatarios(elegiveis, valor);
 
   return (
     <div className="space-y-5">
       <div>
         <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Quem vai receber?</p>
+
+        <p className="text-xs font-semibold text-gray-500 mb-1.5">Corretores parceiros</p>
         <div className={`grid gap-2 ${opcoes.length === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
           {opcoes.map((o) => (
             <RadioCard
@@ -85,6 +102,23 @@ export function PublicoAlvoPicker({ canal, elegiveis: elegiveisRecebidos, valor,
             />
           ))}
         </div>
+
+        {opcoesDeCliente.length > 0 && (
+          <>
+            <p className="text-xs font-semibold text-gray-500 mt-3 mb-1.5">Clientes finais</p>
+            <div className="grid gap-2 grid-cols-2">
+              {opcoesDeCliente.map((o) => (
+                <RadioCard
+                  key={o.tipo}
+                  active={valor.tipo === o.tipo}
+                  icon={o.icone}
+                  label={o.label}
+                  onClick={() => onChange({ ...valor, tipo: o.tipo })}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {valor.tipo === 'individual' && (
@@ -193,10 +227,16 @@ export function PublicoAlvoPicker({ canal, elegiveis: elegiveisRecebidos, valor,
         </div>
       )}
 
-      <div className="rounded-xl px-3 py-2.5 text-sm" style={{ backgroundColor: '#f8f9fa' }}>
-        <strong className="text-gray-800">{selecionados.length}</strong>
-        <span className="text-gray-500"> {selecionados.length === 1 ? 'corretor vai receber' : 'corretores vão receber'}.</span>
-      </div>
+      {/* Só para público de CORRETOR: este resumo conta a lista que a tela tem em memória, e
+          com cliente final ela não tem — diria "0 corretores vão receber" bem na hora em que a
+          Diretoria escolheu mandar para milhares de clientes. A contagem de cliente vem do
+          servidor e aparece no modal, logo abaixo deste seletor. */}
+      {opcoesDeCliente.every((o) => o.tipo !== valor.tipo) && (
+        <div className="rounded-xl px-3 py-2.5 text-sm" style={{ backgroundColor: '#f8f9fa' }}>
+          <strong className="text-gray-800">{selecionados.length}</strong>
+          <span className="text-gray-500"> {selecionados.length === 1 ? 'corretor vai receber' : 'corretores vão receber'}.</span>
+        </div>
+      )}
     </div>
   );
 }

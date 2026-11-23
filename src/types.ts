@@ -388,7 +388,11 @@ export interface EmailTemplate {
 }
 
 /** `grupo_funil` (funil inteiro) só existe no disparo de WhatsApp — o e-mail tem os outros três. */
-export type DestinatarioTipo = 'individual' | 'funil' | 'empreendimento' | 'grupo_funil';
+// Os dois últimos miram CLIENTE FINAL, não corretor: são as telas de Leads e de Nossos
+// clientes. A divisão entre eles é a mesma da tela — comprou ou não comprou.
+export type DestinatarioTipo =
+  | 'individual' | 'funil' | 'empreendimento' | 'grupo_funil'
+  | 'leads' | 'nossos_clientes';
 
 export interface EmailDestinatario {
   nome: string;

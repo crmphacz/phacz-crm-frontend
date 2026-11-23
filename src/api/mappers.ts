@@ -51,6 +51,7 @@ const propostaStatusMap = makeEnumMap<string, Proposta['status']>([
 const destinatarioTipoMap = makeEnumMap<string, DestinatarioTipo>([
   ['INDIVIDUAL', 'individual'], ['FUNIL', 'funil'], ['EMPREENDIMENTO', 'empreendimento'],
   ['GRUPO_FUNIL', 'grupo_funil'],
+  ['LEADS', 'leads'], ['NOSSOS_CLIENTES', 'nossos_clientes'],
 ]);
 
 const chatRoleMap = makeEnumMap<string, ChatMessage['role']>([
