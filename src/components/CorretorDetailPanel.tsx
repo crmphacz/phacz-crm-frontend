@@ -905,6 +905,13 @@ export function CorretorDetailPanel() {
                   cliente={corretor.clienteFinalVinculado}
                   corretorDeOrigem={parentCorretor?.nomeCorretor ?? corretor.nomeCorretor}
                   podeEditar={!isReadOnly && canEditClienteFinal(currentUser)}
+                  // `clienteFinalVinculado` só existe depois do detalhe; a listagem do pipeline
+                  // é leve e não o traz. Os mesmos três estados das abas Atividades/Propostas
+                  // (ver `detailGate`) — sem eles, a seção afirmava "não tem cadastro
+                  // vinculado" enquanto a resposta ainda estava a caminho.
+                  carregando={detailPending}
+                  erro={!detailPending && !corretor.detalheCarregado}
+                  onTentarNovamente={() => setDetailRetry((n) => n + 1)}
                 />
               ) : (
               <Section title="Dados do Corretor" icon={<Building2 size={14} style={{ color: '#d55006' }} />}>
@@ -2461,14 +2468,58 @@ function DadosDoClienteFinal({
   cliente,
   corretorDeOrigem,
   podeEditar,
+  carregando,
+  erro,
+  onTentarNovamente,
 }: {
   cliente?: ClienteFinal;
   corretorDeOrigem: string;
   podeEditar: boolean;
+  /** O detalhe do card ainda está sendo buscado — ainda não se sabe se há cliente vinculado. */
+  carregando: boolean;
+  /** A busca do detalhe falhou: o vínculo pode existir e não ter chegado. */
+  erro: boolean;
+  onTentarNovamente: () => void;
 }) {
+  const titulo = 'Dados do Cliente';
+  const icone = <Users size={14} style={{ color: '#d55006' }} />;
+
+  // Ordem proposital: carregando e erro vêm ANTES de `!cliente`. Ausência de dado não é
+  // ausência de cadastro, e as duas situações se escrevem de formas opostas na tela.
+  if (carregando) {
+    return (
+      <Section title={titulo} icon={icone}>
+        <div className="flex items-center gap-2 py-2 text-sm text-gray-500" role="status" aria-live="polite">
+          <Spinner size={14} />
+          Carregando os dados do cliente…
+        </div>
+      </Section>
+    );
+  }
+
+  if (erro) {
+    return (
+      <Section title={titulo} icon={icone}>
+        <div className="rounded-xl border px-4 py-3" style={{ borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
+          <p className="text-sm font-semibold text-red-700">
+            Não foi possível carregar os dados do cliente.
+          </p>
+          <button
+            type="button"
+            onClick={onTentarNovamente}
+            className="mt-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+            style={{ backgroundColor: '#d55006' }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </Section>
+    );
+  }
+
   if (!cliente) {
     return (
-      <Section title="Dados do Cliente" icon={<Users size={14} style={{ color: '#d55006' }} />}>
+      <Section title={titulo} icon={icone}>
         <p className="text-sm text-gray-500">
           Este card não tem um cadastro de cliente vinculado — é o caso dos clientes importados
           antes do vínculo existir. Os dados aparecem na tela <strong>Nossos clientes</strong>.
