@@ -5,10 +5,12 @@ import { Workbook } from '@fortune-sheet/react';
 import type { WorkbookInstance } from '@fortune-sheet/react';
 import type { Sheet } from '@fortune-sheet/core';
 import { useStore } from '../store';
+import { BotaoImportarExcel } from './BotaoImportarExcel';
+import { celulasDasAbas } from '../lib/celulasDaPlanilha';
+import type { PlanilhaImportada } from '../lib/importarExcel';
 import { tabelasEmpreendimentosApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { formatRelativeTime } from '../utils';
-import type { CelulaAlterada } from '../types';
 
 interface Props {
   id: string;
@@ -16,16 +18,6 @@ interface Props {
   readOnly: boolean;
   onBack: () => void;
   onNomeChange?: (nome: string) => void;
-}
-
-function colLetter(c: number): string {
-  let s = '';
-  let n = c;
-  do {
-    s = String.fromCharCode(65 + (n % 26)) + s;
-    n = Math.floor(n / 26) - 1;
-  } while (n >= 0);
-  return s;
 }
 
 function abaVazia(): Sheet {
@@ -37,31 +29,6 @@ function normalizarDados(dados: unknown): Sheet[] {
   const obj = dados as { sheets?: unknown } | null;
   if (obj && Array.isArray(obj.sheets) && obj.sheets.length > 0) return obj.sheets as Sheet[];
   return [abaVazia()];
-}
-
-/** Extrai as células preenchidas de cada aba no formato normalizado (aba, ref, valor, fórmula). */
-function sheetsParaCelulas(sheets: Sheet[]): CelulaAlterada[] {
-  const out: CelulaAlterada[] = [];
-  for (const sh of sheets ?? []) {
-    const aba = String((sh as { name?: string })?.name ?? 'Planilha 1');
-    const celldata = Array.isArray((sh as { celldata?: unknown }).celldata)
-      ? ((sh as { celldata: { r: number; c: number; v: unknown }[] }).celldata)
-      : [];
-    for (const cd of celldata) {
-      if (!cd || typeof cd.r !== 'number' || typeof cd.c !== 'number') continue;
-      const raw = cd.v;
-      const v = (raw && typeof raw === 'object' ? raw : { v: raw }) as {
-        v?: unknown; m?: unknown; f?: unknown;
-      };
-      const formula = typeof v.f === 'string' && v.f.startsWith('=') ? v.f : null;
-      let valor = '';
-      if (v.m !== undefined && v.m !== null) valor = String(v.m);
-      else if (v.v !== undefined && v.v !== null) valor = String(v.v);
-      if (valor === '' && !formula) continue;
-      out.push({ aba, ref: `${colLetter(cd.c)}${cd.r + 1}`, valor, formula });
-    }
-  }
-  return out;
 }
 
 export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, onNomeChange }: Props) {
@@ -78,6 +45,13 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
   const [salvando, setSalvando] = useState(false);
   const [atualizadoPorNome, setAtualizadoPorNome] = useState<string | null>(null);
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
+  /**
+   * Sobe a cada importação, e entra na `key` do Workbook.
+   *
+   * O fortune-sheet lê `data` só na montagem: trocar a prop com o mesmo `key` não mudaria nada
+   * na tela, e a planilha importada ficaria invisível até recarregar a página.
+   */
+  const [versao, setVersao] = useState(0);
 
   useEffect(() => {
     let vivo = true;
@@ -104,7 +78,7 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
       const res = await tabelasEmpreendimentosApi.save(id, {
         nome: nome.trim() || nomeInicial,
         dados: sheets,
-        celulas: sheetsParaCelulas(sheets),
+        celulas: celulasDasAbas(sheets),
       });
       setDirty(false);
       setAtualizadoPorNome(res.atualizadoPorNome);
@@ -117,6 +91,25 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
       setSalvando(false);
     }
   }, [id, nome, nomeInicial, readOnly, salvando, sheetsIniciais, onNomeChange, showToast]);
+
+  /**
+   * Importar aqui SUBSTITUI o conteúdo desta tabela — mas só na tela.
+   *
+   * Nada vai para o servidor até o Salvar, de propósito: a pessoa confere se a planilha chegou
+   * como esperava e, se não chegou, sai sem salvar e a tabela antiga continua intacta. É o que
+   * torna a substituição segura sem precisar de uma pergunta antes do seletor de arquivo.
+   */
+  function handleImportado(planilha: PlanilhaImportada) {
+    sheetsRef.current = planilha.sheets;
+    setSheetsIniciais(planilha.sheets);
+    setVersao((v) => v + 1);
+    setDirty(true);
+    showToast(
+      `Planilha carregada: ${planilha.sheets.length} aba(s), ${planilha.totalCelulas.toLocaleString('pt-BR')} células. ` +
+        'Confira e clique em Salvar para substituir o conteúdo desta tabela.'
+    );
+    for (const aviso of planilha.avisos) showToast(aviso);
+  }
 
   // Ctrl/Cmd+S salva
   useEffect(() => {
@@ -159,6 +152,13 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
             : '—'}
         </div>
         {!readOnly && (
+          <BotaoImportarExcel
+            rotulo="Importar"
+            onImportado={handleImportado}
+            onErro={(mensagem) => showToast(mensagem)}
+          />
+        )}
+        {!readOnly && (
           <button
             onClick={salvar}
             disabled={!dirty || salvando}
@@ -181,7 +181,7 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
         )}
         {sheetsIniciais && (
           <Workbook
-            key={id}
+            key={`${id}:${versao}`}
             ref={wbRef}
             data={sheetsIniciais}
             lang="en"
