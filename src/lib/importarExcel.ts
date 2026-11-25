@@ -1,6 +1,8 @@
 import type { Sheet, Cell, CellWithRowAndCol, Image } from '@fortune-sheet/core';
 import { update } from '@fortune-sheet/core';
-import { imagensDoXlsx, congelamentosDoXlsx, fontesDoXlsx, type MedidasDaAba } from './extrasDoXlsx';
+import { extrasDoXlsx, regraBate, type MedidasDaAba, type RegraCondicional } from './extrasDoXlsx';
+
+export { nomesDasAbas } from './extrasDoXlsx';
 
 /**
  * Importação de um .xlsx para o formato do editor de planilhas (fortune-sheet).
@@ -26,17 +28,42 @@ import { imagensDoXlsx, congelamentosDoXlsx, fontesDoXlsx, type MedidasDaAba } f
 /** Tamanho acima do qual o navegador trava convertendo e o servidor recusa o salvamento. */
 export const TAMANHO_MAXIMO_BYTES = 20 * 1024 * 1024;
 
-/** Teto do backend para o diff de células (ver saveSchema em tabelasEmpreendimentos/routes). */
+/**
+ * Teto do backend para o diff de células (ver saveSchema em tabelasEmpreendimentos/routes).
+ *
+ * Conta só as células COM CONTEÚDO, que são as que o backend audita. A pasta de trabalho da
+ * cliente tem 1,3 milhão de células segundo o conversor e apenas 35 mil com algum valor — o
+ * resto é formatação espalhada por linhas vazias. Medir pelo número bruto reprovava um
+ * arquivo perfeitamente importável, e ainda mandava a pessoa "separar em mais de um arquivo",
+ * que não resolveria nada.
+ */
 const MAXIMO_DE_CELULAS = 200_000;
+
+/**
+ * Orçamento para o JSON das abas, em caracteres.
+ *
+ * O servidor aceita 48 MB de corpo (ver app.ts). O que sai daqui é só a parte `dados`; a lista
+ * de células auditadas vai junto e pesa alguns MB a mais, e os acentos custam um byte extra
+ * cada um no caminho. 38 milhões de caracteres deixam essa margem coberta.
+ */
+const ORCAMENTO_DO_CORPO = 38 * 1024 * 1024;
 
 export interface PlanilhaImportada {
   sheets: Sheet[];
   /** Nome do arquivo sem a extensão — vira o nome da tabela. */
   nomeSugerido: string;
+  /** Células com algum valor ou fórmula — é o que o backend audita. */
   totalCelulas: number;
   totalImagens: number;
+  /** Abas que existiam no arquivo e ficaram de fora por escolha de quem importou. */
+  abasIgnoradas: number;
   /** O que não veio como no Excel, para a tela avisar em vez de deixar a pessoa descobrir. */
   avisos: string[];
+}
+
+export interface OpcoesDeImportacao {
+  /** Quais abas trazer. Ausente = todas. */
+  abas?: string[];
 }
 
 /** Erro de importação com texto pronto para a tela — tudo aqui é problema do arquivo, não bug. */
@@ -169,12 +196,52 @@ function medidasDaAba(aba: AbaBruta): MedidasDaAba {
 }
 
 /**
- * Converte uma aba e dimensiona a grade.
+ * A célula tem conteúdo?
  *
- * O LuckyExcel não preenche `row`/`column`, e sem eles o editor abre com a grade padrão: numa
- * aba que vai até a linha 300, a planilha aparecia cortada e o resto dos dados ficava
- * inalcançável, embora salvo. A folga extra é para a pessoa continuar digitando abaixo do que
- * veio do Excel.
+ * O terceiro caso é a armadilha: num TEXTO RICO — um parágrafo com trechos de formatação
+ * diferente — o conversor deixa `v` vazio e põe os pedaços em `ct.s`. Olhar só para `v`
+ * declarava a célula vazia, e a poda jogava fora justamente o bloco das dez cláusulas
+ * comerciais no rodapé da tabela da cliente (1.676 caracteres em quatro trechos).
+ *
+ * É a mesma razão de `textoDosPedacos` existir. A diferença é o momento: aqui a célula ainda
+ * está crua, antes de `normalizarCelula` preencher `v` a partir dos pedaços.
+ */
+function temConteudo(v: CelulaBruta): boolean {
+  if (typeof v.f === 'string' && v.f !== '') return true;
+  if (v.v !== undefined && v.v !== null && v.v !== '') return true;
+  return Array.isArray(v.ct?.s) && v.ct.s.length > 0;
+}
+
+/**
+ * A célula mostra alguma coisa, mesmo vazia?
+ *
+ * Preenchimento, negrito, itálico, sublinhado, tachado, rotação, cor de fonte diferente do
+ * preto e comentário — tudo que se enxerga sem haver texto. As BORDAS não entram: elas moram
+ * em `config.borderInfo`, fora das células, e por isso sobrevivem à poda.
+ */
+function temAparencia(v: CelulaBruta): boolean {
+  if (v.bg) return true;
+  if (v.bl || v.it || v.un || v.cl) return true;
+  if (v.tr || v.rt) return true;
+  if (v.ps) return true;
+  return Boolean(v.fc && v.fc !== '#000000');
+}
+
+/**
+ * Converte uma aba, joga fora o que não existe e dimensiona a grade.
+ *
+ * A poda é o que torna um arquivo real importável. O Excel guarda formatação por linha e por
+ * coluna inteira, e o conversor materializa isso célula a célula: a pasta de trabalho da
+ * cliente vira 1,3 MILHÃO de células, das quais 35 mil têm valor, 111 mil têm alguma aparência
+ * e 1,19 milhão não têm nem uma coisa nem outra — são o tipo e o tamanho padrão da fonte
+ * repetidos por linhas vazias. Em JSON isso é a diferença entre 163 MB e 29 MB; sem a poda, o
+ * navegador engasga e o salvamento é recusado antes de sair.
+ *
+ * Nada do que se vê é descartado: a célula só sai se não tiver conteúdo NEM aparência.
+ *
+ * O LuckyExcel também não preenche `row`/`column`, e sem eles o editor abre com a grade padrão:
+ * numa aba que vai até a linha 300, a planilha aparecia cortada e o resto dos dados ficava
+ * inalcançável, embora salvo.
  */
 function normalizarAba(bruta: AbaBruta, indice: number): Sheet {
   const celulas: CellWithRowAndCol[] = [];
@@ -183,9 +250,12 @@ function normalizarAba(bruta: AbaBruta, indice: number): Sheet {
 
   for (const cd of bruta.celldata ?? []) {
     if (!cd || typeof cd.r !== 'number' || typeof cd.c !== 'number') continue;
+    if (!cd.v || (!temConteudo(cd.v) && !temAparencia(cd.v))) continue;
+    // A extensão da grade é medida DEPOIS da poda, de propósito: uma linha 900 que só carrega
+    // a fonte padrão não é conteúdo, e esticar a planilha até lá só cria rolagem vazia.
     ultimaLinha = Math.max(ultimaLinha, cd.r);
     ultimaColuna = Math.max(ultimaColuna, cd.c);
-    celulas.push({ r: cd.r, c: cd.c, v: cd.v ? normalizarCelula(cd.v) : null });
+    celulas.push({ r: cd.r, c: cd.c, v: normalizarCelula(cd.v) });
   }
 
   return {
@@ -203,10 +273,48 @@ function normalizarAba(bruta: AbaBruta, indice: number): Sheet {
   } as Sheet;
 }
 
+/**
+ * Carimba nas células a cor que a formatação condicional pintaria.
+ *
+ * Na tabela da cliente é o sinal que a equipe lê primeiro: "RESERVADO" em vermelho,
+ * "DISPONIVEL" em verde sobre verde-claro, na coluna DISPONIBILIDADE. O editor não tem as
+ * regras do Excel, e sem este carimbo a coluna inteira chegava preta — a planilha vinha certa
+ * nos números e cega justamente onde se decide o que ainda dá para vender.
+ *
+ * A diferença que isto introduz, e que vale saber: a cor vira ESTÁTICA. Trocar "RESERVADO" por
+ * "DISPONIVEL" na célula depois de importada não repinta sozinho, como repintaria no Excel.
+ *
+ * As regras são aplicadas da MENOR para a MAIOR precedência (no Excel, prioridade 1 é a mais
+ * forte), então a mais forte escreve por último e vence — a mesma ordem de desempate do Excel.
+ */
+function aplicarCondicionais(sheet: Sheet, regras: RegraCondicional[]): void {
+  const porPosicao = new Map<string, CellWithRowAndCol>();
+  for (const cd of sheet.celldata ?? []) porPosicao.set(`${cd.r}_${cd.c}`, cd);
+
+  for (const regra of [...regras].sort((a, b) => b.prioridade - a.prioridade)) {
+    for (const posicao of regra.alcance) {
+      const cd = porPosicao.get(posicao);
+      if (!cd?.v) continue;
+
+      const texto = String((cd.v as Cell).m ?? (cd.v as Cell).v ?? '');
+      if (texto === '' || !regraBate(regra, texto)) continue;
+
+      // No Excel a regra condicional se sobrepõe à formatação direta da célula.
+      Object.assign(cd.v, regra.formato);
+    }
+  }
+}
+
 // ── Conversão ────────────────────────────────────────────────────────
 
-/** Trava de segurança: o LuckyExcel não tem callback de erro e some em silêncio num zip ruim. */
-const TEMPO_LIMITE_MS = 120_000;
+/**
+ * Trava de segurança: o LuckyExcel não tem callback de erro e some em silêncio num zip ruim.
+ *
+ * Folgado de propósito. A pasta de trabalho da cliente — 5 MB, 85 abas — leva perto de um
+ * minuto e meio só na conversão. Um limite apertado transformaria um arquivo grande, porém
+ * legítimo, em "arquivo corrompido".
+ */
+const TEMPO_LIMITE_MS = 10 * 60 * 1000;
 
 interface JsonDoLuckyExcel {
   sheets?: AbaBruta[];
@@ -239,7 +347,10 @@ function converterComLuckyExcel(arquivo: File): Promise<JsonDoLuckyExcel> {
   });
 }
 
-export async function importarExcel(arquivo: File): Promise<PlanilhaImportada> {
+export async function importarExcel(
+  arquivo: File,
+  opcoes: OpcoesDeImportacao = {}
+): Promise<PlanilhaImportada> {
   if (!/\.xlsx$/i.test(arquivo.name)) {
     throw new ErroDeImportacao(
       'Só dá para importar arquivos .xlsx. Se a planilha estiver em .xls ou .csv, abra no Excel e use "Salvar como → Pasta de Trabalho do Excel (.xlsx)".'
@@ -257,62 +368,84 @@ export async function importarExcel(arquivo: File): Promise<PlanilhaImportada> {
     throw new ErroDeImportacao('Não foi possível ler nenhuma aba deste arquivo.');
   }
 
-  const sheets = brutas.map(normalizarAba);
+  // O recorte vem ANTES de normalizar: numa pasta de trabalho de 85 abas em que a pessoa
+  // escolheu três, converter as outras 82 seria gastar memória para depois jogar fora.
+  const escolhidas = opcoes.abas?.length ? new Set(opcoes.abas) : null;
+  const selecionadas = escolhidas ? brutas.filter((b) => escolhidas.has(b.name ?? '')) : brutas;
+  if (selecionadas.length === 0) {
+    throw new ErroDeImportacao('Nenhuma das abas escolhidas foi encontrada no arquivo.');
+  }
+
+  const sheets = selecionadas.map(normalizarAba);
   const avisos: string[] = [];
 
   // As medidas saem das abas JÁ convertidas: é a largura de coluna real que diz em que pixel a
   // imagem começa, e ela só existe depois da conversão.
-  const medidasPorNome = new Map(sheets.map((s, i) => [s.name, medidasDaAba(brutas[i])]));
+  const medidasPorNome = new Map(sheets.map((s, i) => [s.name, medidasDaAba(selecionadas[i])]));
   const medidas = (nome: string): MedidasDaAba =>
     medidasPorNome.get(nome) ?? { larguraColuna: () => LARGURA_PADRAO, alturaLinha: () => ALTURA_PADRAO };
 
   let totalImagens = 0;
   try {
-    const imagens = await imagensDoXlsx(arquivo, medidas);
-    for (const sheet of sheets) {
-      const daAba: Image[] | undefined = imagens.get(sheet.name);
-      if (daAba?.length) {
-        sheet.images = daAba;
-        totalImagens += daAba.length;
-      }
-    }
-  } catch {
-    avisos.push('As imagens do arquivo (logos, selos) não puderam ser lidas; o resto foi importado.');
-  }
+    const extras = await extrasDoXlsx(arquivo, medidas, new Set(sheets.map((s) => s.name)));
 
-  try {
-    const congelados = await congelamentosDoXlsx(arquivo);
     for (const sheet of sheets) {
-      const frozen = congelados.get(sheet.name);
+      const imagens: Image[] | undefined = extras.imagens.get(sheet.name);
+      if (imagens?.length) {
+        sheet.images = imagens;
+        totalImagens += imagens.length;
+      }
+
+      const frozen = extras.congelamentos.get(sheet.name);
       if (frozen) sheet.frozen = frozen;
-    }
-  } catch {
-    // Painel congelado é conforto de leitura: se falhar, não vale um aviso na cara da pessoa.
-  }
 
-  try {
-    const fontes = await fontesDoXlsx(arquivo);
-    for (const sheet of sheets) {
-      const daAba = fontes.get(sheet.name);
-      if (!daAba) continue;
-      for (const cd of sheet.celldata ?? []) {
-        const extra = daAba.get(`${cd.r}_${cd.c}`);
-        if (!cd.v || !extra) continue;
-        // Estritamente aditivo: só preenche o que veio em branco. Se um dia o conversor
-        // passar a ler o sublinhado sozinho, esta passada deixa de ter efeito em vez de
-        // começar a brigar com ele.
-        if (extra.sublinhado && !cd.v.un) cd.v.un = 1;
-        if (extra.italico && !cd.v.it) cd.v.it = 1;
+      const fontes = extras.fontes.get(sheet.name);
+      if (fontes) {
+        for (const cd of sheet.celldata ?? []) {
+          const extra = fontes.get(`${cd.r}_${cd.c}`);
+          if (!cd.v || !extra) continue;
+          // Estritamente aditivo: só preenche o que veio em branco. Se um dia o conversor
+          // passar a ler o sublinhado sozinho, esta passada deixa de ter efeito em vez de
+          // começar a brigar com ele.
+          if (extra.sublinhado && !cd.v.un) cd.v.un = 1;
+          if (extra.italico && !cd.v.it) cd.v.it = 1;
+        }
       }
+
+      const condicionais = extras.condicionais.get(sheet.name);
+      if (condicionais) aplicarCondicionais(sheet, condicionais);
     }
   } catch {
-    // Acabamento de fonte: nunca vale derrubar a importação.
+    avisos.push('Os logos e o cabeçalho travado não puderam ser lidos; os dados foram importados.');
   }
 
-  const totalCelulas = sheets.reduce((soma, s) => soma + (s.celldata?.length ?? 0), 0);
+  // Só o que o backend vai auditar — ver MAXIMO_DE_CELULAS.
+  const totalCelulas = sheets.reduce(
+    (soma, s) => soma + (s.celldata ?? []).filter((cd) => cd.v && temConteudo(cd.v as CelulaBruta)).length,
+    0
+  );
   if (totalCelulas > MAXIMO_DE_CELULAS) {
     throw new ErroDeImportacao(
-      `A planilha tem ${totalCelulas.toLocaleString('pt-BR')} células preenchidas e o limite é ${MAXIMO_DE_CELULAS.toLocaleString('pt-BR')}. Separe em mais de um arquivo.`
+      `As abas escolhidas somam ${totalCelulas.toLocaleString('pt-BR')} células preenchidas e o limite é ${MAXIMO_DE_CELULAS.toLocaleString('pt-BR')}. Importe menos abas de cada vez.`
+    );
+  }
+
+  /**
+   * Cabe no corpo que o servidor aceita?
+   *
+   * Conferido AQUI, e não lá, porque lá é tarde: a pessoa teria esperado a conversão inteira
+   * para receber um "request entity too large" sem explicação. A pasta de trabalho completa da
+   * cliente dá 36 MB; o servidor aceita 48 MB (ver app.ts).
+   *
+   * `length` conta caracteres e o corpo trafega em UTF-8, onde cada acento ocupa dois bytes —
+   * daí o orçamento ficar abaixo do limite real em vez de colado nele.
+   */
+  const caracteres = JSON.stringify(sheets).length;
+  if (caracteres > ORCAMENTO_DO_CORPO) {
+    const mb = (caracteres / 1024 / 1024).toFixed(0);
+    throw new ErroDeImportacao(
+      `As ${sheets.length} abas escolhidas geram ${mb} MB, acima do que o servidor aceita de uma vez. ` +
+        'Importe menos abas por vez — por exemplo, um ano de cada vez.'
     );
   }
 
@@ -321,6 +454,7 @@ export async function importarExcel(arquivo: File): Promise<PlanilhaImportada> {
     nomeSugerido: arquivo.name.replace(/\.xlsx$/i, '').trim() || 'Planilha importada',
     totalCelulas,
     totalImagens,
+    abasIgnoradas: brutas.length - sheets.length,
     avisos,
   };
 }

@@ -118,6 +118,7 @@ export function TabelasEmpreendimentosView() {
       `${planilha.sheets.length} aba(s)`,
       `${planilha.totalCelulas.toLocaleString('pt-BR')} células`,
       ...(planilha.totalImagens > 0 ? [`${planilha.totalImagens} imagem(ns)`] : []),
+      ...(planilha.abasIgnoradas > 0 ? [`${planilha.abasIgnoradas} aba(s) não importada(s)`] : []),
     ];
     showToast(`"${nome}" importada — ${partes.join(', ')}.`);
     for (const aviso of planilha.avisos) showToast(aviso);

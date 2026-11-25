@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Upload, Search, X } from 'lucide-react';
 import { Spinner } from './Spinner';
 import { ApiError } from '../api/client';
 import type { PlanilhaImportada } from '../lib/importarExcel';
@@ -11,9 +11,14 @@ import type { PlanilhaImportada } from '../lib/importarExcel';
  * conteúdo importado, enquanto o editor substitui o conteúdo da tabela aberta. São destinos
  * diferentes para o mesmo arquivo, e só o caminho até o JSON é comum.
  *
+ * Entre escolher o arquivo e converter existe uma parada: QUAIS abas trazer. A pasta de
+ * trabalho da cliente tem 85 — meses de tabelas de preço guardadas uma ao lado da outra — e
+ * trazer tudo rende uma planilha de 29 MB que o navegador arrasta para desenhar. Ler os nomes
+ * das abas custa milissegundos, então a pergunta vem antes do trabalho pesado.
+ *
  * O aviso em tela cheia não é enfeite. A leitura roda na própria aba do navegador e trava a
- * interface por alguns segundos numa pasta de trabalho grande — sem ele, a tela ficaria
- * congelada sem explicação e a pessoa clicaria de novo.
+ * interface por bastante tempo num arquivo grande — sem ele, a tela ficaria congelada sem
+ * explicação e a pessoa clicaria de novo.
  */
 export function BotaoImportarExcel({
   onImportado,
@@ -28,7 +33,8 @@ export function BotaoImportarExcel({
   variante?: 'primario' | 'secundario';
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [etapa, setEtapa] = useState<'lendo' | 'gravando' | null>(null);
+  const [etapa, setEtapa] = useState<'lendo' | 'convertendo' | 'gravando' | null>(null);
+  const [escolha, setEscolha] = useState<{ arquivo: File; abas: string[] } | null>(null);
 
   async function aoEscolherArquivo(e: React.ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0];
@@ -38,6 +44,22 @@ export function BotaoImportarExcel({
     if (!arquivo) return;
 
     setEtapa('lendo');
+    try {
+      const { nomesDasAbas } = await import('../lib/importarExcel');
+      const abas = await nomesDasAbas(arquivo);
+      setEtapa(null);
+      // Uma aba só não é uma escolha: perguntar seria só um clique a mais.
+      if (abas.length <= 1) await converter(arquivo, undefined);
+      else setEscolha({ arquivo, abas });
+    } catch {
+      setEtapa(null);
+      onErro('Não foi possível abrir este arquivo. Confira se ele abre no Excel sem erro.');
+    }
+  }
+
+  async function converter(arquivo: File, abas: string[] | undefined) {
+    setEscolha(null);
+    setEtapa('convertendo');
 
     // O conversor carrega só agora, e não junto com a tela: ele arrasta o leitor de zip e o
     // parser de .xlsx, que pesam mais que a tela inteira e não servem para quem só veio
@@ -55,16 +77,16 @@ export function BotaoImportarExcel({
     // deste mesmo fluxo, e é ela que decide se a falha foi ao LER o arquivo ou ao GRAVAR.
     // Dizer "confira se o arquivo abre no Excel" depois de uma recusa do servidor manda a
     // pessoa procurar defeito numa planilha que estava perfeita.
-    let fase: 'lendo' | 'gravando' = 'lendo';
+    let fase: 'convertendo' | 'gravando' = 'convertendo';
     try {
-      const planilha = await importador.importarExcel(arquivo);
+      const planilha = await importador.importarExcel(arquivo, { abas });
       fase = 'gravando';
       setEtapa('gravando');
       await onImportado(planilha);
     } catch (err) {
       if (err instanceof importador.ErroDeImportacao || err instanceof ApiError) {
         onErro(err.message);
-      } else if (fase === 'lendo') {
+      } else if (fase === 'convertendo') {
         onErro('Não foi possível ler esta planilha. Confira se o arquivo abre no Excel sem erro.');
       } else {
         onErro('A planilha foi lida, mas não foi possível gravá-la no CRM. Tente de novo.');
@@ -99,21 +121,163 @@ export function BotaoImportarExcel({
         <span className="hidden sm:inline">{rotulo}</span>
       </button>
 
+      {escolha && (
+        <EscolhaDeAbas
+          nomeDoArquivo={escolha.arquivo.name}
+          abas={escolha.abas}
+          onCancelar={() => setEscolha(null)}
+          onConfirmar={(abas) => void converter(escolha.arquivo, abas)}
+        />
+      )}
+
       {etapa && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="bg-white rounded-2xl shadow-2xl px-6 py-5 w-full max-w-sm mx-3 text-center">
             <Spinner size={26} className="text-[#d55006] mx-auto" />
             <p className="mt-3 text-sm font-semibold text-gray-800">
-              {etapa === 'lendo' ? 'Lendo a planilha…' : 'Gravando no CRM…'}
+              {etapa === 'lendo' ? 'Abrindo o arquivo…' : etapa === 'convertendo' ? 'Lendo a planilha…' : 'Gravando no CRM…'}
             </p>
             <p className="mt-1 text-xs text-gray-500">
-              {etapa === 'lendo'
-                ? 'Pastas de trabalho grandes levam alguns segundos. Não feche esta aba.'
-                : 'Guardando as abas, os valores e a formatação.'}
+              {etapa === 'convertendo'
+                ? 'Em pastas de trabalho grandes isto leva alguns minutos e a tela fica parada. Não feche esta aba.'
+                : etapa === 'gravando'
+                  ? 'Guardando as abas, os valores e a formatação.'
+                  : 'Só um instante.'}
             </p>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+/** A partir daqui a planilha fica pesada de desenhar, e vale avisar antes de converter. */
+const MUITAS_ABAS = 15;
+
+function EscolhaDeAbas({
+  nomeDoArquivo,
+  abas,
+  onCancelar,
+  onConfirmar,
+}: {
+  nomeDoArquivo: string;
+  abas: string[];
+  onCancelar: () => void;
+  onConfirmar: (abas: string[]) => void;
+}) {
+  const [marcadas, setMarcadas] = useState<Set<string>>(() => new Set(abas));
+  const [busca, setBusca] = useState('');
+
+  const visiveis = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return termo ? abas.filter((a) => a.toLowerCase().includes(termo)) : abas;
+  }, [abas, busca]);
+
+  function alternar(aba: string) {
+    setMarcadas((atual) => {
+      const nova = new Set(atual);
+      if (nova.has(aba)) nova.delete(aba);
+      else nova.add(aba);
+      return nova;
+    });
+  }
+
+  /** Marca ou desmarca o que está FILTRADO — com 85 abas, é assim que se escolhe "os de 2026". */
+  function alternarVisiveis(marcar: boolean) {
+    setMarcadas((atual) => {
+      const nova = new Set(atual);
+      for (const aba of visiveis) {
+        if (marcar) nova.add(aba);
+        else nova.delete(aba);
+      }
+      return nova;
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-3"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancelar(); }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: '85vh' }}>
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b" style={{ borderColor: '#e5e7eb' }}>
+          <div className="min-w-0">
+            <h2 className="font-questrial font-bold text-lg text-gray-900">Quais abas importar?</h2>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">
+              <strong>{nomeDoArquivo}</strong> tem {abas.length} aba(s).
+            </p>
+          </div>
+          <button onClick={onCancelar} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 flex-shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-5 pt-4 flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              autoFocus
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Filtrar abas… (ex.: 2026)"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-white placeholder:text-gray-400 focus:outline-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
+              style={{ borderColor: '#e5e7eb' }}
+            />
+          </div>
+          <button onClick={() => alternarVisiveis(true)} className="text-xs font-semibold px-2.5 py-2 rounded-lg hover:bg-gray-100" style={{ color: '#d55006' }}>
+            Marcar
+          </button>
+          <button onClick={() => alternarVisiveis(false)} className="text-xs font-semibold px-2.5 py-2 rounded-lg text-gray-500 hover:bg-gray-100">
+            Limpar
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto px-5 py-3 min-h-0">
+          {visiveis.length === 0 && <p className="text-sm text-gray-400 py-8 text-center">Nenhuma aba com esse nome.</p>}
+          <div className="grid sm:grid-cols-2 gap-1">
+            {visiveis.map((aba) => (
+              <label key={aba} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={marcadas.has(aba)}
+                  onChange={() => alternar(aba)}
+                  className="flex-shrink-0"
+                  style={{ accentColor: '#d55006' }}
+                />
+                <span className="text-sm text-gray-700 truncate" title={aba}>{aba}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-5 py-4 border-t bg-gray-50 rounded-b-2xl" style={{ borderColor: '#e5e7eb' }}>
+          {marcadas.size > MUITAS_ABAS && (
+            // Honestidade sobre o custo: o tempo de LEITURA é do arquivo inteiro e não muda
+            // com a escolha — o que muda é o peso da planilha depois de pronta.
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+              {marcadas.size} abas de uma vez deixam a tabela pesada de abrir e de rolar. A leitura do
+              arquivo demora o mesmo de qualquer jeito; trazer menos abas deixa o resultado mais leve.
+            </p>
+          )}
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500 flex-1">
+              <strong>{marcadas.size}</strong> de {abas.length} selecionada(s)
+            </span>
+            <button onClick={onCancelar} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200">
+              Cancelar
+            </button>
+            <button
+              onClick={() => onConfirmar([...marcadas])}
+              disabled={marcadas.size === 0}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
+              style={{ backgroundColor: '#d55006' }}
+            >
+              Importar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
