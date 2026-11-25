@@ -4,6 +4,7 @@ import {
   AlertTriangle, Dices, X,
 } from 'lucide-react';
 import { useStore } from '../store';
+import { podeOperarSommar } from '../permissions';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { formatCurrency } from '../utils';
@@ -81,7 +82,15 @@ function Variacao({ valor }: { valor: number | null }) {
 
 export function SommarView() {
   const currentUser = useStore((s) => s.currentUser);
-  const ehDiretora = currentUser?.cargo === 'Diretora';
+  /**
+   * Quem OPERA o programa: fecha o período, sorteia e estorna lançamento.
+   *
+   * Acompanhar é outra coisa, e desde que o Gerente de Estratégias passou a alcançar esta tela
+   * a diferença virou visível: ele lê o ranking, os cupons e o extrato de qualquer
+   * participante, e não tem nenhum destes botões. O servidor recusaria de todo jeito — as
+   * quatro rotas de escrita do SÕMMAR são `requireRole('DIRETORA')`.
+   */
+  const ehDiretora = podeOperarSommar(currentUser);
 
   const [aba, setAba] = useState<Aba>('corretores');
   const [periodo, setPeriodo] = useState(periodoAtual());

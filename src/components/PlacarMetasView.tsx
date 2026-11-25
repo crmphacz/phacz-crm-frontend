@@ -6,6 +6,7 @@ import {
 import { placarApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { useStore } from '../store';
+import { podeDefinirMetas } from '../permissions';
 import { formatCurrencyBRL, maskCurrencyBRLInput, parseCurrencyBRL } from '../utils';
 import { ViewLoader } from './ViewLoader';
 import { IndicadoresDesempenho } from './IndicadoresDesempenho';
@@ -57,7 +58,15 @@ function corDoAtingimento(total: number, meta: number): string {
 
 export function PlacarMetasView() {
   const currentUser = useStore((s) => s.currentUser);
-  const ehDiretoria = currentUser?.cargo === 'Diretora';
+  /**
+   * Quem pode DEFINIR meta — e não quem pode vê-la.
+   *
+   * Era a comparação crua com o cargo, sob o nome `ehDiretoria`. Virou pergunta própria
+   * quando o Gerente de Estratégias passou a enxergar o placar inteiro: ele vê tudo o que a
+   * Diretoria vê nesta tela e não pode salvar nada, e com o nome antigo a distinção se perdia
+   * no primeiro `cargo === 'Diretora' || cargo === 'GerenteEstrategias'` bem-intencionado.
+   */
+  const podeEditarMetas = podeDefinirMetas(currentUser);
 
   const [periodo, setPeriodo] = useState(PERIODO_ATUAL);
   const [aba, setAba] = useState<'placar' | 'indicadores'>('placar');
@@ -247,7 +256,7 @@ export function PlacarMetasView() {
             <FileText size={13} /> PDF
           </button>
 
-          {ehDiretoria && !editando && (
+          {podeEditarMetas && !editando && (
             <>
               <button
                 onClick={copiarDoMesAnterior}
@@ -267,7 +276,7 @@ export function PlacarMetasView() {
               </button>
             </>
           )}
-          {ehDiretoria && editando && (
+          {podeEditarMetas && editando && (
             <>
               <button
                 onClick={() => setEditando(false)}
@@ -292,7 +301,7 @@ export function PlacarMetasView() {
       {erro && <p className="text-sm text-red-500 px-4 md:px-6 py-2">{erro}</p>}
 
       {/* Meta de vendas do mês — um número só, rateado entre os GVs ativos. */}
-      {placar && (ehDiretoria || placar.metaVendas.total > 0) && (
+      {placar && (podeEditarMetas || placar.metaVendas.total > 0) && (
         <div
           className="flex flex-wrap items-center gap-3 px-4 md:px-6 py-3 border-b"
           style={{ borderColor: '#e5e7eb', backgroundColor: '#fff7ed' }}
@@ -300,7 +309,7 @@ export function PlacarMetasView() {
           <Target size={15} style={{ color: '#d55006' }} className="flex-shrink-0" />
           <span className="text-sm font-semibold text-gray-700">Meta de vendas do mês</span>
 
-          {ehDiretoria ? (
+          {podeEditarMetas ? (
             <>
               <input
                 type="text"

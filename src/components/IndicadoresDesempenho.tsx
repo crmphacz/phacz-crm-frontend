@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Info, Save, RotateCcw, Download, FileText } from 'lucide-react';
 import { useStore } from '../store';
+import { podeDefinirMetas } from '../permissions';
 import { placarApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { formatCurrency } from '../utils';
@@ -47,7 +48,9 @@ function formatarValor(valor: number, formato: DefinicaoIndicador['formato']): s
 export function IndicadoresDesempenho() {
   const currentUser = useStore((s) => s.currentUser);
   const showToast = useStore((s) => s.showToast);
-  const ehDiretoria = currentUser?.cargo === 'Diretora';
+  // Pergunta de EDIÇÃO, não de visão: o Gerente de Estratégias vê a apuração inteira, igual
+  // à Diretoria, e não ajusta meta nem valor apurado. Ver podeDefinirMetas.
+  const podeEditarMetas = podeDefinirMetas(currentUser);
 
   const [bimestre, setBimestre] = useState(bimestreAtual);
   const [catalogo, setCatalogo] = useState<CatalogoIndicadores | null>(null);
@@ -162,7 +165,7 @@ export function IndicadoresDesempenho() {
           </div>
         </div>
 
-        {ehDiretoria && temRascunho && (
+        {podeEditarMetas && temRascunho && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setRascunho({})}
@@ -193,7 +196,7 @@ export function IndicadoresDesempenho() {
             VGV total do bimestre: <strong>{formatCurrency(apuracao.vgvTotal)}</strong>. As metas de
             VGV do canal (SDR e GR) são 20% deste valor, conforme a política — por isso elas só
             ficam definidas depois que o bimestre acontece.
-            {ehDiretoria && ' Os campos de meta e realizado podem ser ajustados; em branco, vale o que o sistema calculou.'}
+            {podeEditarMetas && ' Os campos de meta e realizado podem ser ajustados; em branco, vale o que o sistema calculou.'}
           </p>
         </div>
       )}
@@ -211,7 +214,7 @@ export function IndicadoresDesempenho() {
           key={pessoa.userId}
           pessoa={pessoa}
           defPorChave={defPorChave}
-          editavel={ehDiretoria}
+          editavel={podeEditarMetas}
           rascunho={rascunho}
           onEditar={editar}
         />

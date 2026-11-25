@@ -8,6 +8,7 @@ import { useStore } from '../store';
 import { useViewReady } from '../navLoading';
 import { ViewLoader } from './ViewLoader';
 import { PlacarMetasView } from './PlacarMetasView';
+import { veDesempenhoCompleto } from '../permissions';
 import { STAGES, FUNIS_DO_PIPELINE, ETAPA_CLIENTES_PERDIDOS, ETAPA_FECHAMENTO, ETAPA_NEGOCIACAO } from '../data';
 import { formatCurrency, formatRelativeTime, TIPO_INTERACAO_CONFIG } from '../utils';
 import { ApiError } from '../api/client';
@@ -52,19 +53,23 @@ export function Dashboard() {
   }, []);
 
   const cargo = currentUser?.cargo ?? 'Diretora';
-  // O placar de metas abre primeiro para quem é medido por ele e para a Diretoria: é o que
-  // substituiu a planilha e o que se olha todo dia. Os funis continuam a um clique.
+  // Quem acompanha a operação inteira vê todas as abas — hoje Diretoria e Gerente de
+  // Estratégias. A diferença entre os dois não está aqui, e sim no botão de salvar meta
+  // (ver podeDefinirMetas): este é um recorte de LEITURA.
+  const veTudo = veDesempenhoCompleto(currentUser);
+  // O placar de metas abre primeiro para quem é medido por ele e para quem acompanha todo
+  // mundo: é o que substituiu a planilha e o que se olha todo dia. Os funis ficam a um clique.
   const temPlacar = cargo === 'SDR' || cargo === 'GR' || cargo === 'GV';
-  const defaultTab: DashTab = temPlacar || cargo === 'Diretora' ? 'metas' : 'geral';
+  const defaultTab: DashTab = temPlacar || veTudo ? 'metas' : 'geral';
 
   const [dashTab, setDashTab] = useState<DashTab>(defaultTab);
 
   const allTabs: { id: DashTab; label: string; visible: boolean; cor: string }[] = [
-    { id: 'metas', label: 'Placar de Metas', visible: temPlacar || cargo === 'Diretora', cor: '#d55006' },
-    { id: 'geral', label: 'Visão Geral', visible: cargo === 'Diretora', cor: '#d55006' },
-    { id: 'sdr', label: 'Funil SDR', visible: cargo === 'Diretora' || cargo === 'SDR', cor: '#8b5cf6' },
-    { id: 'gr', label: 'Funil GR', visible: cargo === 'Diretora' || cargo === 'GR', cor: '#0d9488' },
-    { id: 'gv', label: 'Funil GV', visible: cargo === 'Diretora' || cargo === 'GV', cor: '#d55006' },
+    { id: 'metas', label: 'Placar de Metas', visible: temPlacar || veTudo, cor: '#d55006' },
+    { id: 'geral', label: 'Visão Geral', visible: veTudo, cor: '#d55006' },
+    { id: 'sdr', label: 'Funil SDR', visible: veTudo || cargo === 'SDR', cor: '#8b5cf6' },
+    { id: 'gr', label: 'Funil GR', visible: veTudo || cargo === 'GR', cor: '#0d9488' },
+    { id: 'gv', label: 'Funil GV', visible: veTudo || cargo === 'GV', cor: '#d55006' },
   ];
   const tabs = allTabs.filter((t) => t.visible);
 

@@ -263,6 +263,41 @@ export function canWhatsappCliente(user: UserProfile | null, comprou: boolean): 
 }
 
 /**
+ * Quem acompanha o desempenho da operação INTEIRA — todas as abas do Dashboard, o placar de
+ * todo mundo e a apuração de todo mundo.
+ *
+ * Espelha `veOPlacarCompleto` no servidor, que é quem de fato recorta os dados: sem a
+ * correspondência, a aba apareceria aqui e viria vazia de lá.
+ *
+ * O Gerente de Estratégias entra porque a função dele é olhar o conjunto — SDR, GR e GV — para
+ * decidir onde agir. Pelo recorte anterior ele não via aba nenhuma no Dashboard: não é medido
+ * por placar, então não tinha placar próprio, e a visão geral era exclusiva da Diretoria.
+ */
+export function veDesempenhoCompleto(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora' || user?.cargo === 'GerenteEstrategias';
+}
+
+/**
+ * Quem DEFINE meta: só a Diretoria.
+ *
+ * Existe com nome próprio, em vez de um `cargo === 'Diretora'` solto em cada tela, porque
+ * ver e definir deixaram de andar juntos quando o Gerente de Estratégias passou a enxergar o
+ * placar inteiro. Com a comparação espalhada, incluí-lo "no lugar certo" uma vez só já lhe
+ * daria o botão de salvar meta — aqui fica explícito que são duas perguntas diferentes.
+ *
+ * O servidor recusa de qualquer forma (`requireRole('DIRETORA')` em cada rota de escrita);
+ * isto é para a tela não oferecer o que vai ser negado.
+ */
+export function podeDefinirMetas(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora';
+}
+
+/** Quem opera o SÕMMAR: fechar período, sortear e liberar resgate. Acompanhar é outra coisa. */
+export function podeOperarSommar(user: UserProfile | null): boolean {
+  return user?.cargo === 'Diretora';
+}
+
+/**
  * Visibilidade de cada aba do menu, por perfil. Só os módulos explicitamente listados no
  * RBAC (clientes, corretores, kanban, calendário de rodadas, e-mail marketing) são
  * restringidos aqui; os demais (dashboard, empreendimentos, indicadores, config, IA) ficam
@@ -311,7 +346,12 @@ export function canAccessView(user: UserProfile | null, view: ViewMode): boolean
     case 'sommar':
       // Diretoria/Administrativo/Recepção já entram pela liberação do topo. Quem opera o
       // programa no dia a dia é quem atende corretor; Marketing fica de fora.
-      return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR';
+      //
+      // O Gerente de Estratégias entra para ACOMPANHAR: o SÕMMAR é um dos instrumentos de
+      // relacionamento com o parceiro, e ele precisa ver como está rendendo. Fechar período,
+      // sortear e liberar resgate continuam só com a Diretoria (ver `podeOperarSommar`).
+      return user.cargo === 'SDR' || user.cargo === 'GV' || user.cargo === 'GR'
+        || user.cargo === 'GerenteEstrategias';
     default:
       return true;
   }
