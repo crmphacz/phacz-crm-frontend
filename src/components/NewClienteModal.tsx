@@ -4,7 +4,7 @@ import { useStore } from '../store';
 import type { ClienteFinalComContexto } from '../store';
 import type { CanalOrigem } from '../types';
 import { mensagemDeErro } from '../api/client';
-import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials, maskCPF } from '../utils';
+import { maskCurrencyBRLInput, parseCurrencyBRL, formatCurrencyBRL, getInitials, maskCPF, ehCardDeCliente } from '../utils';
 import { PAIS_PADRAO, PAISES, maskTelefone } from '../lib/paises';
 import { TelefoneInput } from './TelefoneInput';
 import { RodadaPickerModal, rotuloDaRodada } from './RodadaPickerModal';
@@ -34,10 +34,26 @@ export function NewClienteModal({ onClose, onCreated, cliente, corretorId: initi
   const addClienteFinal = useStore((s) => s.addClienteFinal);
   const updateClienteFinal = useStore((s) => s.updateClienteFinal);
 
+  /**
+   * Só cards de CORRETOR entram no seletor — nunca card de cliente.
+   *
+   * O card de negócio copia nome e imobiliária do corretor-pai (ver /gerar-negocio), então ele
+   * aparecia aqui como uma segunda linha "Rodrigo Bissoni · ATLAS BUSINESS LTDA", idêntica à do
+   * corretor e sem nada que a distinguisse. Escolhida essa linha, o cliente era gravado no card
+   * de negócio: ficava na tela de Leads com o corretor certo e sumia da aba Clientes do card
+   * dele, porque card de negócio não tem aba Clientes — ele já É um cliente.
+   *
+   * O card de cliente sem corretor nenhum (base de pós-venda importada) também tem
+   * `clienteFinalNome` e cai fora pela mesma regra, que é o que se quer: ele não é corretor de
+   * ninguém.
+   *
+   * O servidor normaliza o vínculo de qualquer forma, mas uma opção que não pode ser escolhida
+   * não deveria estar na lista.
+   */
   const corretorOptions = useMemo(
     () =>
       corretores
-        .filter((c) => c.status !== 'arquivado' && c.status !== 'perdido')
+        .filter((c) => c.status !== 'arquivado' && c.status !== 'perdido' && !ehCardDeCliente(c))
         .sort((a, b) => a.nomeCorretor.localeCompare(b.nomeCorretor)),
     [corretores]
   );
