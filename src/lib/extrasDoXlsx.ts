@@ -2,11 +2,15 @@ import JSZip from 'jszip';
 import type { Image } from '@fortune-sheet/core';
 
 /**
- * As imagens flutuantes de um .xlsx (logos, selos, carimbos).
+ * O que o LuckyExcel deixa para trás, lido direto do .xlsx.
  *
- * Existe porque o LuckyExcel, que faz o resto da conversão, devolve `images: null` sempre — ele
- * nunca leu os desenhos do arquivo. Na tabela da cliente são os dois logos no alto da folha, e
- * sem eles a planilha importada abre com um vazio onde hoje está o cabeçalho.
+ * Ele faz o grosso da conversão, mas três coisas ele simplesmente não lê: as imagens
+ * flutuantes (devolve `images: null` sempre), os painéis congelados e o sublinhado das fontes.
+ * Na tabela da cliente isso é, respectivamente, os dois logos do cabeçalho, a linha de títulos
+ * que precisa ficar travada numa tabela de 500 unidades, e o sublinhado dos percentuais.
+ *
+ * Cada função aqui é uma passada independente pelo zip e NENHUMA lança: o que elas trazem é
+ * acabamento, e nada disso pode impedir a importação dos dados.
  *
  * O .xlsx é um zip de XMLs, e chegar na imagem é uma corrente de referências:
  *
@@ -302,6 +306,111 @@ export async function congelamentosDoXlsx(arquivo: File | Blob): Promise<Map<str
     if (colunas > 0 && linhas > 0) resultado.set(nomeDaAba, { type: 'rangeBoth', range });
     else if (linhas > 0) resultado.set(nomeDaAba, { type: 'rangeRow', range });
     else resultado.set(nomeDaAba, { type: 'rangeColumn', range });
+  }
+
+  return resultado;
+}
+
+// ── Sublinhado e itálico ─────────────────────────────────────────────
+
+/** O que esta passada acrescenta a uma célula. Só o que o LuckyExcel erra. */
+export interface FonteDaCelula {
+  sublinhado?: boolean;
+  italico?: boolean;
+}
+
+/** "AB12" → { linha: 11, coluna: 27 }, em índices de base zero. */
+function posicaoDaReferencia(ref: string): { linha: number; coluna: number } | null {
+  const casa = /^([A-Z]+)(\d+)$/.exec(ref);
+  if (!casa) return null;
+  let coluna = 0;
+  for (const letra of casa[1]) coluna = coluna * 26 + (letra.charCodeAt(0) - 64);
+  return { linha: Number(casa[2]) - 1, coluna: coluna - 1 };
+}
+
+/**
+ * O sublinhado e o itálico de cada célula, por aba, na chave "linha_coluna".
+ *
+ * O LuckyExcel lê negrito, cor, tamanho e nome da fonte, mas devolve `un: 0` mesmo quando o
+ * arquivo traz `<u/>` — na tabela da cliente são os percentuais do cabeçalho (20%, 48X MENSAL,
+ * 20% - 4 ANUAIS, 15%), que no Excel aparecem sublinhados.
+ *
+ * O caminho é: célula tem `s="16"` → `cellXfs[16]` tem `fontId` → `fonts[fontId]` tem `<u/>`.
+ */
+export async function fontesDoXlsx(arquivo: File | Blob): Promise<Map<string, Map<string, FonteDaCelula>>> {
+  const resultado = new Map<string, Map<string, FonteDaCelula>>();
+
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(arquivo);
+  } catch {
+    return resultado;
+  }
+
+  const estilos = zip.file('xl/styles.xml');
+  const workbook = zip.file('xl/workbook.xml');
+  if (!estilos || !workbook) return resultado;
+
+  const docEstilos = lerXml(await estilos.async('string'));
+
+  // `<u val="none"/>` existe e quer dizer o contrário de sublinhado; só a ausência do atributo
+  // ou um valor diferente de "none" conta.
+  const marcada = (fonte: Element, nome: string): boolean => {
+    const no = fonte.getElementsByTagNameNS('*', nome)[0];
+    return Boolean(no) && (no.getAttribute('val') ?? 'single') !== 'none';
+  };
+
+  const listaDeFontes = filho(docEstilos, 'fonts');
+  const fontes = listaDeFontes
+    ? Array.from(listaDeFontes.getElementsByTagNameNS('*', 'font')).map((f) => ({
+        sublinhado: marcada(f, 'u'),
+        italico: marcada(f, 'i'),
+      }))
+    : [];
+
+  const listaDeFormatos = filho(docEstilos, 'cellXfs');
+  const fontePorEstilo = listaDeFormatos
+    ? Array.from(listaDeFormatos.getElementsByTagNameNS('*', 'xf')).map((xf) => Number(xf.getAttribute('fontId')) || 0)
+    : [];
+
+  // Nenhuma fonte tem sublinhado nem itálico: não há o que acrescentar, e percorrer todas as
+  // abas de uma pasta de trabalho grande para não achar nada é desperdício puro.
+  if (!fontes.some((f) => f.sublinhado || f.italico)) return resultado;
+
+  const docWorkbook = lerXml(await workbook.async('string'));
+  const relsWorkbook = await relacoesDe(zip, 'xl/workbook.xml');
+
+  for (const abaXml of filhos(docWorkbook, 'sheet')) {
+    const nomeDaAba = abaXml.getAttribute('name');
+    const rId =
+      abaXml.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') ??
+      abaXml.getAttribute('r:id');
+    if (!nomeDaAba || !rId) continue;
+
+    const caminhoDaAba = relsWorkbook.get(rId);
+    const arquivoDaAba = caminhoDaAba ? zip.file(caminhoDaAba) : null;
+    if (!arquivoDaAba) continue;
+
+    const docAba = lerXml(await arquivoDaAba.async('string'));
+    const daAba = new Map<string, FonteDaCelula>();
+
+    for (const celula of filhos(docAba, 'c')) {
+      const indiceDoEstilo = Number(celula.getAttribute('s'));
+      if (!Number.isFinite(indiceDoEstilo)) continue;
+      const fonte = fontes[fontePorEstilo[indiceDoEstilo] ?? 0];
+      if (!fonte || (!fonte.sublinhado && !fonte.italico)) continue;
+
+      const ref = celula.getAttribute('r');
+      const posicao = ref ? posicaoDaReferencia(ref) : null;
+      if (!posicao) continue;
+
+      daAba.set(`${posicao.linha}_${posicao.coluna}`, {
+        ...(fonte.sublinhado ? { sublinhado: true } : {}),
+        ...(fonte.italico ? { italico: true } : {}),
+      });
+    }
+
+    if (daAba.size > 0) resultado.set(nomeDaAba, daAba);
   }
 
   return resultado;

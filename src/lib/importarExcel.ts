@@ -1,6 +1,6 @@
 import type { Sheet, Cell, CellWithRowAndCol, Image } from '@fortune-sheet/core';
 import { update } from '@fortune-sheet/core';
-import { imagensDoXlsx, congelamentosDoXlsx, type MedidasDaAba } from './imagensDoXlsx';
+import { imagensDoXlsx, congelamentosDoXlsx, fontesDoXlsx, type MedidasDaAba } from './extrasDoXlsx';
 
 /**
  * Importação de um .xlsx para o formato do editor de planilhas (fortune-sheet).
@@ -80,7 +80,22 @@ export function textoExibido(formato: string, valor: number): string {
 
 // ── Células ──────────────────────────────────────────────────────────
 
-type CelulaBruta = Cell & { ct?: { fa?: string; t?: string } };
+type CelulaBruta = Cell & { ct?: { fa?: string; t?: string; s?: unknown }; rt?: number };
+
+/**
+ * Texto de várias linhas dentro de UMA célula — na tabela da cliente, as dez cláusulas
+ * comerciais no rodapé da folha.
+ *
+ * O Excel guarda isso como "inline string", e o LuckyExcel entrega os pedaços em `ct.s`
+ * deixando `v` vazio. A planilha até desenha o texto a partir de `ct.s`, mas tudo que LÊ a
+ * célula — a auditoria, o BI, a busca — encontrava uma célula em branco no lugar do bloco
+ * inteiro. Era a única perda de conteúdo, e silenciosa.
+ */
+function textoDosPedacos(ct: CelulaBruta['ct']): string | null {
+  if (!Array.isArray(ct?.s)) return null;
+  const texto = ct.s.map((p) => String((p as { v?: unknown })?.v ?? '')).join('');
+  return texto === '' ? null : texto;
+}
 
 /**
  * Devolve a célula pronta para o editor.
@@ -93,6 +108,21 @@ type CelulaBruta = Cell & { ct?: { fa?: string; t?: string } };
 export function normalizarCelula(bruta: CelulaBruta): Cell {
   const celula: CelulaBruta = { ...bruta };
   const tipo = celula.ct?.t;
+
+  // Mantém `ct.s`: se o editor desenhar pelos pedaços, o formato rico continua; se ignorar,
+  // ainda aparece o texto puro. De um jeito ou de outro, nada se perde.
+  if (celula.v === undefined || celula.v === null || celula.v === '') {
+    const texto = textoDosPedacos(celula.ct);
+    if (texto !== null) {
+      celula.v = texto;
+      celula.m = texto;
+    }
+  }
+
+  // `rt` é o ÂNGULO e `tr` é o MODO de rotação. O LuckyExcel preenche o ângulo (90) e deixa o
+  // modo em 0, que para o editor quer dizer "sem rotação" — e o rótulo da tipologia, que no
+  // Excel sobe pela lateral da tabela, era desenhado deitado numa coluna de seis caracteres.
+  if (Number(celula.rt ?? 0) !== 0 && !celula.tr) celula.tr = '1';
 
   // `t: 's'` é string declarada pelo Excel: "0102" é um código de apartamento, não o número
   // 102, e convertê-lo apagaria o zero da frente.
@@ -166,7 +196,9 @@ function normalizarAba(bruta: AbaBruta, indice: number): Sheet {
     status: indice === 0 ? 1 : 0,
     celldata: celulas,
     config: (bruta.config ?? {}) as Sheet['config'],
-    row: Math.max(100, ultimaLinha + 30),
+    // Os mínimos são os mesmos da aba em branco do editor (ver abaVazia): uma planilha
+    // importada não pode abrir com menos espaço para trabalhar do que uma criada do zero.
+    row: Math.max(200, ultimaLinha + 30),
     column: Math.max(30, ultimaColuna + 10),
   } as Sheet;
 }
@@ -256,6 +288,25 @@ export async function importarExcel(arquivo: File): Promise<PlanilhaImportada> {
     }
   } catch {
     // Painel congelado é conforto de leitura: se falhar, não vale um aviso na cara da pessoa.
+  }
+
+  try {
+    const fontes = await fontesDoXlsx(arquivo);
+    for (const sheet of sheets) {
+      const daAba = fontes.get(sheet.name);
+      if (!daAba) continue;
+      for (const cd of sheet.celldata ?? []) {
+        const extra = daAba.get(`${cd.r}_${cd.c}`);
+        if (!cd.v || !extra) continue;
+        // Estritamente aditivo: só preenche o que veio em branco. Se um dia o conversor
+        // passar a ler o sublinhado sozinho, esta passada deixa de ter efeito em vez de
+        // começar a brigar com ele.
+        if (extra.sublinhado && !cd.v.un) cd.v.un = 1;
+        if (extra.italico && !cd.v.it) cd.v.it = 1;
+      }
+    }
+  } catch {
+    // Acabamento de fonte: nunca vale derrubar a importação.
   }
 
   const totalCelulas = sheets.reduce((soma, s) => soma + (s.celldata?.length ?? 0), 0);
