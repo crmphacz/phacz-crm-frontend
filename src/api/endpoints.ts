@@ -471,21 +471,38 @@ export const tabelasEmpreendimentosApi = {
   create: (nome: string) =>
     apiFetch<{ id: string; nome: string }>('/api/tabelas-empreendimentos', { method: 'POST', body: { nome } }),
   /**
-   * O corpo vai COMPRIMIDO: é a pasta de trabalho inteira, e a API roda como Vercel Function,
-   * que recusa requisição acima de ~4,5 MB antes mesmo de o Express ver o pedido — ver
-   * lib/corpoComprimido.
+   * Grava a PLANILHA. As células vão depois, em lotes (ver salvarCelulas).
+   *
+   * `dadosJson` é a pasta de trabalho como TEXTO, e não como objeto, de propósito: assim o
+   * servidor nunca a monta na memória — ele passa a string direto ao Postgres. O backend roda
+   * numa instância de 512 MB, e montar a pasta inteira ali, somada às células, era o que matava
+   * o processo no meio do salvamento.
+   *
+   * Vai comprimido porque, escapado dentro deste JSON, o texto quase dobra de tamanho — e ele
+   * já era de dezenas de MB.
    */
-  save: async (
-    id: string,
-    payload: { nome?: string; dados: unknown; celulas: CelulaAlterada[] }
-  ) => {
+  salvarPlanilha: async (id: string, payload: { nome?: string; dadosJson: string }) => {
     const corpo = await corpoJsonComprimido(payload);
     conferirTamanho(corpo, 'Importe menos abas de cada vez e salve em tabelas separadas.');
-    return apiFetch<{ ok: boolean; celulasAlteradas: number; atualizadoEm: string; atualizadoPorNome: string | null }>(
+    return apiFetch<{ ok: boolean; atualizadoEm: string; atualizadoPorNome: string | null }>(
       `/api/tabelas-empreendimentos/${id}`,
       { method: 'PUT', body: corpo.body, headers: corpo.headers }
     );
   },
+
+  /**
+   * Grava UM lote de células. Chamado em sequência, uma vez por página.
+   *
+   * A página 0 limpa o que havia: o conjunto enviado substitui o anterior.
+   */
+  salvarCelulas: (
+    id: string,
+    lote: { pagina: number; total: number; celulas: CelulaAlterada[] }
+  ) =>
+    apiFetch<{ ok: boolean; gravadas: number }>(
+      `/api/tabelas-empreendimentos/${id}/celulas`,
+      { method: 'POST', body: lote }
+    ),
   remove: (id: string) => apiFetch<void>(`/api/tabelas-empreendimentos/${id}`, { method: 'DELETE' }),
 };
 

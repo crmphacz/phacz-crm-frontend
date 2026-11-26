@@ -6,7 +6,7 @@ import { ViewLoader } from './ViewLoader';
 import { ConfirmModal } from './ConfirmModal';
 import { Spinner } from './Spinner';
 import { BotaoImportarExcel } from './BotaoImportarExcel';
-import { celulasDasAbas } from '../lib/celulasDaPlanilha';
+import { salvarTabelaEmPartes } from '../lib/salvarTabela';
 import type { PlanilhaImportada } from '../lib/importarExcel';
 import { tabelasEmpreendimentosApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
@@ -102,11 +102,7 @@ export function TabelasEmpreendimentosView() {
     const nome = planilha.nomeSugerido.slice(0, 160);
     const nova = await tabelasEmpreendimentosApi.create(nome);
     try {
-      await tabelasEmpreendimentosApi.save(nova.id, {
-        nome,
-        dados: planilha.sheets,
-        celulas: celulasDasAbas(planilha.sheets),
-      });
+      await salvarTabelaEmPartes(nova.id, planilha.sheets, { nome });
     } catch (err) {
       // A tabela já existe no banco, vazia. Deixá-la lá seria entulho com o nome do arquivo,
       // parecendo uma importação que deu certo.

@@ -6,7 +6,7 @@ import type { WorkbookInstance } from '@fortune-sheet/react';
 import type { Sheet } from '@fortune-sheet/core';
 import { useStore } from '../store';
 import { BotaoImportarExcel } from './BotaoImportarExcel';
-import { celulasDasAbas } from '../lib/celulasDaPlanilha';
+import { salvarTabelaEmPartes } from '../lib/salvarTabela';
 import type { PlanilhaImportada } from '../lib/importarExcel';
 import { tabelasEmpreendimentosApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
@@ -43,6 +43,18 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
   const [nome, setNome] = useState(nomeInicial);
   const [dirty, setDirty] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  /**
+   * Em que lote de células o salvamento está. Nulo enquanto a planilha ainda está subindo.
+   *
+   * O botão mostra isso porque uma pasta de trabalho grande leva dezenas de lotes: sem o
+   * contador, "Salvando…" parado por meio minuto parece travamento.
+   */
+  const [progresso, setProgresso] = useState<{ feitas: number; paginas: number } | null>(null);
+  /** Lido dentro do catch, onde o `dirty` do closure estaria velho. */
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    dirtyRef.current = dirty;
+  }, [dirty]);
   const [atualizadoPorNome, setAtualizadoPorNome] = useState<string | null>(null);
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
   /**
@@ -74,21 +86,31 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
     if (readOnly || salvando) return;
     const sheets = (wbRef.current?.getAllSheets() ?? sheetsRef.current ?? sheetsIniciais ?? []) as Sheet[];
     setSalvando(true);
+    setProgresso(null);
     try {
-      const res = await tabelasEmpreendimentosApi.save(id, {
+      const res = await salvarTabelaEmPartes(id, sheets, {
         nome: nome.trim() || nomeInicial,
-        dados: sheets,
-        celulas: celulasDasAbas(sheets),
+        onProgresso: (feitas, paginas) => {
+          // A planilha já subiu quando o primeiro lote começa — daí marcar salvo aqui, e não
+          // só no fim: o que a tela mostra está gravado, e o que falta é o registro.
+          setDirty(false);
+          setProgresso({ feitas, paginas });
+        },
       });
       setDirty(false);
       setAtualizadoPorNome(res.atualizadoPorNome);
       setAtualizadoEm(res.atualizadoEm);
       onNomeChange?.(nome.trim() || nomeInicial);
-      showToast(`Tabela salva — ${res.celulasAlteradas} célula(s) alterada(s).`);
+      showToast(`Tabela salva — ${res.gravadas.toLocaleString('pt-BR')} célula(s).`);
     } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Não foi possível salvar a tabela.');
+      const mensagem = err instanceof ApiError ? err.message : 'Não foi possível salvar a tabela.';
+      // Se a planilha já gravou e o erro veio dos lotes, dizer só "não foi possível salvar"
+      // seria mentira: o que a tela mostra está salvo. O que ficou pela metade é o registro de
+      // auditoria, e reenviar resolve.
+      showToast(dirtyRef.current ? mensagem : `${mensagem} A planilha foi salva; reenvie para completar o registro.`);
     } finally {
       setSalvando(false);
+      setProgresso(null);
     }
   }, [id, nome, nomeInicial, readOnly, salvando, sheetsIniciais, onNomeChange, showToast]);
 
@@ -166,7 +188,11 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
             style={{ backgroundColor: '#d55006' }}
           >
             <Save size={15} />
-            {salvando ? 'Salvando…' : dirty ? 'Salvar' : 'Salvo'}
+            {salvando
+              ? progresso
+                ? `Salvando… ${progresso.feitas + 1}/${progresso.paginas}`
+                : 'Salvando…'
+              : dirty ? 'Salvar' : 'Salvo'}
           </button>
         )}
       </div>
