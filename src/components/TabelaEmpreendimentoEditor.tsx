@@ -7,6 +7,7 @@ import type { Sheet } from '@fortune-sheet/core';
 import { useStore } from '../store';
 import { BotaoImportarExcel } from './BotaoImportarExcel';
 import { salvarTabelaEmPartes, lerTabelaEmPartes } from '../lib/salvarTabela';
+import { assinaturaDoConteudo, comCelldata } from '../lib/celulasDaPlanilha';
 import type { PlanilhaImportada } from '../lib/importarExcel';
 import { ApiError } from '../api/client';
 import { formatRelativeTime } from '../utils';
@@ -56,6 +57,17 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
   useEffect(() => {
     dirtyRef.current = dirty;
   }, [dirty]);
+
+  /**
+   * A assinatura do conteúdo como ele está GRAVADO — o ponto de comparação do "mudou algo?".
+   *
+   * `null` significa "ainda não dá para comparar": ou a planilha acabou de ser carregada e o
+   * editor ainda não terminou de montá-la, ou acabou de ser importada (e aí mudou, por
+   * definição). Enquanto está nulo, nenhuma comparação é feita.
+   */
+  const assinaturaGravada = useRef<string | null>(null);
+  /** Sobe quando o conteúdo vem do SERVIDOR — e não quando vem de uma importação. */
+  const [marcoDoServidor, setMarcoDoServidor] = useState(0);
   const [atualizadoPorNome, setAtualizadoPorNome] = useState<string | null>(null);
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
   /**
@@ -79,11 +91,34 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
         setNome(t.nome);
         setAtualizadoPorNome(t.atualizadoPorNome);
         setAtualizadoEm(t.atualizadoEm);
+        // O que veio do servidor é, por definição, o estado gravado — e é contra ele que as
+        // edições serão comparadas.
+        assinaturaGravada.current = null;
+        setMarcoDoServidor((m) => m + 1);
       })
       .catch((err) => { if (vivo) setErro(err instanceof ApiError ? err.message : 'Não foi possível abrir a tabela.'); })
       .finally(() => { if (vivo) setCarregando(false); });
     return () => { vivo = false; };
   }, [id]);
+
+  /**
+   * Tira a assinatura do estado gravado DEPOIS que o editor terminou de montar a planilha.
+   *
+   * Não dá para usar o que veio do servidor como referência: o fortune-sheet reorganiza a aba
+   * ao montá-la (as células saem de `celldata` para uma matriz) e acrescenta padrões próprios.
+   * Comparar as duas formas acusaria diferença sempre. Tirando a assinatura do editor já
+   * montado, os dois lados da comparação passam pelo mesmo caminho.
+   *
+   * No quadro seguinte à montagem, que é muito antes de alguém conseguir clicar em algo.
+   */
+  useEffect(() => {
+    if (!sheetsIniciais || marcoDoServidor === 0) return;
+    const quadro = requestAnimationFrame(() => {
+      const atuais = (wbRef.current?.getAllSheets() ?? sheetsIniciais) as Sheet[];
+      assinaturaGravada.current = assinaturaDoConteudo(comCelldata(atuais));
+    });
+    return () => cancelAnimationFrame(quadro);
+  }, [sheetsIniciais, marcoDoServidor]);
 
   const salvar = useCallback(async () => {
     if (readOnly || salvando) return;
@@ -101,6 +136,9 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
         },
       });
       setDirty(false);
+      // O que acabou de subir passa a ser o estado gravado — é contra ele que as próximas
+      // edições serão comparadas.
+      assinaturaGravada.current = assinaturaDoConteudo(comCelldata(sheets));
       setAtualizadoPorNome(res.atualizadoPorNome);
       setAtualizadoEm(res.atualizadoEm);
       onNomeChange?.(nome.trim() || nomeInicial);
@@ -221,7 +259,15 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
             allowEdit={!readOnly}
             showToolbar={!readOnly}
             showFormulaBar
-            onChange={(data) => { sheetsRef.current = data as Sheet[]; setDirty(true); }}
+            onChange={(data) => {
+              const sheets = data as Sheet[];
+              sheetsRef.current = sheets;
+              // Já sujo: nada a decidir, e a comparação não é de graça.
+              if (dirtyRef.current) return;
+              // Ainda montando (ou recém-importada): sem referência, não há o que comparar.
+              if (assinaturaGravada.current === null) return;
+              if (assinaturaDoConteudo(comCelldata(sheets)) !== assinaturaGravada.current) setDirty(true);
+            }}
           />
         )}
       </div>

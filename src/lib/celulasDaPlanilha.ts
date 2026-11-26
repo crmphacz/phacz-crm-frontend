@@ -51,6 +51,43 @@ export function comCelldata(sheets: Sheet[]): Sheet[] {
   });
 }
 
+/**
+ * Uma assinatura do CONTEÚDO da planilha, para saber se ela mudou de verdade.
+ *
+ * O fortune-sheet dispara `onChange` por conta própria logo que monta a planilha, antes de
+ * qualquer ação de quem abriu — e o editor tratava isso como edição. Abrir a tabela e sair sem
+ * tocar em nada perguntava "há alterações não salvas", o que além de irritante ensina a ignorar
+ * o aviso, e aí um dia ele aparece de verdade e é descartado do mesmo jeito.
+ *
+ * Comparar as abas inteiras não serve: o que sai do editor carrega também seleção, rolagem e
+ * zoom, que mudam a cada clique sem nada ter sido editado.
+ *
+ * Então a assinatura leva só o que é conteúdo: nome e ordem das abas, as células com toda a sua
+ * formatação, a configuração (mesclagens, bordas, larguras) e a GEOMETRIA das imagens. O
+ * `src` das imagens fica de fora de propósito — é base64 de megabytes que nunca muda sozinho, e
+ * incluí-lo tornaria a comparação cara sem acrescentar informação.
+ */
+export function assinaturaDoConteudo(sheets: Sheet[]): string {
+  return JSON.stringify(
+    (sheets ?? []).map((sh) => {
+      const s = sh as unknown as {
+        name?: string;
+        order?: number;
+        celldata?: unknown;
+        config?: unknown;
+        images?: { left?: number; top?: number; width?: number; height?: number }[];
+      };
+      return {
+        nome: s.name ?? '',
+        ordem: s.order ?? 0,
+        celulas: s.celldata ?? [],
+        config: s.config ?? {},
+        imagens: (s.images ?? []).map((img) => [img?.left, img?.top, img?.width, img?.height]),
+      };
+    })
+  );
+}
+
 export function letraDaColuna(c: number): string {
   let s = '';
   let n = c;
