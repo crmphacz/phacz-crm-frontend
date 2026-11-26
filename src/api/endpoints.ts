@@ -13,7 +13,7 @@ import {
   type ApiWhatsappTemplate, type ApiWhatsappCampaign, type ApiWhatsappCampaignDetalhe, type ApiWhatsappOptOut,
 } from './mappers.js';
 import type {
-  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, EmailTemplate, EmailCampaign,
+  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, Proposta, PropostaAnexo, EmailTemplate, EmailCampaign,
   Placar, CatalogoPlacar, CatalogoIndicadores, ApuracaoBimestre, AjusteIndicador,
   ChatMessage, DestinatarioTipo, UserCargo, Rodada, RodadaResumo, CreateRodadaPayload, Notificacao,
   StatusAprovacaoRodada,
@@ -307,24 +307,37 @@ export const corretoresApi = {
       body: criterios,
     }),
 
-  addProposta: (id: string, data: Omit<Proposta, 'id'>, arquivo?: File) => {
-    if (!arquivo) {
-      return apiFetch(`/api/corretores/${id}/propostas`, { method: 'POST', body: data });
-    }
+  /**
+   * Sobe UM anexo de proposta e devolve o identificador para mandar junto com a proposta.
+   *
+   * Um arquivo por requisição, como nos anexos de atividade: o limite de tamanho do provedor é
+   * por requisição, então vários juntos derrubariam todos de uma vez. Quem chama sobe em série.
+   */
+  uploadPropostaAnexo: (id: string, file: File) => {
     const form = new FormData();
-    for (const [key, value] of Object.entries(data)) {
-      if (value !== undefined && value !== null) form.append(key, String(value));
-    }
-    form.append('arquivo', arquivo);
-    return apiFetch(`/api/corretores/${id}/propostas`, { method: 'POST', body: form });
+    form.append('file', file);
+    return apiFetch<PropostaAnexo>(`/api/corretores/${id}/propostas/anexos`, { method: 'POST', body: form });
   },
+
+  /** A proposta vai como JSON, com a lista de anexos JÁ subidos (ver uploadPropostaAnexo). */
+  addProposta: (id: string, data: Omit<Proposta, 'id'>) =>
+    apiFetch(`/api/corretores/${id}/propostas`, { method: 'POST', body: data }),
+
+  /** Acrescenta anexos a uma proposta já registrada — o documento costuma chegar depois. */
+  addPropostaAnexos: (id: string, propostaId: string, anexos: PropostaAnexo[]) =>
+    apiFetch(`/api/corretores/${id}/propostas/${propostaId}/anexos`, { method: 'POST', body: { anexos } }),
+
+  /** Remove um anexo pelo identificador — índice mudaria de lugar se outra pessoa removesse antes. */
+  removePropostaAnexo: (id: string, propostaId: string, arquivo: string) =>
+    apiFetch(`/api/corretores/${id}/propostas/${propostaId}/anexos`, { method: 'DELETE', body: { arquivo } }),
   updateProposta: (id: string, propostaId: string, data: Partial<Proposta>) => {
     const payload: Record<string, unknown> = { ...data };
     if (data.status) payload.status = data.status.toUpperCase();
     return apiFetch(`/api/corretores/${id}/propostas/${propostaId}`, { method: 'PATCH', body: payload });
   },
-  downloadPropostaAnexo: (id: string, propostaId: string, filename: string) =>
-    downloadFile(`/api/corretores/${id}/propostas/${propostaId}/anexo`, filename),
+  /** Pelo ÍNDICE do anexo na lista da proposta — ver PropostaAnexo em types.ts. */
+  downloadPropostaAnexo: (id: string, propostaId: string, indice: number, filename: string) =>
+    downloadFile(`/api/corretores/${id}/propostas/${propostaId}/anexos/${indice}`, filename),
 };
 
 // ── Dashboard ──────────────────────────────────────────────────────

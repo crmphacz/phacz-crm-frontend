@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, TipoInteracao, Proposta, Temperatura, UserProfile, CanalOrigem,
+  Corretor, ClienteFinal, ClienteFinalComContexto, Interacao, TipoInteracao, Proposta, PropostaAnexo, Temperatura, UserProfile, CanalOrigem,
   EmailTemplate, EmailCampaign, ChatMessage, DestinatarioTipo, UserCargo,
   Rodada, RodadaResumo, CreateRodadaPayload, StatusAprovacaoRodada, Notificacao, TipoNotificacao, Empreendimento, CreateEmpreendimentoPayload,
   WhatsappTemplate, WhatsappCampaign,
@@ -314,9 +314,13 @@ interface StoreState {
   ) => Promise<void>;
 
   // Proposta
-  addProposta: (corretorId: string, proposta: Omit<Proposta, 'id'>, arquivo?: File) => Promise<void>;
+  addProposta: (corretorId: string, proposta: Omit<Proposta, 'id'>) => Promise<void>;
   updateProposta: (corretorId: string, propostaId: string, updates: Partial<Proposta>) => Promise<void>;
-  downloadPropostaAnexo: (corretorId: string, propostaId: string, filename: string) => Promise<void>;
+  downloadPropostaAnexo: (corretorId: string, propostaId: string, indice: number, filename: string) => Promise<void>;
+  /** Anexa arquivos JÁ subidos a uma proposta registrada e recarrega o card. */
+  addPropostaAnexos: (corretorId: string, propostaId: string, anexos: PropostaAnexo[]) => Promise<void>;
+  /** Remove um anexo de uma proposta registrada (só a Diretoria) e recarrega o card. */
+  removePropostaAnexo: (corretorId: string, propostaId: string, arquivo: string) => Promise<void>;
   /** Recarrega o card e invalida o detalhe dos cards da mesma família — ver a implementação. */
   recarregarCardEParentes: (corretorId: string) => Promise<void>;
 
@@ -859,8 +863,18 @@ export const useStore = create<StoreState>()((set, get) => ({
     set((state) => ({ corretores: state.corretores.map((l) => (l.id === corretorId ? comCamposDaListagem(refreshed, l) : l)) }));
   },
 
-  addProposta: async (corretorId, propostaData, arquivo) => {
-    await corretoresApi.addProposta(corretorId, propostaData, arquivo);
+  addProposta: async (corretorId, propostaData) => {
+    await corretoresApi.addProposta(corretorId, propostaData);
+    await get().recarregarCardEParentes(corretorId);
+  },
+
+  addPropostaAnexos: async (corretorId, propostaId, anexos) => {
+    await corretoresApi.addPropostaAnexos(corretorId, propostaId, anexos);
+    await get().recarregarCardEParentes(corretorId);
+  },
+
+  removePropostaAnexo: async (corretorId, propostaId, arquivo) => {
+    await corretoresApi.removePropostaAnexo(corretorId, propostaId, arquivo);
     await get().recarregarCardEParentes(corretorId);
   },
 
@@ -898,8 +912,8 @@ export const useStore = create<StoreState>()((set, get) => ({
     });
   },
 
-  downloadPropostaAnexo: (corretorId, propostaId, filename) =>
-    corretoresApi.downloadPropostaAnexo(corretorId, propostaId, filename),
+  downloadPropostaAnexo: (corretorId, propostaId, indice, filename) =>
+    corretoresApi.downloadPropostaAnexo(corretorId, propostaId, indice, filename),
 
   gerarNegocio: async (parentCorretorId, clienteFinalId) => {
     const novoNegocio = await corretoresApi.gerarNegocio(parentCorretorId, clienteFinalId);

@@ -35,7 +35,7 @@ import { WhatsappIcon } from './WhatsappIcon';
 import { Spinner, InlineLoader } from './Spinner';
 import { ConfirmModal } from './ConfirmModal';
 import { MarcarGanhoModal } from './MarcarGanhoModal';
-import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade, Interacao, ClienteFinal } from '../types';
+import type { TipoInteracao, TipoInteresse, CanalOrigem, Corretor, Unidade, ModalidadeAtividade, Interacao, ClienteFinal, PropostaAnexo } from '../types';
 
 function alertError(err: unknown, fallback: string) {
   alert(err instanceof ApiError ? err.message : fallback);
@@ -85,6 +85,8 @@ export function CorretorDetailPanel() {
   const addProposta = useStore((s) => s.addProposta);
   const updateProposta = useStore((s) => s.updateProposta);
   const downloadPropostaAnexo = useStore((s) => s.downloadPropostaAnexo);
+  const addPropostaAnexos = useStore((s) => s.addPropostaAnexos);
+  const removePropostaAnexo = useStore((s) => s.removePropostaAnexo);
   const gerarNegocio = useStore((s) => s.gerarNegocio);
   const archiveCorretor = useStore((s) => s.archiveCorretor);
   const corretores = useStore((s) => s.corretores);
@@ -255,8 +257,21 @@ export function CorretorDetailPanel() {
   const [pCondicoes, setPCondicoes] = useState('');
   const [pClienteNome, setPClienteNome] = useState('');
   const [pClienteId, setPClienteId] = useState('');
-  const [pArquivo, setPArquivo] = useState<File | null>(null);
+  /**
+   * Anexos da proposta em montagem — vários, porque uma proposta chega em pedaços (a planilha de
+   * condições, o print do aceite, a via assinada).
+   *
+   * Guarda o que JÁ SUBIU, não os File: o upload acontece ao escolher, como nos anexos de
+   * atividade, pra quem registra ver que o arquivo chegou e poder tirá-lo da lista antes de
+   * salvar. Desistir da proposta deixa o arquivo subido sem uso — o mesmo arranjo de lá.
+   */
+  const [pAnexos, setPAnexos] = useState<PropostaAnexo[]>([]);
+  const [pUploading, setPUploading] = useState(false);
+  const [pErroUpload, setPErroUpload] = useState('');
   const [pSubmitting, setPSubmitting] = useState(false);
+  /** Qual proposta JÁ REGISTRADA está recebendo anexo agora, e qual anexo está sendo removido. */
+  const [anexandoPropostaId, setAnexandoPropostaId] = useState<string | null>(null);
+  const [removendoAnexo, setRemovendoAnexo] = useState<string | null>(null);
 
   /**
    * Quanto da proposta é permuta, e se isso passa do teto de 30% do item 6.2.
@@ -511,6 +526,55 @@ export function CorretorDetailPanel() {
     }
   }
 
+  /** Sobe os arquivos escolhidos e ACRESCENTA aos que a proposta em montagem já tem. */
+  async function handleUploadAnexosProposta(files: File[]) {
+    setPErroUpload('');
+    setPUploading(true);
+    try {
+      // Em série, como nos anexos de atividade: o limite de tamanho vale por requisição, e
+      // mandar vários grandes de uma vez derrubaria todos juntos.
+      const novos: PropostaAnexo[] = [];
+      for (const file of files) {
+        novos.push(await corretoresApi.uploadPropostaAnexo(corretor.id, file));
+      }
+      setPAnexos((atuais) => [...atuais, ...novos]);
+    } catch (err) {
+      setPErroUpload(
+        err instanceof ApiError ? err.message : 'Não foi possível enviar o(s) arquivo(s). Tente novamente.'
+      );
+    } finally {
+      setPUploading(false);
+    }
+  }
+
+  /** Anexa arquivos a uma proposta que JÁ está registrada — sobe e grava na mesma ação. */
+  async function handleAnexarEmProposta(propostaId: string, files: File[]) {
+    setAnexandoPropostaId(propostaId);
+    try {
+      const novos: PropostaAnexo[] = [];
+      for (const file of files) {
+        novos.push(await corretoresApi.uploadPropostaAnexo(corretor.id, file));
+      }
+      await addPropostaAnexos(corretor.id, propostaId, novos);
+    } catch (err) {
+      alertError(err, 'Não foi possível anexar o(s) arquivo(s).');
+    } finally {
+      setAnexandoPropostaId(null);
+    }
+  }
+
+  async function handleRemoverAnexo(propostaId: string, anexo: PropostaAnexo) {
+    if (!window.confirm(`Remover o anexo "${anexo.nome}" desta proposta?`)) return;
+    setRemovendoAnexo(anexo.arquivo);
+    try {
+      await removePropostaAnexo(corretor.id, propostaId, anexo.arquivo);
+    } catch (err) {
+      alertError(err, 'Não foi possível remover o anexo.');
+    } finally {
+      setRemovendoAnexo(null);
+    }
+  }
+
   async function handleSaveProposta() {
     if (!pEmp.trim() || !pUnidade.trim() || !pValor.trim()) return;
 
@@ -546,7 +610,8 @@ export function CorretorDetailPanel() {
         valorPermuta: pPermutaNumero,
         condicoes: pCondicoes.trim(),
         status: 'pendente',
-      }, pArquivo ?? undefined);
+        anexos: pAnexos,
+      });
       await addInteracao(corretor.id, {
         data: new Date().toISOString(),
         tipo: 'proposta',
@@ -554,7 +619,7 @@ export function CorretorDetailPanel() {
         responsavel: corretor.responsavelGV || 'GV',
         etapa: corretor.etapa,
       });
-      setPEmp(''); setPEmpId(''); setPUnidades([]); setPUnidade(''); setPValor(''); setPPermuta(''); setPCondicoes(''); setPClienteNome(''); setPClienteId(''); setPArquivo(null);
+      setPEmp(''); setPEmpId(''); setPUnidades([]); setPUnidade(''); setPValor(''); setPPermuta(''); setPCondicoes(''); setPClienteNome(''); setPClienteId(''); setPAnexos([]); setPErroUpload('');
       setShowPropostaForm(false);
     } catch (err) {
       alertError(err, 'Não foi possível registrar a proposta.');
@@ -2159,27 +2224,53 @@ export function CorretorDetailPanel() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="text-xs font-semibold text-gray-500 block mb-1">Arquivo da proposta</label>
-                      {pArquivo ? (
-                        <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border" style={{ borderColor: '#e5e7eb' }}>
-                          <Paperclip size={13} className="flex-shrink-0 text-gray-400" />
-                          <span className="truncate flex-1">{pArquivo.name}</span>
-                          <button type="button" onClick={() => setPArquivo(null)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
-                            <X size={14} />
-                          </button>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1">Arquivos da proposta</label>
+                      {pAnexos.length > 0 && (
+                        <div className="space-y-1.5 mb-2">
+                          {pAnexos.map((a) => (
+                            <div key={a.arquivo} className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border" style={{ borderColor: '#e5e7eb' }}>
+                              <Paperclip size={13} className="flex-shrink-0 text-gray-400" />
+                              <span className="truncate flex-1">{a.nome}</span>
+                              <button
+                                type="button"
+                                onClick={() => setPAnexos((atuais) => atuais.filter((x) => x.arquivo !== a.arquivo))}
+                                className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                                title="Tirar da proposta"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      ) : (
-                        <label className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer text-gray-500 hover:bg-gray-100 transition-colors" style={{ borderColor: '#e5e7eb' }}>
-                          <Paperclip size={13} className="flex-shrink-0" />
-                          Anexar arquivo (PDF, Word, Excel ou imagem)
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png"
-                            onChange={(e) => setPArquivo(e.target.files?.[0] ?? null)}
-                          />
-                        </label>
                       )}
+                      <label
+                        className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer hover:bg-gray-100 transition-colors"
+                        style={{ borderColor: '#e5e7eb', color: pUploading ? '#9ca3af' : '#6b7280' }}
+                      >
+                        {pUploading ? <Spinner size={13} /> : <Paperclip size={13} className="flex-shrink-0" />}
+                        {pUploading
+                          ? 'Enviando…'
+                          : pAnexos.length > 0
+                            ? 'Anexar mais arquivos'
+                            : 'Anexar arquivos (PDF, Word, Excel ou imagem)'}
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          disabled={pUploading}
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png"
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files ?? []);
+                            if (files.length > 0) handleUploadAnexosProposta(files);
+                            // Zera pra que escolher o MESMO arquivo de novo volte a disparar o evento.
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Pode escolher vários de uma vez. Até 4 MB por arquivo.
+                      </p>
+                      {pErroUpload && <p className="text-[11px] mt-1 font-semibold" style={{ color: '#b91c1c' }}>{pErroUpload}</p>}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -2232,16 +2323,59 @@ export function CorretorDetailPanel() {
                         </p>
                         {p.condicoes && <p className="text-xs text-gray-500 mt-1">{p.condicoes}</p>}
                         <p className="text-xs text-gray-400 mt-1">{formatRelativeTime(p.data)}</p>
-                        {p.anexoNome && (
-                          <button
-                            onClick={() => downloadPropostaAnexo(corretor.id, p.id, p.anexoNome!).catch((err) => alertError(err, 'Não foi possível baixar o anexo.'))}
-                            className="flex items-center gap-1 text-xs mt-1.5 hover:underline"
-                            style={{ color: '#d55006' }}
-                          >
-                            <Download size={11} />
-                            {p.anexoNome}
-                          </button>
-                        )}
+                        {/* Um anexo por linha: o nome do arquivo é longo e, lado a lado, viravam
+                            um emaranhado em que não dava para saber onde um termina. */}
+                        <div className="mt-1.5 space-y-1">
+                          {(p.anexos ?? []).map((a, i) => (
+                            <div key={a.arquivo} className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => downloadPropostaAnexo(corretor.id, p.id, i, a.nome).catch((err) => alertError(err, 'Não foi possível baixar o anexo.'))}
+                                className="flex items-center gap-1 text-xs hover:underline min-w-0"
+                                style={{ color: '#d55006' }}
+                              >
+                                <Download size={11} className="flex-shrink-0" />
+                                <span className="truncate">{a.nome}</span>
+                              </button>
+                              {/* Só a Diretoria remove, como nas demais exclusões do módulo:
+                                  anexo de proposta é documento de negociação formal. */}
+                              {canDelete && (
+                                removendoAnexo === a.arquivo ? (
+                                  <Spinner size={11} />
+                                ) : (
+                                  <button
+                                    onClick={() => handleRemoverAnexo(p.id, a)}
+                                    disabled={removendoAnexo !== null}
+                                    className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 disabled:opacity-40"
+                                    title="Remover anexo"
+                                  >
+                                    <X size={11} />
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          ))}
+                          {!isReadOnly && (
+                            <label
+                              className="inline-flex items-center gap-1 text-xs cursor-pointer text-gray-400 hover:text-gray-600 transition-colors"
+                              title="Anexar mais arquivos a esta proposta"
+                            >
+                              {anexandoPropostaId === p.id ? <Spinner size={11} /> : <Paperclip size={11} />}
+                              {anexandoPropostaId === p.id ? 'Enviando…' : 'Anexar arquivos'}
+                              <input
+                                type="file"
+                                multiple
+                                className="hidden"
+                                disabled={anexandoPropostaId !== null}
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png"
+                                onChange={(e) => {
+                                  const files = Array.from(e.target.files ?? []);
+                                  if (files.length > 0) handleAnexarEmProposta(p.id, files);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
                       </div>
                       <div className="flex flex-col gap-2 flex-shrink-0">
                         <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: st.bg, color: st.text }}>

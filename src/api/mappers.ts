@@ -193,7 +193,9 @@ export interface ApiProposta {
   financiamento: string | null;
   status: string;
   motivoRecusa: string | null;
-  anexoNome: string | null;
+  /** Dois arrays paralelos, alinhados pelo índice — ver o schema do backend. */
+  anexosArquivos: string[] | null;
+  anexosNomes: string[] | null;
 }
 
 export interface ApiCorretor {
@@ -388,7 +390,13 @@ function mapPropostaFromApi(p: ApiProposta): Proposta {
     financiamento: p.financiamento ?? undefined,
     status: propostaStatusMap.toApp(p.status),
     motivoRecusa: p.motivoRecusa ?? undefined,
-    anexoNome: p.anexoNome ?? undefined,
+    // Os dois arrays do banco viram uma lista de pares. `?? arquivo` cobre a proposta antiga que
+    // tinha arquivo e nenhum nome original (o campo era opcional) — mostrar nada seria pior que
+    // mostrar o identificador.
+    anexos: (p.anexosArquivos ?? []).map((arquivo, i) => ({
+      arquivo,
+      nome: p.anexosNomes?.[i] ?? arquivo,
+    })),
   };
 }
 

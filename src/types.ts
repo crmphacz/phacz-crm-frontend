@@ -130,6 +130,19 @@ export interface Interacao {
   propostaId?: string;
 }
 
+/**
+ * Um anexo de proposta já persistido.
+ *
+ * `arquivo` é o identificador que o upload devolveu (URL do bucket, ou nome do arquivo em disco
+ * no modo local) e serve para remover o anexo; `nome` é o nome original, que é o que a tela
+ * mostra. O DOWNLOAD é pelo índice do anexo na lista da proposta, não por `arquivo`: o
+ * identificador do bucket é uma URL inteira e não caberia num pedaço de caminho.
+ */
+export interface PropostaAnexo {
+  arquivo: string;
+  nome: string;
+}
+
 export interface Proposta {
   id: string;
   /**
@@ -162,7 +175,11 @@ export interface Proposta {
   financiamento?: string;
   status: 'pendente' | 'aceita' | 'recusada';
   motivoRecusa?: string;
-  anexoNome?: string;
+  /**
+   * Anexos da proposta, na ordem em que foram enviados — vários, porque uma proposta real chega
+   * em pedaços: a planilha de condições, o print do aceite, a via assinada.
+   */
+  anexos?: PropostaAnexo[];
 }
 
 export interface Corretor {
