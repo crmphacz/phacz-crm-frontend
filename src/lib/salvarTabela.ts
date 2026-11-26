@@ -1,6 +1,6 @@
 import type { Sheet } from '@fortune-sheet/core';
 import { tabelasEmpreendimentosApi } from '../api/endpoints';
-import { celulasDasAbas } from './celulasDaPlanilha';
+import { celulasDasAbas, comCelldata } from './celulasDaPlanilha';
 
 /**
  * Salva uma tabela de custos EM PARTES.
@@ -124,9 +124,14 @@ export async function lerTabelaEmPartes(
 
 export async function salvarTabelaEmPartes(
   id: string,
-  sheets: Sheet[],
+  sheetsBrutas: Sheet[],
   { nome, onProgresso }: OpcoesDeSalvamento = {}
 ): Promise<ResultadoDoSalvamento> {
+  // Normaliza ANTES de qualquer coisa: o que sai do editor traz as células em `data` (matriz
+  // densa) e `celldata` vazio, e os dois usos abaixo leem `celldata`. Sem isto, a planilha é
+  // gravada sem célula nenhuma — ver comCelldata.
+  const sheets = comCelldata(sheetsBrutas);
+
   const abas = lotesDeAbas(sheets);
   const celulas = celulasDasAbas(sheets);
   const paginasDeCelulas = Math.max(1, Math.ceil(celulas.length / CELULAS_POR_LOTE));

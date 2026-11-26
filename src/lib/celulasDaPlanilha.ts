@@ -11,6 +11,46 @@ import type { CelulaAlterada } from '../types';
  * diferentes para o mesmo conteúdo.
  */
 
+/**
+ * Devolve as abas com as células em `celldata`, que é o formato que gravamos e lemos.
+ *
+ * O fortune-sheet tem DUAS representações para a mesma coisa. Ele recebe `celldata` — a lista
+ * esparsa, só as células preenchidas — e, ao montar a planilha na tela, converte tudo para
+ * `data`, uma matriz densa com `null` em cada célula vazia, deixando `celldata` para trás.
+ *
+ * Quem sai do editor (`getAllSheets`, `onChange`) vem nesse segundo formato. Gravar isso direto
+ * salvava a aba com imagem, nome e configuração — e NENHUMA célula, porque `celldata` estava
+ * vazio. O arquivo voltava com os cabeçalhos pretos e a grade em branco.
+ *
+ * A conversão acontece aqui, num lugar só, porque os dois consumidores precisam dela: o que
+ * grava a planilha e o que monta a lista de células auditadas. Em caminhos separados, um
+ * salvaria o que o outro não enxerga.
+ *
+ * `data` também é DESCARTADO: é a mesma informação em forma densa, com centenas de `null` por
+ * aba, e guardar as duas dobraria o tamanho do que trafega e do que fica no banco.
+ */
+export function comCelldata(sheets: Sheet[]): Sheet[] {
+  return (sheets ?? []).map((sh) => {
+    const bruta = sh as unknown as { data?: unknown[][]; celldata?: unknown[] };
+
+    // Aba que ainda não passou pela tela (recém-importada) já está no formato certo.
+    if (!Array.isArray(bruta.data) || bruta.data.length === 0) return sh;
+
+    const celldata: { r: number; c: number; v: unknown }[] = [];
+    bruta.data.forEach((linha, r) => {
+      if (!Array.isArray(linha)) return;
+      linha.forEach((celula, c) => {
+        // `null` é célula vazia — é o que a matriz densa usa para preencher o retângulo.
+        if (celula === null || celula === undefined) return;
+        celldata.push({ r, c, v: celula });
+      });
+    });
+
+    const { data: _descartado, ...resto } = bruta;
+    return { ...resto, celldata } as unknown as Sheet;
+  });
+}
+
 export function letraDaColuna(c: number): string {
   let s = '';
   let n = c;
