@@ -6,9 +6,8 @@ import type { WorkbookInstance } from '@fortune-sheet/react';
 import type { Sheet } from '@fortune-sheet/core';
 import { useStore } from '../store';
 import { BotaoImportarExcel } from './BotaoImportarExcel';
-import { salvarTabelaEmPartes } from '../lib/salvarTabela';
+import { salvarTabelaEmPartes, lerTabelaEmPartes } from '../lib/salvarTabela';
 import type { PlanilhaImportada } from '../lib/importarExcel';
-import { tabelasEmpreendimentosApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { formatRelativeTime } from '../utils';
 
@@ -50,6 +49,8 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
    * contador, "Salvando…" parado por meio minuto parece travamento.
    */
   const [progresso, setProgresso] = useState<{ feitas: number; paginas: number } | null>(null);
+  /** Em que aba a LEITURA está — a planilha também vem uma aba por vez. */
+  const [progressoLeitura, setProgressoLeitura] = useState<{ feitas: number; total: number } | null>(null);
   /** Lido dentro do catch, onde o `dirty` do closure estaria velho. */
   const dirtyRef = useRef(false);
   useEffect(() => {
@@ -68,11 +69,13 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
   useEffect(() => {
     let vivo = true;
     setCarregando(true);
-    tabelasEmpreendimentosApi
-      .get(id)
+    setProgressoLeitura(null);
+    lerTabelaEmPartes(id, (feitas, total) => {
+      if (vivo) setProgressoLeitura({ feitas, total });
+    })
       .then((t) => {
         if (!vivo) return;
-        setSheetsIniciais(normalizarDados(t.dados));
+        setSheetsIniciais(normalizarDados(t.sheets));
         setNome(t.nome);
         setAtualizadoPorNome(t.atualizadoPorNome);
         setAtualizadoEm(t.atualizadoEm);
@@ -200,7 +203,11 @@ export function TabelaEmpreendimentoEditor({ id, nomeInicial, readOnly, onBack, 
       {/* Editor */}
       <div className="flex-1 min-h-0 relative">
         {carregando && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400 bg-white z-10">Carregando planilha…</div>
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400 bg-white z-10">
+            {progressoLeitura && progressoLeitura.total > 1
+              ? `Carregando planilha… aba ${progressoLeitura.feitas + 1} de ${progressoLeitura.total}`
+              : 'Carregando planilha…'}
+          </div>
         )}
         {erro && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-red-500 bg-white z-10">{erro}</div>

@@ -468,25 +468,44 @@ export const emailApi = {
 export const tabelasEmpreendimentosApi = {
   list: () => apiFetch<TabelaEmpreendimentoResumo[]>('/api/tabelas-empreendimentos'),
   get: (id: string) => apiFetch<TabelaEmpreendimentoDetalhe>(`/api/tabelas-empreendimentos/${id}`),
+
+  /**
+   * O cabeçalho da tabela SEM a planilha, com a contagem de abas no lugar.
+   *
+   * A planilha vem depois, uma aba por vez (ver lerAba). Trazê-la inteira obrigava o servidor a
+   * montá-la em objetos e a serializá-la de novo para a resposta — as mesmas cópias simultâneas
+   * que matavam o salvamento, agora na leitura.
+   */
+  cabecalho: (id: string) =>
+    apiFetch<TabelaEmpreendimentoDetalhe & { totalAbas: number }>(
+      `/api/tabelas-empreendimentos/${id}`,
+      { query: { semDados: '1' } }
+    ),
+
+  /** Uma aba da planilha, pelo índice. */
+  lerAba: (id: string, indice: number) =>
+    apiFetch<unknown>(`/api/tabelas-empreendimentos/${id}/abas/${indice}`),
   create: (nome: string) =>
     apiFetch<{ id: string; nome: string }>('/api/tabelas-empreendimentos', { method: 'POST', body: { nome } }),
   /**
-   * Grava a PLANILHA. As células vão depois, em lotes (ver salvarCelulas).
+   * Grava um LOTE DE ABAS da planilha. Chamado em sequência; o Postgres é quem junta.
    *
-   * `dadosJson` é a pasta de trabalho como TEXTO, e não como objeto, de propósito: assim o
-   * servidor nunca a monta na memória — ele passa a string direto ao Postgres. O backend roda
-   * numa instância de 512 MB, e montar a pasta inteira ali, somada às células, era o que matava
-   * o processo no meio do salvamento.
+   * Nem a pasta inteira num corpo só cabia: o backend roda numa instância de 512 MB, e o
+   * caminho até o texto — corpo comprimido, Buffer descomprimido, string (dois bytes por
+   * caractere acentuado em V8) e o parse — mantém quatro cópias do mesmo conteúdo vivas ao
+   * mesmo tempo. Em lotes, nenhuma passa de um ou dois MB.
    *
-   * Vai comprimido porque, escapado dentro deste JSON, o texto quase dobra de tamanho — e ele
-   * já era de dezenas de MB.
+   * `abasJson` é TEXTO, e não objeto: assim a aba não é montada no servidor em momento nenhum.
    */
-  salvarPlanilha: async (id: string, payload: { nome?: string; dadosJson: string }) => {
-    const corpo = await corpoJsonComprimido(payload);
-    conferirTamanho(corpo, 'Importe menos abas de cada vez e salve em tabelas separadas.');
-    return apiFetch<{ ok: boolean; atualizadoEm: string; atualizadoPorNome: string | null }>(
-      `/api/tabelas-empreendimentos/${id}`,
-      { method: 'PUT', body: corpo.body, headers: corpo.headers }
+  salvarAbas: async (
+    id: string,
+    lote: { pagina: number; total: number; nome?: string; abasJson: string }
+  ) => {
+    const corpo = await corpoJsonComprimido(lote);
+    conferirTamanho(corpo, 'Essa aba é grande demais sozinha — divida a planilha em mais de uma tabela.');
+    return apiFetch<{ ok: boolean; atualizadoEm?: string; atualizadoPorNome?: string | null }>(
+      `/api/tabelas-empreendimentos/${id}/planilha`,
+      { method: 'POST', body: corpo.body, headers: corpo.headers }
     );
   },
 
