@@ -1,8 +1,24 @@
 import { useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Upload, Search, X } from 'lucide-react';
 import { Spinner } from './Spinner';
 import { ApiError } from '../api/client';
 import type { PlanilhaImportada } from '../lib/importarExcel';
+
+/**
+ * Camada dos modais que abrem POR CIMA da planilha.
+ *
+ * O fortune-sheet desenha as imagens da planilha, os menus e as alças de seleção em camadas
+ * próprias, que vão até z-index 1005. Os modais do sistema vivem entre 200 e 300, então ficavam
+ * ATRÁS das imagens: o modal de "quais abas importar" abria com o logo da tabela por cima dele.
+ *
+ * 2000 é folgado acima de 1005 de propósito — não é para ficar disputando por um ponto.
+ *
+ * E não basta o número: estes modais vão para `document.body` por portal. Renderizados dentro
+ * do editor, ficariam presos ao contexto de empilhamento da planilha, onde z-index nenhum os
+ * tiraria de lá.
+ */
+const ACIMA_DA_PLANILHA = 'z-[2000]';
 
 /**
  * Botão que lê um .xlsx e entrega a planilha já convertida para quem chamou.
@@ -130,8 +146,8 @@ export function BotaoImportarExcel({
         />
       )}
 
-      {etapa && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      {etapa && createPortal(
+        <div className={`fixed inset-0 ${ACIMA_DA_PLANILHA} flex items-center justify-center`} style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="bg-white rounded-2xl shadow-2xl px-6 py-5 w-full max-w-sm mx-3 text-center">
             <Spinner size={26} className="text-[#d55006] mx-auto" />
             <p className="mt-3 text-sm font-semibold text-gray-800">
@@ -145,7 +161,8 @@ export function BotaoImportarExcel({
                   : 'Só um instante.'}
             </p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -194,9 +211,9 @@ function EscolhaDeAbas({
     });
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop p-3"
+      className={`fixed inset-0 ${ACIMA_DA_PLANILHA} flex items-center justify-center modal-backdrop p-3`}
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onCancelar(); }}
     >
@@ -278,6 +295,7 @@ function EscolhaDeAbas({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

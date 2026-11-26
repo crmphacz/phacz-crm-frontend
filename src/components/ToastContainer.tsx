@@ -9,7 +9,10 @@ export function ToastContainer() {
   if (toasts.length === 0 && !navLoading) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 w-full max-w-sm px-2 sm:px-0">
+    // z-[2000] pelo mesmo motivo do modal de importação: o fortune-sheet desenha as imagens e os
+    // menus da planilha até z-index 1005, e em 200 os avisos de "Tabela salva" ficavam escondidos
+    // atrás do cabeçalho da tabela — justamente na tela em que eles mais importam.
+    <div className="fixed bottom-4 right-4 z-[2000] flex flex-col gap-2 w-full max-w-sm px-2 sm:px-0">
       {/* Toast de navegação: sem botão de fechar e sem timeout — some sozinho quando a tela
           recém-aberta sinaliza que terminou de carregar (ver useViewReady / finishNavLoading). */}
       {navLoading && (
