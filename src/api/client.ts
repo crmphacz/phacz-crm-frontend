@@ -137,6 +137,11 @@ interface ApiFetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
+  /**
+   * Cabeçalhos extras. Hoje serve ao corpo comprimido das tabelas de custos, que precisa
+   * declarar `Content-Encoding: gzip` — ver corpoJsonComprimido.
+   */
+  headers?: Record<string, string>;
 }
 
 function buildUrl(path: string, query?: ApiFetchOptions['query']): string {
@@ -153,6 +158,10 @@ function buildUrl(path: string, query?: ApiFetchOptions['query']): string {
 function enviar(path: string, options: ApiFetchOptions): Promise<Response> {
   const token = getToken();
   const isFormData = options.body instanceof FormData;
+  // Corpo já pronto em bytes (hoje: JSON comprimido). Vai como está — reserializar destruiria
+  // a compressão, e `Content-Type` continua sendo application/json porque o que está lá dentro,
+  // depois de descomprimido, é JSON.
+  const corpoCru = options.body instanceof Blob || options.body instanceof ArrayBuffer;
 
   return fetch(buildUrl(path, options.query), {
     method: options.method ?? 'GET',
@@ -164,9 +173,10 @@ function enviar(path: string, options: ApiFetchOptions): Promise<Response> {
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
     },
-    body: isFormData
-      ? (options.body as FormData)
+    body: isFormData || corpoCru
+      ? (options.body as BodyInit)
       : options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 }

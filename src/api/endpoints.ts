@@ -1,4 +1,5 @@
 import { apiFetch, downloadFile } from './client.js';
+import { corpoJsonComprimido, conferirTamanho } from '../lib/corpoComprimido';
 import {
   mapUserFromApi, mapCorretorFromApi, mapCreateCorretorToApi, mapCorretorUpdateToApi,
   mapEmailTemplateFromApi, mapEmailCampaignFromApi, mapChatMessageFromApi, mapCargoToApi,
@@ -469,14 +470,22 @@ export const tabelasEmpreendimentosApi = {
   get: (id: string) => apiFetch<TabelaEmpreendimentoDetalhe>(`/api/tabelas-empreendimentos/${id}`),
   create: (nome: string) =>
     apiFetch<{ id: string; nome: string }>('/api/tabelas-empreendimentos', { method: 'POST', body: { nome } }),
-  save: (
+  /**
+   * O corpo vai COMPRIMIDO: é a pasta de trabalho inteira, e a API roda como Vercel Function,
+   * que recusa requisição acima de ~4,5 MB antes mesmo de o Express ver o pedido — ver
+   * lib/corpoComprimido.
+   */
+  save: async (
     id: string,
     payload: { nome?: string; dados: unknown; celulas: CelulaAlterada[] }
-  ) =>
-    apiFetch<{ ok: boolean; celulasAlteradas: number; atualizadoEm: string; atualizadoPorNome: string | null }>(
+  ) => {
+    const corpo = await corpoJsonComprimido(payload);
+    conferirTamanho(corpo, 'Importe menos abas de cada vez e salve em tabelas separadas.');
+    return apiFetch<{ ok: boolean; celulasAlteradas: number; atualizadoEm: string; atualizadoPorNome: string | null }>(
       `/api/tabelas-empreendimentos/${id}`,
-      { method: 'PUT', body: payload }
-    ),
+      { method: 'PUT', body: corpo.body, headers: corpo.headers }
+    );
+  },
   remove: (id: string) => apiFetch<void>(`/api/tabelas-empreendimentos/${id}`, { method: 'DELETE' }),
 };
 
