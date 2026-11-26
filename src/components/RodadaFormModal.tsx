@@ -164,6 +164,15 @@ interface FormState {
   temperaturaRodada: '' | 'FRIA' | 'QUENTE';
   /** Todos os parceiros da rodada. O primeiro vira o vínculo principal ao salvar. */
   vinculos: RodadaVinculo[];
+  /**
+   * A ação não tem parceiro: é da PHACZ, sem imobiliária nem corretor específico — um café da
+   * manhã com os corretores, um evento aberto, uma ação institucional.
+   *
+   * Marcado, o seletor de vínculo sai do caminho e a obrigatoriedade deixa de valer. Não é o
+   * mesmo que esquecer de preencher: inventar um parceiro para uma ação que não tem distorceria
+   * qualquer leitura por parceiro.
+   */
+  semVinculo: boolean;
   /** Só controla QUAL lista o seletor mostra — não é o vínculo em si. */
   vinculoTipo: VinculoRodadaTipo;
   responsavelImobiliaria: string;
@@ -238,7 +247,7 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
   if (!rodada) {
     return {
       dataSolicitacao: '', dataInicio: dataInicial ?? '', dataFim: dataInicial ?? '', cidade: '', uf: '',
-      tipoAcao: 'rodada', tipoAcaoOutro: '', temperaturaRodada: '', vinculos: [], vinculoTipo: 'imobiliaria', responsavelImobiliaria: '',
+      tipoAcao: 'rodada', tipoAcaoOutro: '', temperaturaRodada: '', vinculos: [], semVinculo: false, vinculoTipo: 'imobiliaria', responsavelImobiliaria: '',
       gerenteVendasInternas: '', solicitanteRelacionamento: '',
       parceiroEndereco: '', parceiroPerfil: '', parceiroHistorico: '', parceiroParticipouAcaoAnterior: null,
       parceiroParticipouQuando: '', parceiroResumoRelacionamento: '',
@@ -270,6 +279,9 @@ function buildInitialState(rodada?: Rodada | null, dataInicial?: string | null):
     temperaturaRodada: rodada.temperaturaRodada ?? '',
     tipoAcaoOutro: rodada.tipoAcaoOutro,
     vinculos: rodada.vinculos,
+    // Rodada gravada sem nenhum vínculo é uma ação sem parceiro — é exatamente assim que ela
+    // fica no banco, e é assim que o formulário a reabre.
+    semVinculo: rodada.vinculos.length === 0,
     vinculoTipo: rodada.vinculoTipo,
     responsavelImobiliaria: rodada.responsavelImobiliaria,
     gerenteVendasInternas: rodada.gerenteVendasInternas,
@@ -358,9 +370,10 @@ function toPayload(form: FormState): CreateRodadaPayload {
     tipoAcaoOutro: form.tipoAcaoOutro.trim(),
     // O par antigo espelha o PRIMEIRO vínculo — o backend reescreve do mesmo jeito, mas mandar
     // já coerente evita um corpo que se contradiz.
-    imobiliaria: form.vinculos[0]?.nome ?? '',
+    imobiliaria: form.semVinculo ? '' : (form.vinculos[0]?.nome ?? ''),
     vinculoTipo: form.vinculos[0]?.tipo ?? 'imobiliaria',
-    vinculos: form.vinculos,
+    vinculos: form.semVinculo ? [] : form.vinculos,
+    semVinculo: form.semVinculo,
     responsavelImobiliaria: form.responsavelImobiliaria.trim(),
     gerenteVendasInternas: form.gerenteVendasInternas.trim(),
     solicitanteRelacionamento: form.solicitanteRelacionamento.trim(),
@@ -580,8 +593,9 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
     if (form.tipoAcao === 'outro' && !form.tipoAcaoOutro.trim()) {
       falta('tipoAcaoOutro', 'Tipo de ação', 'Descreva o tipo de ação');
     }
-    // Continua obrigatório ter ao menos um — o que mudou é que agora cabe mais de um.
-    if (form.vinculos.length === 0) {
+    // Continua obrigatório ter ao menos um — a não ser que a ação seja declaradamente sem
+    // parceiro (ver `semVinculo`). O que mudou antes foi caber mais de um.
+    if (!form.semVinculo && form.vinculos.length === 0) {
       falta('vinculos', 'Imobiliária ou corretor', 'Vincule ao menos uma imobiliária ou um corretor');
     }
     // Convidado sem e-mail nem telefone não serve para o follow-up, que é o motivo de a lista
@@ -821,7 +835,34 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                   lista em vez de substituir, e o primeiro item vira o vínculo principal — é ele
                   que aparece nas listagens, no log e nas notificações. */}
               <div ref={fieldRef('vinculos')} className="sm:col-span-2">
-                <FormLabel required>Vincular a</FormLabel>
+                <FormLabel required={!form.semVinculo}>Vincular a</FormLabel>
+
+                {/* Vem ANTES do seletor de propósito: é a decisão que desliga tudo o que está
+                    abaixo, e embaixo ela pareceria uma observação sobre o que já foi escolhido. */}
+                <label className="flex items-start gap-2 mb-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 w-4 h-4 flex-shrink-0 accent-[#d55006]"
+                    checked={form.semVinculo}
+                    onChange={(ev) => {
+                      const marcado = ev.target.checked;
+                      // Marcar LIMPA os vínculos já escolhidos: deixá-los guardados sem aparecer
+                      // na tela faria a ação ser salva com um parceiro que ninguém vê.
+                      setForm((f) => ({ ...f, semVinculo: marcado, vinculos: marcado ? [] : f.vinculos }));
+                      clearError('vinculos');
+                      setBuscaVinculo('');
+                    }}
+                  />
+                  <span className="text-sm text-gray-700 leading-snug">
+                    Ação da PHACZ, sem parceiro específico
+                    <span className="block text-xs text-gray-400">
+                      Café da manhã, evento aberto, ação institucional — não há imobiliária nem corretor de quem a ação seja.
+                    </span>
+                  </span>
+                </label>
+
+                {!form.semVinculo && (
+                <>
                 <div className="flex items-center gap-2 mb-2">
                   {([
                     { v: 'imobiliaria' as const, label: 'Imobiliária' },
@@ -934,6 +975,8 @@ export function RodadaFormModal({ rodada, dataInicial, onClose, onSaved }: Rodad
                     {form.vinculos.length} parceiros vinculados. O primeiro é o principal — é ele que
                     aparece nas listagens e nos avisos.
                   </p>
+                )}
+                </>
                 )}
               </div>
               <div>

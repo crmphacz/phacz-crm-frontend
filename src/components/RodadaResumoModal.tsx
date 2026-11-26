@@ -1,6 +1,7 @@
 import { X, CalendarDays, MapPin, Building2, UserRound, Package } from 'lucide-react';
 import { formatDateKeyBR } from '../utils';
 import type { RodadaResumo } from '../types';
+import { parceiroDaRodada } from '../lib/tiposDeAcaoRodada';
 
 /**
  * Modal de consulta para perfis sem acesso ao formulário completo da rodada (Administrativo,
@@ -52,7 +53,7 @@ export function RodadaResumoModal({ rodada, onClose }: { rodada: RodadaResumo; o
             {rodada.responsavelImobiliaria || 'Não informado'}
           </InfoRow>
           <InfoRow icon={<Building2 size={14} />} label="Imobiliária">
-            {rodada.imobiliaria}
+            {parceiroDaRodada(rodada)}
           </InfoRow>
           <InfoRow icon={<MapPin size={14} />} label="Cidade/local">
             {rodada.cidade}{rodada.uf ? ` - ${rodada.uf}` : ''}

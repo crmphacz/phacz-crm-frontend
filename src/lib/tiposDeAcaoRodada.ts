@@ -44,3 +44,14 @@ const POR_VALOR = new Map(TIPOS_DE_ACAO_RODADA.map((t) => [t.value, t]));
 export function tipoDeAcaoRodada(tipo: TipoAcaoRodada): TipoAcaoConfig {
   return POR_VALOR.get(tipo) ?? POR_VALOR.get('outro')!;
 }
+
+/**
+ * Como o parceiro da rodada aparece na tela.
+ *
+ * Uma ação da PHACZ sem parceiro específico — café da manhã, evento aberto, ação
+ * institucional — fica gravada sem nenhum vínculo, e o nome vem em branco. Mostrar o branco
+ * deixaria a linha parecendo cadastro incompleto; dizer que não há parceiro é informação.
+ */
+export function parceiroDaRodada(r: { imobiliaria: string }): string {
+  return r.imobiliaria || 'Sem parceiro vinculado';
+}

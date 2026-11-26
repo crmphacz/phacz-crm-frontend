@@ -638,6 +638,15 @@ export type CreateRodadaPayload = Omit<
   'id' | 'criadoPorId' | 'criadoPorNome' | 'criadoEm' | 'custoRodada' | 'empreendimentos' | 'statusAprovacao' | 'motivoRecusa' | 'aprovadoPorNome' | 'aprovadoEm' | 'motivoCancelamento' | 'canceladoPorNome' | 'canceladoEm'
 > & {
   empreendimentoIds: string[];
+  /**
+   * A ação não tem parceiro: é da PHACZ, sem imobiliária nem corretor específico.
+   *
+   * Só existe no envio. A rodada gravada sem parceiro é a que não tem nenhum vínculo — guardar
+   * também um booleano abriria espaço para os dois se contradizerem. É mandado explicitamente
+   * para o servidor distinguir "não tem parceiro" de "esqueceram de escolher", que ele continua
+   * recusando.
+   */
+  semVinculo?: boolean;
 };
 
 /**

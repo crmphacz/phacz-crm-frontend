@@ -16,7 +16,7 @@ import { ApiError } from '../api/client';
 import { formatCurrency, parseDateKeyLocal, formatDateKeyBR } from '../utils';
 import { canViewRodadas, canWriteRodadas, canViewFullRodada, canApproveRodada, canCancelRodada } from '../permissions';
 import { isRodadaCompleta, type Rodada, type RodadaResumo, type TipoAcaoRodada, type StatusAprovacaoRodada } from '../types';
-import { tipoDeAcaoRodada } from '../lib/tiposDeAcaoRodada';
+import { tipoDeAcaoRodada, parceiroDaRodada } from '../lib/tiposDeAcaoRodada';
 import { RodadaFormModal } from './RodadaFormModal';
 import { RodadaResumoModal } from './RodadaResumoModal';
 import { RodadaMotivoModal, type ModoMotivo } from './RodadaMotivoModal';
@@ -443,7 +443,7 @@ export function RodadasCalendarView() {
                   )}
                   <td className="px-4 py-3 text-gray-600">{r.cidade}</td>
                   <td className="px-4 py-3 text-gray-600">
-                    {r.imobiliaria}
+                    {parceiroDaRodada(r)}
                     {/* A coluna mostra o vínculo principal; o "+N" avisa que há mais, sem
                         empilhar nomes e estourar a largura da linha. */}
                     {isRodadaCompleta(r) && r.vinculos.length > 1 && (
@@ -519,7 +519,7 @@ export function RodadasCalendarView() {
                           nas já aprovadas, que é justamente onde os botões acima não aparecem. */}
                       {canApprove && isRodadaCompleta(r) && (
                         <button
-                          onClick={(ev) => { ev.stopPropagation(); setStatusModal({ id: r.id, status, descricao: `${r.imobiliaria} · ${formatDateKeyBR(r.dataInicio)}` }); }}
+                          onClick={(ev) => { ev.stopPropagation(); setStatusModal({ id: r.id, status, descricao: `${parceiroDaRodada(r)} · ${formatDateKeyBR(r.dataInicio)}` }); }}
                           className="w-7 h-7 rounded flex items-center justify-center text-gray-500 hover:bg-gray-100"
                           title="Mudar situação"
                         >
@@ -605,7 +605,7 @@ export function RodadasCalendarView() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                         <User size={13} style={{ color: '#d55006' }} />
-                        {isRodadaCompleta(r) ? tipoDeAcaoRodada(r.tipoAcao).label : r.responsavelImobiliaria || 'Rodada'} — {r.imobiliaria}
+                        {isRodadaCompleta(r) ? tipoDeAcaoRodada(r.tipoAcao).label : r.responsavelImobiliaria || 'Rodada'} — {parceiroDaRodada(r)}
                       </p>
                       <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
                         <MapPin size={12} /> {r.cidade}{r.uf ? ` - ${r.uf}` : ''}
